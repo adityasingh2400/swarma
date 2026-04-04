@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp -Rf ~/.claude/skills/gstack .claude/skills/gstack)",
+      "Bash(rm -rf .claude/skills/gstack/.git)",
+      "Bash(./setup)",
+      "Bash(mkdir -p .claude/skills)",
+      "Bash(ls .claude/skills/gstack/*.md)",
+      "Bash(ls .claude/skills/gstack/*.skill.*)"
+    ]
+  }
+}
