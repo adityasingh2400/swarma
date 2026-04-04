@@ -44,11 +44,19 @@ def _make_llm():
     if settings.use_chat_browser_use:
         from browser_use import ChatBrowserUse
         return ChatBrowserUse()
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        google_api_key=settings.gemini_api_key,
-    )
+    # Default: use google-genai directly via langchain wrapper
+    # Browser-Use needs an LLM with a .provider attribute — use their ChatBrowserUse
+    # or an OpenAI-compatible model. Gemini via langchain is NOT compatible.
+    # Fallback to ChatBrowserUse if gemini doesn't work.
+    try:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            google_api_key=settings.gemini_api_key,
+        )
+    except Exception:
+        from browser_use import ChatBrowserUse
+        return ChatBrowserUse()
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +71,6 @@ class Orchestrator:
 
         # Exposed for Person 3
         self.agents: dict[str, Agent] = {}
-        self.browsers: dict[str, Browser] = {}
         self.agent_states: dict[str, AgentState] = {}
 
         # Auth profiles
@@ -71,9 +78,10 @@ class Orchestrator:
 
     # --- Interface for Person 3 ---
 
-    def get_browser(self, agent_id: str) -> Browser | None:
-        """Returns the Browser instance for a running agent, or None."""
-        return self.browsers.get(agent_id)
+    def get_agent_instance(self, agent_id: str) -> Agent | None:
+        """Returns the Agent instance for a running agent, or None.
+        Person 3 can access the agent's browser via agent.browser."""
+        return self.agents.get(agent_id)
 
     def get_active_agents(self) -> list[AgentState]:
         """Returns current state of all agents for REST endpoint."""
@@ -81,16 +89,13 @@ class Orchestrator:
 
     # --- Internal helpers ---
 
-    def _make_browser(self, platform: str) -> Browser:
+    def _make_profile(self, platform: str) -> BrowserProfile:
         storage = self.profiles.get(platform)
-        profile = BrowserProfile(
+        return BrowserProfile(
             storage_state=storage,
             minimum_wait_page_load_time=0.1,
             wait_between_actions=0.1,
         )
-        if settings.use_cloud:
-            return Browser(profile, use_cloud=True)
-        return Browser(profile)
 
     def _emit(self, event: AgentEvent) -> None:
         self.events.put_nowait(event)
@@ -133,14 +138,13 @@ class Orchestrator:
             else:
                 task_str = playbook.listing_task(item, item.listing_package)
 
-            browser = self._make_browser(playbook.platform)
-            self.browsers[agent_id] = browser
+            profile = self._make_profile(playbook.platform)
 
             try:
                 agent = Agent(
                     task=task_str,
                     llm=_make_llm(),
-                    browser=browser,
+                    browser_profile=profile,
                     flash_mode=True,
                     max_actions_per_step=3,
                     max_steps=50,
@@ -178,25 +182,16 @@ class Orchestrator:
                     type="agent:status", agent_id=agent_id,
                     data={"status": "retrying", "error": str(first_err)},
                 ))
-
-                # Clean up failed browser
-                try:
-                    await browser.close()
-                except Exception:
-                    pass
-                self.browsers.pop(agent_id, None)
                 self.agents.pop(agent_id, None)
 
-                # Retry with fresh browser + agent
+                # Retry with fresh agent
                 await asyncio.sleep(3)
-                retry_browser = self._make_browser(playbook.platform)
-                self.browsers[agent_id] = retry_browser
 
                 try:
                     retry_agent = Agent(
                         task=task_str,
                         llm=_make_llm(),
-                        browser=retry_browser,
+                        browser_profile=profile,
                         flash_mode=True,
                         max_actions_per_step=3,
                         max_steps=50,
@@ -224,22 +219,10 @@ class Orchestrator:
                     raise
 
                 finally:
-                    try:
-                        await retry_browser.close()
-                    except Exception:
-                        pass
-                    self.browsers.pop(agent_id, None)
                     self.agents.pop(agent_id, None)
 
             finally:
-                # Clean up primary browser (if not already cleaned in retry path)
-                if agent_id in self.browsers and self.browsers[agent_id] is browser:
-                    try:
-                        await browser.close()
-                    except Exception:
-                        pass
-                    self.browsers.pop(agent_id, None)
-                    self.agents.pop(agent_id, None)
+                self.agents.pop(agent_id, None)
 
     # --- Pipeline ---
 
