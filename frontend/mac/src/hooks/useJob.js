@@ -17,6 +17,26 @@ function aggregateAgents(raw) {
   return result;
 }
 
+const AGENT_PLATFORM_MAP = {
+  intake: 'analysis',
+  condition_fusion: 'analysis',
+  marketplace_resale: 'ebay',
+  trade_in: 'trade-in',
+  repair_roi: 'repair',
+  return: 'return',
+  route_decider: 'decision',
+};
+
+const AGENT_PHASE_MAP = {
+  intake: 'research',
+  condition_fusion: 'research',
+  marketplace_resale: 'research',
+  trade_in: 'research',
+  repair_roi: 'research',
+  return: 'research',
+  route_decider: 'listing',
+};
+
 const MOCK_PLATFORMS = ['ebay', 'facebook', 'mercari', 'depop'];
 const MOCK_STATUSES = ['queued', 'running', 'navigating', 'filling', 'complete', 'error'];
 
@@ -213,45 +233,94 @@ export function useJob(jobId) {
         case 'pipeline:update':
           break;
 
-        case 'agent_started':
-          setAgentsRaw((prev) => {
-            const itemId = data.item_id || '_global';
-            return {
-              ...prev,
-              [data.agent]: {
-                ...prev[data.agent],
-                [itemId]: { status: 'thinking', message: data.message, progress: 0, item_id: data.item_id },
-              },
-            };
-          });
+        case 'agent_started': {
+          const itemId = data.item_id || '_global';
+          setAgentsRaw((prev) => ({
+            ...prev,
+            [data.agent]: {
+              ...prev[data.agent],
+              [itemId]: { status: 'thinking', message: data.message, progress: 0, item_id: data.item_id },
+            },
+          }));
+          const v1Key = data.item_id ? `${data.agent}-${data.item_id}` : data.agent;
+          setV2Agents((prev) => ({
+            ...prev,
+            [v1Key]: {
+              agent_id: v1Key,
+              platform: AGENT_PLATFORM_MAP[data.agent] || data.agent,
+              phase: AGENT_PHASE_MAP[data.agent] || 'research',
+              status: 'running',
+              task: data.message || `${data.agent} working...`,
+              item_id: data.item_id,
+              item_name: data.item_name,
+              started_at: Date.now() / 1000,
+              completed_at: null,
+              result: null,
+              error: null,
+            },
+          }));
           break;
+        }
 
-        case 'agent_completed':
+        case 'agent_progress': {
+          const pItemId = data.item_id || '_global';
           setAgentsRaw((prev) => {
-            const itemId = data.item_id || '_global';
-            const existing = prev[data.agent]?.[itemId] || {};
+            const existing = prev[data.agent]?.[pItemId] || {};
             return {
               ...prev,
               [data.agent]: {
                 ...prev[data.agent],
-                [itemId]: { ...existing, status: 'done', message: data.message },
+                [pItemId]: { ...existing, message: data.message, progress: data.progress },
               },
             };
           });
+          const pKey = data.item_id ? `${data.agent}-${data.item_id}` : data.agent;
+          setV2Agents((prev) => {
+            const ex = prev[pKey];
+            if (!ex) return prev;
+            return { ...prev, [pKey]: { ...ex, status: 'navigating', task: data.message || ex.task } };
+          });
           break;
+        }
 
-        case 'agent_error':
+        case 'agent_completed': {
+          const cItemId = data.item_id || '_global';
           setAgentsRaw((prev) => {
-            const itemId = data.item_id || '_global';
+            const existing = prev[data.agent]?.[cItemId] || {};
             return {
               ...prev,
               [data.agent]: {
                 ...prev[data.agent],
-                [itemId]: { status: 'error', message: data.error || data.message },
+                [cItemId]: { ...existing, status: 'done', message: data.message },
               },
             };
           });
+          const cKey = data.item_id ? `${data.agent}-${data.item_id}` : data.agent;
+          setV2Agents((prev) => {
+            const ex = prev[cKey];
+            if (!ex) return prev;
+            return { ...prev, [cKey]: { ...ex, status: 'complete', completed_at: Date.now() / 1000, task: data.message || ex.task } };
+          });
           break;
+        }
+
+        case 'agent_error': {
+          const eItemId = data.item_id || '_global';
+          setAgentsRaw((prev) => ({
+            ...prev,
+            [data.agent]: {
+              ...prev[data.agent],
+              [eItemId]: { status: 'error', message: data.error || data.message },
+            },
+          }));
+          const eKey = data.item_id ? `${data.agent}-${data.item_id}` : data.agent;
+          setV2Agents((prev) => {
+            const ex = prev[eKey];
+            if (!ex) return prev;
+            return { ...prev, [eKey]: { ...ex, status: 'error', error: data.error || data.message } };
+          });
+          break;
+        }
       }
     });
   }, [subscribe]);
