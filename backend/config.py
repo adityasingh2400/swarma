@@ -59,6 +59,29 @@ class Settings(BaseSettings):
     # Agentverse
     agentverse_api_key: str = ""
 
+    # Browser-Use
+    browser_use_api_key: str = ""
+    max_concurrent_agents: int = 12
+    context_pool_size: int = 12
+
+    # Screenshot streaming
+    screenshot_capture_fps: float = 2.0
+    screenshot_grid_quality: int = 60
+    screenshot_grid_width: int = 320
+    screenshot_grid_height: int = 240
+    screenshot_focus_quality: int = 80
+    screenshot_focus_width: int = 1280
+    screenshot_focus_height: int = 960
+    screenshot_grid_delivery_fps: float = 1.0
+    screenshot_focus_delivery_fps: float = 3.0
+
+    # Intake
+    intake_batch_size: int = 5
+    intake_ffmpeg_fps: float = 1.0
+    intake_min_frames_required: int = 3
+    gemini_detection_model: str = "gemini-2.5-flash-lite-preview-06-17"
+    gemini_detail_model: str = "gemini-2.5-flash-preview-05-20"
+
     # Feature Flags
     enable_facebook_adapter: bool = False
     enable_depop_adapter: bool = False
