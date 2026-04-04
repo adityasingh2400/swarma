@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Environment
+.env
+
+# Runtime data
+data/uploads/*
+data/frames/*
+data/optimized/*
+data/jobs/*
+!data/uploads/.gitkeep
+!data/frames/.gitkeep
+!data/optimized/.gitkeep
+!data/jobs/.gitkeep
+
+# Node
+node_modules/
+dist/
+
+# Demo browser automation (sessions + local overrides)
+demo-automation/.env
+demo-automation/auth/*.json
+!demo-automation/auth/.gitkeep
+demo-automation/demo-flow.local.js
+demo-automation/test-results/
+demo-automation/playwright-report/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ONNX models (rembg downloads)
+.u2net/
+.gstack/
+
+
+# Test artifacts
+test.MOV
+*.MOV
+
+# Agent tooling (local workspace config)
+.agents/
+.claude/
+CLAUDE.md

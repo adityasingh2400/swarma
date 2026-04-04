@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>ReRoute</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--surface:#111118;--surface2:#1a1a24;
+  --accent:#6c5ce7;--accent-glow:#7c6cf7;
+  --red:#ff3b5c;--red-glow:#ff5577;
+  --green:#00d68f;--green-dim:#00b377;
+  --text:#e8e8f0;--text-dim:#6e6e82;--text-muted:#3a3a4a;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+html,body{
+  height:100%;width:100%;overflow:hidden;
+  background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+  -webkit-user-select:none;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+body{height:100dvh}
+
+.screen{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);
+  opacity:0;pointer-events:none;
+  transition:opacity .35s ease,transform .35s ease;
+  transform:translateX(30px);
+  will-change:opacity,transform;
+}
+.screen.active{opacity:1;pointer-events:all;transform:translateX(0)}
+.screen.exit-left{transform:translateX(-30px)}
+
+/* ── Top bar ── */
+.top-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px 8px;position:relative;z-index:10;
+}
+.connection-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--text-muted);transition:background .3s;
+}
+.connection-dot.ok{background:var(--green)}
+.connection-dot.fail{background:var(--red)}
+.settings-btn{
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;cursor:pointer;border-radius:50%;
+  transition:background .2s;
+}
+.settings-btn:active{background:var(--surface2)}
+.settings-btn svg{width:20px;height:20px;fill:var(--text-dim)}
+
+/* ── Home ── */
+#home{justify-content:center;align-items:center;gap:32px}
+.logo{font-size:42px;font-weight:800;letter-spacing:-1.5px}
+.logo span{color:var(--accent)}
+.tagline{color:var(--text-dim);font-size:14px;margin-top:-20px}
+.start-btn{
+  width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,var(--accent-glow),var(--accent));
+  border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:700;color:#fff;
+  box-shadow:0 0 60px rgba(108,92,231,.3),0 4px 20px rgba(0,0,0,.4);
+  transition:transform .15s ease,box-shadow .15s ease;
+  position:relative;
+}
+.start-btn:active{transform:scale(.93);box-shadow:0 0 30px rgba(108,92,231,.2),0 2px 10px rgba(0,0,0,.3)}
+.start-btn::after{
+  content:'';position:absolute;inset:-8px;border-radius:50%;
+  border:2px solid rgba(108,92,231,.2);
+  animation:pulse-ring 2.5s ease-out infinite;
+}
+@keyframes pulse-ring{
+  0%{transform:scale(1);opacity:.6}
+  100%{transform:scale(1.25);opacity:0}
+}
+
+/* ── Capture ── */
+#capture{background:#000}
+.viewfinder{
+  position:absolute;inset:0;overflow:hidden;
+}
+.viewfinder video{
+  width:100%;height:100%;object-fit:cover;
+  transform:scaleX(1);
+}
+.capture-ui{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  justify-content:space-between;z-index:5;
+  padding:var(--safe-top) 20px calc(var(--safe-bottom) + 24px);
+}
+.capture-top{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 0 0;
+}
+.back-btn{
+  width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border:none;border-radius:50%;cursor:pointer;
+}
+.back-btn svg{width:22px;height:22px;fill:#fff}
+.timer{
+  font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;
+  color:#fff;background:rgba(255,59,92,.7);
+  padding:6px 16px;border-radius:20px;
+  opacity:0;transition:opacity .25s;
+}
+.timer.visible{opacity:1}
+
+.guidance{
+  position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  text-align:center;pointer-events:none;
+}
+.guidance-tip{
+  font-size:17px;font-weight:600;color:rgba(255,255,255,.85);
+  text-shadow:0 1px 8px rgba(0,0,0,.6);
+  opacity:0;position:absolute;width:100%;
+  transition:opacity .6s ease;
+}
+.guidance-tip.active{opacity:1;animation:tip-pulse 2.5s ease-in-out infinite}
+@keyframes tip-pulse{
+  0%,100%{opacity:.7;transform:scale(1)}
+  50%{opacity:1;transform:scale(1.03)}
+}
+
+.capture-bottom{display:flex;align-items:center;justify-content:center;gap:40px}
+.rec-btn{
+  width:76px;height:76px;border-radius:50%;
+  border:4px solid rgba(255,255,255,.8);
+  background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .2s;position:relative;
+}
+.rec-btn:active{border-color:rgba(255,255,255,.5)}
+.rec-inner{
+  width:56px;height:56px;border-radius:50%;
+  background:var(--red);
+  transition:border-radius .25s ease,width .25s ease,height .25s ease;
+}
+.rec-btn.recording .rec-inner{
+  width:28px;height:28px;border-radius:6px;
+}
+
+/* ── Review ── */
+#review{background:var(--bg)}
+.review-content{
+  flex:1;display:flex;flex-direction:column;
+  padding:16px 20px;gap:16px;
+  touch-action:pan-x;
+}
+.preview-wrap{
+  flex:1;border-radius:16px;overflow:hidden;background:#000;
+  position:relative;min-height:0;
+  transition:transform .3s ease,opacity .3s ease;
+  will-change:transform;
+}
+.preview-wrap video{width:100%;height:100%;object-fit:contain}
+.preview-overlay{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:16px 20px;
+  background:linear-gradient(transparent,rgba(0,0,0,.7));
+  display:flex;align-items:center;justify-content:space-between;
+}
+.item-count{font-size:14px;color:var(--text-dim)}
+.retake-btn{
+  padding:10px 20px;border-radius:20px;
+  background:var(--surface2);border:none;
+  color:var(--text);font-size:14px;font-weight:600;cursor:pointer;
+  transition:background .15s;min-height:44px;
+}
+.retake-btn:active{background:var(--text-muted)}
+
+.swipe-hint{
+  text-align:center;padding:12px 0 8px;
+  color:var(--text-dim);font-size:14px;font-weight:500;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.swipe-arrow{
+  animation:swipe-bounce 1.8s ease-in-out infinite;
+}
+@keyframes swipe-bounce{
+  0%,100%{transform:translateY(0);opacity:.5}
+  50%{transform:translateY(-10px);opacity:1}
+}
+
+.upload-bar-wrap{
+  height:4px;border-radius:2px;background:var(--surface2);
+  overflow:hidden;opacity:0;transition:opacity .25s;
+}
+.upload-bar-wrap.visible{opacity:1}
+.upload-bar{
+  height:100%;width:0;background:var(--accent);border-radius:2px;
+  transition:width .15s linear;
+}
+
+.sent-overlay{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  background:rgba(10,10,15,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  opacity:0;pointer-events:none;transition:opacity .35s;z-index:20;
+}
+.sent-overlay.visible{opacity:1;pointer-events:all}
+.sent-check{
+  width:72px;height:72px;border-radius:50%;
+  background:var(--green);
+  display:flex;align-items:center;justify-content:center;
+  animation:pop-in .4s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes pop-in{0%{transform:scale(0)}100%{transform:scale(1)}}
+.sent-check svg{width:36px;height:36px;fill:#fff}
+.sent-text{font-size:22px;font-weight:700}
+.sent-sub{color:var(--text-dim);font-size:14px}
+.done-btn{
+  margin-top:16px;padding:14px 48px;border-radius:28px;
+  background:var(--accent);border:none;color:#fff;
+  font-size:16px;font-weight:700;cursor:pointer;
+  transition:transform .1s;min-height:48px;
+}
+.done-btn:active{transform:scale(.95)}
+
+/* ── Settings Modal ── */
+.modal-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal{
+  position:absolute;bottom:0;left:0;right:0;
+  background:var(--surface);border-radius:20px 20px 0 0;
+  padding:24px 24px calc(var(--safe-bottom) + 24px);
+  transform:translateY(100%);transition:transform .35s cubic-bezier(.32,.72,0,1);
+}
+.modal-bg.open .modal{transform:translateY(0)}
+.modal h3{font-size:18px;font-weight:700;margin-bottom:16px}
+.modal label{font-size:13px;color:var(--text-dim);display:block;margin-bottom:6px}
+.modal input{
+  width:100%;padding:14px 16px;border-radius:12px;
+  background:var(--surface2);border:1px solid var(--text-muted);
+  color:var(--text);font-size:16px;outline:none;
+  transition:border-color .2s;
+}
+.modal input:focus{border-color:var(--accent)}
+.modal-actions{display:flex;gap:12px;margin-top:20px}
+.modal-actions button{
+  flex:1;padding:14px;border-radius:12px;border:none;
+  font-size:15px;font-weight:600;cursor:pointer;min-height:48px;
+}
+.btn-cancel{background:var(--surface2);color:var(--text)}
+.btn-save{background:var(--accent);color:#fff}
+
+/* ── Error Toast ── */
+.toast{
+  position:fixed;top:calc(var(--safe-top) + 16px);left:16px;right:16px;
+  background:var(--surface);border:1px solid var(--red);border-radius:14px;
+  padding:14px 18px;z-index:200;
+  display:flex;align-items:center;gap:12px;
+  transform:translateY(-120%);transition:transform .35s cubic-bezier(.32,.72,0,1);
+}
+.toast.show{transform:translateY(0)}
+.toast-text{flex:1;font-size:14px}
+.toast-retry{
+  padding:8px 16px;border-radius:8px;
+  background:var(--red);border:none;color:#fff;
+  font-size:13px;font-weight:600;cursor:pointer;min-height:36px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Home ── -->
+<div id="home" class="screen active">
+  <div class="top-bar" style="position:absolute;top:0;left:0;right:0;padding-top:calc(var(--safe-top) + 12px)">
+    <div class="connection-dot" id="connDot" title="Connection status"></div>
+    <button class="settings-btn" id="settingsOpen" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94c0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.04 7.04 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.37 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+    </button>
+  </div>
+  <div class="logo">Re<span>Route</span></div>
+  <button class="start-btn" id="startBtn">Start Capture</button>
+  <p class="tagline">Record once. We handle the rest.</p>
+</div>
+
+<!-- ── Capture ── -->
+<div id="capture" class="screen">
+  <div class="viewfinder">
+    <video id="camVideo" autoplay playsinline muted></video>
+  </div>
+  <div class="capture-ui">
+    <div class="capture-top">
+      <button class="back-btn" id="captureBack" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+      </button>
+      <div class="timer" id="timer">0:00</div>
+    </div>
+    <div class="guidance" id="guidance"></div>
+    <div class="capture-bottom">
+      <button class="rec-btn" id="recBtn" aria-label="Record">
+        <div class="rec-inner"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Review ── -->
+<div id="review" class="screen">
+  <div class="top-bar">
+    <div style="font-size:17px;font-weight:700">Review</div>
+    <div class="connection-dot" id="connDot2"></div>
+  </div>
+  <div class="review-content" id="reviewContent">
+    <div class="preview-wrap" id="previewWrap">
+      <video id="previewVideo" controls playsinline></video>
+      <div class="preview-overlay">
+        <span class="item-count" id="itemCount">Ready to send</span>
+        <button class="retake-btn" id="retakeBtn">Retake</button>
+      </div>
+    </div>
+    <div class="upload-bar-wrap" id="uploadBarWrap">
+      <div class="upload-bar" id="uploadBar"></div>
+    </div>
+    <div class="swipe-hint" id="swipeHint">
+      <svg class="swipe-arrow" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+      Swipe up to send
+    </div>
+  </div>
+  <div class="sent-overlay" id="sentOverlay">
+    <div class="sent-check">
+      <svg viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+    </div>
+    <div class="sent-text">Sent to Mac!</div>
+    <div class="sent-sub">Processing will begin shortly</div>
+    <button class="done-btn" id="doneBtn">Record Another</button>
+  </div>
+</div>
+
+<!-- ── Settings Modal ── -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3>Connection</h3>
+    <label for="ipInput">Mac IP Address</label>
+    <input type="text" id="ipInput" inputmode="url" placeholder="192.168.1.100" autocomplete="off" autocorrect="off" spellcheck="false">
+    <div class="modal-actions">
+      <button class="btn-cancel" id="modalCancel">Cancel</button>
+      <button class="btn-save" id="modalSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast" id="toast">
+  <span class="toast-text" id="toastText">Upload failed</span>
+  <button class="toast-retry" id="toastRetry">Retry</button>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const screens = { home: $('home'), capture: $('capture'), review: $('review') };
+  let currentScreen = 'home';
+
+  function showScreen(name) {
+    const prev = screens[currentScreen];
+    const next = screens[name];
+    if (prev === next) return;
+    prev.classList.remove('active');
+    prev.classList.add('exit-left');
+    next.classList.add('active');
+    setTimeout(() => prev.classList.remove('exit-left'), 350);
+    currentScreen = name;
+  }
+
+  // ── MAC IP ──
+  let macIP = localStorage.getItem('reroute_mac_ip') || location.hostname || '192.168.1.1';
+  const connDots = [$('connDot'), $('connDot2')];
+
+  function setMacIP(ip) {
+    macIP = ip.trim();
+    localStorage.setItem('reroute_mac_ip', macIP);
+    checkConnection();
+  }
+
+  let connOk = false;
+  async function checkConnection() {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 3000);
+      await fetch(`http://${macIP}:8080/api/health`, { signal: ctrl.signal, mode: 'no-cors' });
+      clearTimeout(tid);
+      connOk = true;
+    } catch (e) {
+      connOk = false;
+    }
+    connDots.forEach(d => {
+      d.classList.toggle('ok', connOk);
+      d.classList.toggle('fail', !connOk);
+    });
+  }
+  checkConnection();
+  setInterval(checkConnection, 10000);
+
+  // ── Settings modal ──
+  $('settingsOpen').onclick = () => {
+    $('ipInput').value = macIP;
+    $('modalBg').classList.add('open');
+  };
+  $('modalCancel').onclick = () => $('modalBg').classList.remove('open');
+  $('modalSave').onclick = () => {
+    const v = $('ipInput').value;
+    if (v) setMacIP(v);
+    $('modalBg').classList.remove('open');
+  };
+  $('modalBg').addEventListener('click', e => {
+    if (e.target === $('modalBg')) $('modalBg').classList.remove('open');
+  });
+
+  // ── Camera ──
+  let stream = null;
+  let mediaRecorder = null;
+  let chunks = [];
+  let recordedBlob = null;
+  let recording = false;
+  let timerInterval = null;
+  let seconds = 0;
+
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } },
+        audio: true
+      });
+      $('camVideo').srcObject = stream;
+    } catch (err) {
+      showToast('Camera access denied. Check permissions.', false);
+      showScreen('home');
+    }
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    $('camVideo').srcObject = null;
+  }
+
+  // ── Guidance tips ──
+  const tips = [
+    'Show one item at a time',
+    'Rotate it slowly',
+    'Say the item name',
+    'Mention any defects',
+    'Show labels and accessories'
+  ];
+  let tipIndex = 0;
+  let tipInterval = null;
+
+  function initGuidance() {
+    const g = $('guidance');
+    g.innerHTML = '';
+    tips.forEach((t, i) => {
+      const el = document.createElement('div');
+      el.className = 'guidance-tip' + (i === 0 ? ' active' : '');
+      el.textContent = t;
+      g.appendChild(el);
+    });
+    tipIndex = 0;
+    tipInterval = setInterval(cycleTip, 3000);
+  }
+
+  function cycleTip() {
+    const els = $('guidance').children;
+    if (!els.length) return;
+    els[tipIndex].classList.remove('active');
+    tipIndex = (tipIndex + 1) % tips.length;
+    els[tipIndex].classList.add('active');
+  }
+
+  function stopGuidance() {
+    clearInterval(tipInterval);
+    tipInterval = null;
+  }
+
+  // ── Recording ──
+  function startRecording() {
+    if (!stream) return;
+    chunks = [];
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
+      : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
+        : 'video/webm';
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      recordedBlob = new Blob(chunks, { type: mimeType });
+      goToReview();
+    };
+    mediaRecorder.start(1000);
+    recording = true;
+    seconds = 0;
+    updateTimer();
+    timerInterval = setInterval(() => { seconds++; updateTimer(); }, 1000);
+    $('timer').classList.add('visible');
+    $('recBtn').classList.add('recording');
+    if (navigator.vibrate) navigator.vibrate(50);
+  }
+
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    recording = false;
+    clearInterval(timerInterval);
+    $('recBtn').classList.remove('recording');
+    if (navigator.vibrate) navigator.vibrate([30, 30, 30]);
+  }
+
+  function updateTimer() {
+    const m = Math.floor(seconds / 60);
+    const s = String(seconds % 60).padStart(2, '0');
+    $('timer').textContent = m + ':' + s;
+  }
+
+  // ── Navigation ──
+  $('startBtn').onclick = async () => {
+    showScreen('capture');
+    await startCamera();
+    initGuidance();
+  };
+
+  $('captureBack').onclick = () => {
+    if (recording) stopRecording();
+    stopCamera();
+    stopGuidance();
+    $('timer').classList.remove('visible');
+    showScreen('home');
+  };
+
+  $('recBtn').onclick = () => {
+    if (!recording) startRecording();
+    else stopRecording();
+  };
+
+  function goToReview() {
+    stopCamera();
+    stopGuidance();
+    $('timer').classList.remove('visible');
+    const url = URL.createObjectURL(recordedBlob);
+    $('previewVideo').src = url;
+    $('sentOverlay').classList.remove('visible');
+    $('uploadBarWrap').classList.remove('visible');
+    $('uploadBar').style.width = '0';
+    $('swipeHint').style.opacity = '1';
+    $('previewWrap').style.transform = '';
+    $('previewWrap').style.opacity = '';
+    showScreen('review');
+  }
+
+  $('retakeBtn').onclick = async () => {
+    showScreen('capture');
+    await startCamera();
+    initGuidance();
+  };
+
+  $('doneBtn').onclick = () => {
+    showScreen('home');
+  };
+
+  // ── Swipe to send ──
+  let touchStartY = 0;
+  let touchCurrentY = 0;
+  let swiping = false;
+  let uploading = false;
+
+  const reviewContent = $('reviewContent');
+  const previewWrap = $('previewWrap');
+  const SWIPE_THRESHOLD = 120;
+
+  reviewContent.addEventListener('touchstart', e => {
+    if (uploading) return;
+    touchStartY = e.touches[0].clientY;
+    swiping = true;
+    previewWrap.style.transition = 'none';
+  }, { passive: true });
+
+  reviewContent.addEventListener('touchmove', e => {
+    if (!swiping || uploading) return;
+    touchCurrentY = e.touches[0].clientY;
+    let dy = touchStartY - touchCurrentY;
+    if (dy < 0) dy = 0;
+    const capped = Math.min(dy, 300);
+    previewWrap.style.transform = `translateY(${-capped}px)`;
+    previewWrap.style.opacity = String(1 - capped / 500);
+  }, { passive: true });
+
+  reviewContent.addEventListener('touchend', () => {
+    if (!swiping || uploading) return;
+    swiping = false;
+    previewWrap.style.transition = '';
+    const dy = touchStartY - touchCurrentY;
+    if (dy >= SWIPE_THRESHOLD) {
+      previewWrap.style.transform = 'translateY(-110%)';
+      previewWrap.style.opacity = '0';
+      if (navigator.vibrate) navigator.vibrate(40);
+      uploadVideo();
+    } else {
+      previewWrap.style.transform = '';
+      previewWrap.style.opacity = '';
+    }
+  }, { passive: true });
+
+  // ── Upload ──
+  let lastBlob = null;
+
+  async function uploadVideo() {
+    uploading = true;
+    lastBlob = recordedBlob;
+    $('swipeHint').style.opacity = '0';
+    $('uploadBarWrap').classList.add('visible');
+    $('uploadBar').style.width = '0';
+
+    try {
+      const form = new FormData();
+      form.append('file', lastBlob, 'capture.webm');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `http://${macIP}:8080/api/upload`);
+
+      const done = new Promise((resolve, reject) => {
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) {
+            $('uploadBar').style.width = Math.round((e.loaded / e.total) * 100) + '%';
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.responseText);
+          else reject(new Error('Server returned ' + xhr.status));
+        };
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.ontimeout = () => reject(new Error('Timeout'));
+      });
+
+      xhr.timeout = 120000;
+      xhr.send(form);
+      await done;
+
+      $('uploadBar').style.width = '100%';
+      if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+      setTimeout(() => $('sentOverlay').classList.add('visible'), 300);
+    } catch (err) {
+      showToast('Upload failed — ' + err.message, true);
+      previewWrap.style.transform = '';
+      previewWrap.style.opacity = '';
+      $('swipeHint').style.opacity = '1';
+      $('uploadBarWrap').classList.remove('visible');
+    } finally {
+      uploading = false;
+    }
+  }
+
+  // ── Toast ──
+  let toastTimer = null;
+  function showToast(msg, retryable) {
+    $('toastText').textContent = msg;
+    $('toastRetry').style.display = retryable ? '' : 'none';
+    $('toast').classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $('toast').classList.remove('show'), 6000);
+  }
+
+  $('toastRetry').onclick = () => {
+    $('toast').classList.remove('show');
+    if (lastBlob) {
+      previewWrap.style.transform = 'translateY(-110%)';
+      previewWrap.style.opacity = '0';
+      uploadVideo();
+    }
+  };
+
+  $('toast').addEventListener('click', e => {
+    if (e.target === $('toast') || e.target === $('toastText')) {
+      $('toast').classList.remove('show');
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Marketplace Chat</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --fb-blue:#1877f2;--fb-bg:#fff;--fb-chat-bg:#f0f0f0;
+  --fb-text:#050505;--fb-secondary:#65676b;--fb-border:#e4e6eb;
+  --fb-msg-buyer:#e4e6eb;--fb-msg-seller:#1877f2;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:#fff;color:var(--fb-text);overflow:hidden}
+
+/* ── Item picker ───────────────── */
+.pick-screen{display:flex;flex-direction:column;height:100%}
+.pick-header{
+  padding:calc(var(--safe-top) + 12px) 16px 12px;
+  background:var(--fb-blue);color:#fff;
+}
+.pick-header h1{font-size:18px;font-weight:700}
+.pick-header p{font-size:12px;opacity:0.85;margin-top:2px}
+.pick-list{flex:1;overflow-y:auto;padding:8px}
+.pick-card{
+  display:flex;gap:12px;align-items:center;
+  padding:12px;border-radius:10px;border:1px solid var(--fb-border);
+  margin-bottom:8px;cursor:pointer;transition:background 0.15s;
+}
+.pick-card:active{background:#f0f2f5}
+.pick-img{
+  width:56px;height:56px;border-radius:8px;background:#f0f2f5;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;flex-shrink:0;
+}
+.pick-img img{width:100%;height:100%;object-fit:cover}
+.pick-info{flex:1;min-width:0}
+.pick-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick-price{font-size:14px;color:var(--fb-blue);font-weight:700;margin-top:2px}
+.pick-cond{font-size:12px;color:var(--fb-secondary)}
+.pick-empty{padding:40px 20px;text-align:center;color:var(--fb-secondary);font-size:14px}
+
+/* ── Chat screen ───────────────── */
+.chat-screen{display:flex;flex-direction:column;height:100%}
+.chat-header{
+  display:flex;align-items:center;gap:10px;
+  padding:calc(var(--safe-top) + 8px) 12px 8px;
+  background:#fff;border-bottom:1px solid var(--fb-border);
+  position:sticky;top:0;z-index:10;
+}
+.chat-back{
+  width:32px;height:32px;border-radius:50%;border:none;
+  background:none;font-size:20px;color:var(--fb-blue);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.chat-avatar{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--fb-blue);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:14px;flex-shrink:0;
+}
+.chat-seller-info{flex:1;min-width:0}
+.chat-seller-name{font-size:15px;font-weight:600}
+.chat-seller-status{font-size:11px;color:var(--fb-secondary)}
+
+/* Listing banner */
+.chat-listing{
+  display:flex;gap:10px;padding:10px 14px;
+  background:#f0f2f5;border-bottom:1px solid var(--fb-border);
+}
+.chat-listing-img{
+  width:48px;height:48px;border-radius:6px;background:#e4e6eb;
+  overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+}
+.chat-listing-img img{width:100%;height:100%;object-fit:cover}
+.chat-listing-info{flex:1}
+.chat-listing-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-listing-price{font-size:14px;font-weight:700;color:var(--fb-blue)}
+
+/* Messages */
+.chat-messages{
+  flex:1;overflow-y:auto;padding:12px 14px;
+  display:flex;flex-direction:column;gap:4px;
+  -webkit-overflow-scrolling:touch;
+}
+.msg{max-width:80%;padding:8px 12px;border-radius:18px;font-size:15px;line-height:1.35;word-wrap:break-word;animation:msg-in 0.2s ease}
+.msg-buyer{align-self:flex-end;background:var(--fb-msg-seller);color:#fff;border-bottom-right-radius:4px}
+.msg-seller{align-self:flex-start;background:var(--fb-msg-buyer);color:var(--fb-text);border-bottom-left-radius:4px}
+.msg-system{align-self:center;background:none;color:var(--fb-secondary);font-size:12px;font-style:italic;padding:4px 0}
+.msg-typing{align-self:flex-start;background:var(--fb-msg-buyer);color:var(--fb-secondary);border-bottom-left-radius:4px;font-style:italic;font-size:13px}
+@keyframes msg-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* Quick replies */
+.quick-replies{display:flex;gap:6px;padding:6px 14px;overflow-x:auto;flex-shrink:0}
+.quick-btn{
+  padding:6px 14px;border-radius:16px;border:1px solid var(--fb-blue);
+  background:#fff;color:var(--fb-blue);font-size:13px;font-weight:600;
+  white-space:nowrap;cursor:pointer;flex-shrink:0;
+}
+.quick-btn:active{background:var(--fb-blue);color:#fff}
+
+/* Input bar */
+.chat-input-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px calc(var(--safe-bottom) + 8px);
+  border-top:1px solid var(--fb-border);background:#fff;
+}
+.chat-input{
+  flex:1;padding:10px 14px;border-radius:20px;
+  border:1px solid var(--fb-border);font-size:15px;
+  outline:none;background:#f0f2f5;color:var(--fb-text);
+  -webkit-appearance:none;
+}
+.chat-input:focus{border-color:var(--fb-blue);background:#fff}
+.chat-send{
+  width:36px;height:36px;border-radius:50%;border:none;
+  background:var(--fb-blue);color:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;flex-shrink:0;
+}
+.chat-send:disabled{opacity:0.4}
+.chat-send:active{opacity:0.8}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const BASE = window.location.origin || '';
+let currentItem = null;
+let messages = [];
+let sending = false;
+
+// ── Render helpers ──
+function $(sel) { return document.querySelector(sel); }
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+    if (k === 'className') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2).toLowerCase(), v);
+    else el.setAttribute(k, v);
+  });
+  children.flat().forEach(c => {
+    if (typeof c === 'string') el.appendChild(document.createTextNode(c));
+    else if (c) el.appendChild(c);
+  });
+  return el;
+}
+
+// ── API ──
+async function fetchItems() {
+  const r = await fetch(`${BASE}/api/buyer-chat/items`);
+  return r.json();
+}
+async function fetchThread(itemId) {
+  const r = await fetch(`${BASE}/api/buyer-chat/${itemId}/thread`);
+  return r.json();
+}
+async function sendMessage(itemId, text, buyerName) {
+  const r = await fetch(`${BASE}/api/buyer-chat/${itemId}/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, buyer_name: buyerName }),
+  });
+  return r.json();
+}
+
+// ── Item Picker Screen ──
+async function showPicker() {
+  currentItem = null;
+  messages = [];
+  const items = await fetchItems();
+  const app = $('#app');
+  app.innerHTML = '';
+
+  const screen = h('div', { className: 'pick-screen' },
+    h('div', { className: 'pick-header' },
+      h('h1', null, 'Marketplace'),
+      h('p', null, 'Tap a listing to start chatting as a buyer'),
+    ),
+    h('div', { className: 'pick-list' },
+      items.length === 0
+        ? h('div', { className: 'pick-empty' }, 'No items yet — upload a video on the Mac dashboard first.')
+        : items.map(item =>
+            h('div', { className: 'pick-card', onClick: () => openChat(item) },
+              h('div', { className: 'pick-img' },
+                item.hero_image
+                  ? h('img', { src: item.hero_image, alt: '' })
+                  : document.createTextNode('📷')
+              ),
+              h('div', { className: 'pick-info' },
+                h('div', { className: 'pick-name' }, item.title || item.name),
+                h('div', { className: 'pick-price' }, item.price ? `$${item.price.toFixed(2)}` : 'Price TBD'),
+                h('div', { className: 'pick-cond' }, item.condition || ''),
+              ),
+            )
+          ),
+    ),
+  );
+  app.appendChild(screen);
+}
+
+// ── Chat Screen ──
+async function openChat(item) {
+  currentItem = item;
+  const thread = await fetchThread(item.item_id);
+  messages = (thread.messages || []).map(m => ({ sender: m.sender, text: m.text }));
+  renderChat();
+}
+
+function renderChat() {
+  const app = $('#app');
+  app.innerHTML = '';
+
+  const msgContainer = h('div', { className: 'chat-messages' });
+
+  const inputEl = h('input', {
+    className: 'chat-input',
+    placeholder: 'Message seller…',
+    type: 'text',
+    autocomplete: 'off',
+  });
+
+  const sendBtn = h('button', { className: 'chat-send', onClick: () => doSend(inputEl) }, '➤');
+
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') doSend(inputEl); });
+
+  const quickReplies = [
+    'Is this still available?',
+    'What condition is it in?',
+    'Would you take $' + Math.round((currentItem.price || 20) * 0.85) + '?',
+    'Can I pick up today?',
+  ];
+
+  const screen = h('div', { className: 'chat-screen' },
+    // Header
+    h('div', { className: 'chat-header' },
+      h('button', { className: 'chat-back', onClick: showPicker }, '‹'),
+      h('div', { className: 'chat-avatar' }, 'R'),
+      h('div', { className: 'chat-seller-info' },
+        h('div', { className: 'chat-seller-name' }, 'ReRoute Store'),
+        h('div', { className: 'chat-seller-status' }, 'Usually responds instantly'),
+      ),
+    ),
+    // Listing banner
+    h('div', { className: 'chat-listing' },
+      h('div', { className: 'chat-listing-img' },
+        currentItem.hero_image
+          ? h('img', { src: currentItem.hero_image, alt: '' })
+          : document.createTextNode('📷')
+      ),
+      h('div', { className: 'chat-listing-info' },
+        h('div', { className: 'chat-listing-title' }, currentItem.title || currentItem.name),
+        h('div', { className: 'chat-listing-price' }, currentItem.price ? `$${currentItem.price.toFixed(2)}` : ''),
+      ),
+    ),
+    // Messages
+    msgContainer,
+    // Quick replies
+    h('div', { className: 'quick-replies' },
+      ...quickReplies.map(q =>
+        h('button', { className: 'quick-btn', onClick: () => { inputEl.value = q; doSend(inputEl); } }, q)
+      )
+    ),
+    // Input
+    h('div', { className: 'chat-input-bar' }, inputEl, sendBtn),
+  );
+
+  app.appendChild(screen);
+  renderMessages(msgContainer);
+  setTimeout(() => inputEl.focus(), 100);
+}
+
+function renderMessages(container) {
+  container.innerHTML = '';
+  if (messages.length === 0) {
+    container.appendChild(
+      h('div', { className: 'msg msg-system' }, `You're chatting about: ${currentItem.title || currentItem.name}`)
+    );
+  }
+  messages.forEach(m => {
+    const cls = m.sender === 'buyer' ? 'msg-buyer'
+              : m.sender === 'system' ? 'msg-system'
+              : 'msg-seller';
+    container.appendChild(h('div', { className: `msg ${cls}` }, m.text));
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+async function doSend(inputEl) {
+  const text = inputEl.value.trim();
+  if (!text || sending) return;
+  sending = true;
+  inputEl.value = '';
+
+  messages.push({ sender: 'buyer', text });
+  const msgContainer = $('.chat-messages');
+  renderMessages(msgContainer);
+
+  // Show typing indicator
+  const typing = h('div', { className: 'msg msg-typing' }, 'ReRoute Store is typing…');
+  msgContainer.appendChild(typing);
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+
+  try {
+    const thread = await sendMessage(currentItem.item_id, text, 'Phone Buyer');
+    messages = (thread.messages || []).map(m => ({ sender: m.sender, text: m.text }));
+  } catch (err) {
+    messages.push({ sender: 'system', text: 'Failed to send. Try again.' });
+  }
+
+  if (typing.parentNode) typing.remove();
+  renderMessages(msgContainer);
+  sending = false;
+}
+
+// ── Boot ──
+showPicker();
+</script>
+</body>
+</html>

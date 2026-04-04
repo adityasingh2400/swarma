@@ -1,0 +1,19 @@
+{
+  "name": "reroute-demo-automation",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Playwright scripts for demo listing flows (eBay + Facebook Marketplace)",
+  "scripts": {
+    "auth:ebay": "node scripts/auth-save-ebay.mjs",
+    "auth:facebook": "node scripts/auth-save-facebook.mjs",
+    "demo:ebay": "playwright test ebay-listing --project=ebay",
+    "demo:facebook": "playwright test facebook-listing --project=facebook",
+    "codegen:ebay": "playwright codegen https://www.ebay.com",
+    "codegen:facebook": "playwright codegen https://www.facebook.com/marketplace/create/item"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "dotenv": "^16.4.7"
+  }
+}
