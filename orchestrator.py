@@ -1,9 +1,22 @@
 """Orchestrator — semaphore pool over Browser-Use Cloud agents.
 Manages agent lifecycle, concurrency, event emission, and retry.
-Person 3's server.py imports this and calls start_pipeline()."""
+Person 3's server.py imports this and calls start_pipeline().
+
+Speed optimizations:
+  - initial_actions: pre-navigate to target URL WITHOUT an LLM call
+  - use_vision=False: skip screenshots in LLM context (saves 0.8s/step)
+  - flash_mode=True: skip thinking/evaluation
+  - max_actions_per_step=4: batch more actions per LLM round-trip
+  - Task strings assume agent is ALREADY on the page (initial_actions handled nav)
+
+Visual feed:
+  - register_new_step_callback: fires after every step with screenshot + agent state
+  - Screenshots pushed as agent:screenshot events for Person 3 to stream via WebSocket
+"""
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import time
 
@@ -44,10 +57,6 @@ def _make_llm():
     if settings.use_chat_browser_use:
         from browser_use import ChatBrowserUse
         return ChatBrowserUse()
-    # Default: use google-genai directly via langchain wrapper
-    # Browser-Use needs an LLM with a .provider attribute — use their ChatBrowserUse
-    # or an OpenAI-compatible model. Gemini via langchain is NOT compatible.
-    # Fallback to ChatBrowserUse if gemini doesn't work.
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
         return ChatGoogleGenerativeAI(
@@ -79,8 +88,7 @@ class Orchestrator:
     # --- Interface for Person 3 ---
 
     def get_agent_instance(self, agent_id: str) -> Agent | None:
-        """Returns the Agent instance for a running agent, or None.
-        Person 3 can access the agent's browser via agent.browser."""
+        """Returns the Agent instance for a running agent, or None."""
         return self.agents.get(agent_id)
 
     def get_active_agents(self) -> list[AgentState]:
@@ -104,6 +112,69 @@ class Orchestrator:
         if agent_id in self.agent_states:
             for k, v in kwargs.items():
                 setattr(self.agent_states[agent_id], k, v)
+
+    def _make_step_callback(self, agent_id: str):
+        """Creates a per-step callback that emits screenshots + agent thoughts.
+        This is how Person 3/4 see what each agent is doing visually."""
+        def callback(state, model_output, step: int):
+            # Push screenshot as event (base64 JPEG)
+            screenshot = getattr(state, "screenshot", None)
+            if screenshot:
+                self._emit(AgentEvent(
+                    type="agent:screenshot",
+                    agent_id=agent_id,
+                    data={
+                        "step": step,
+                        "screenshot_b64": screenshot,  # base64 encoded
+                        "url": getattr(state, "url", ""),
+                    },
+                ))
+
+            # Push agent's current thinking as status update
+            thoughts = {}
+            if model_output and hasattr(model_output, "current_state"):
+                cs = model_output.current_state
+                thoughts = {
+                    "memory": getattr(cs, "memory", ""),
+                    "next_goal": getattr(cs, "next_goal", ""),
+                }
+            actions = []
+            if model_output and hasattr(model_output, "action"):
+                actions = [
+                    a.model_dump(exclude_unset=True)
+                    for a in model_output.action
+                ]
+
+            self._emit(AgentEvent(
+                type="agent:status",
+                agent_id=agent_id,
+                data={
+                    "status": "running",
+                    "step": step,
+                    "thoughts": thoughts,
+                    "actions": actions,
+                    "url": getattr(state, "url", ""),
+                },
+            ))
+
+        return callback
+
+    def _build_agent(self, agent_id: str, task_str: str, profile: BrowserProfile,
+                     initial_actions: list[dict] | None = None,
+                     use_vision: bool | str = False) -> Agent:
+        """Build an Agent with all speed + visual optimizations."""
+        agent = Agent(
+            task=task_str,
+            llm=_make_llm(),
+            browser_profile=profile,
+            flash_mode=True,
+            max_actions_per_step=4,
+            max_steps=30,  # research shouldn't need more than ~10 steps
+            use_vision=use_vision,
+            initial_actions=initial_actions,
+            register_new_step_callback=self._make_step_callback(agent_id),
+        )
+        return agent
 
     # --- Agent execution ---
 
@@ -132,29 +203,24 @@ class Orchestrator:
                       "item_id": item.item_id, "task": self.agent_states[agent_id].task},
             ))
 
-            # Build task string
+            # Build task string + initial_actions from playbook
             if phase == "research":
-                task_str = playbook.research_task(item)
+                task_str, initial_actions = playbook.research_task(item)
             else:
-                task_str = playbook.listing_task(item, item.listing_package)
+                task_str, initial_actions = playbook.listing_task(item, item.listing_package)
 
             profile = self._make_profile(playbook.platform)
 
+            # Listing phase needs vision (to see forms), research doesn't
+            use_vision: bool | str = "auto" if phase == "listing" else False
+
             try:
-                agent = Agent(
-                    task=task_str,
-                    llm=_make_llm(),
-                    browser_profile=profile,
-                    flash_mode=True,
-                    max_actions_per_step=3,
-                    max_steps=50,
+                agent = self._build_agent(
+                    agent_id, task_str, profile,
+                    initial_actions=initial_actions,
+                    use_vision=use_vision,
                 )
                 self.agents[agent_id] = agent
-
-                self._emit(AgentEvent(
-                    type="agent:status", agent_id=agent_id,
-                    data={"status": "running"},
-                ))
 
                 history = await agent.run()
 
@@ -184,17 +250,13 @@ class Orchestrator:
                 ))
                 self.agents.pop(agent_id, None)
 
-                # Retry with fresh agent
                 await asyncio.sleep(3)
 
                 try:
-                    retry_agent = Agent(
-                        task=task_str,
-                        llm=_make_llm(),
-                        browser_profile=profile,
-                        flash_mode=True,
-                        max_actions_per_step=3,
-                        max_steps=50,
+                    retry_agent = self._build_agent(
+                        agent_id, task_str, profile,
+                        initial_actions=initial_actions,
+                        use_vision=use_vision,
                     )
                     self.agents[agent_id] = retry_agent
 
@@ -252,7 +314,6 @@ class Orchestrator:
         for i, item in enumerate(items):
             item_results = all_results[i * num_playbooks: (i + 1) * num_playbooks]
 
-            # Parse research results via playbooks
             parsed: dict[str, dict] = {}
             for pb, result in zip(playbooks, item_results):
                 if isinstance(result, BaseException):
@@ -267,7 +328,6 @@ class Orchestrator:
                 logger.warning(f"No research results for item {item.item_id}, skipping listing")
                 continue
 
-            # Route decision — pure function, no browser, fast
             decision: RouteDecision = route_decision(item, parsed)
 
             self._emit(AgentEvent(
@@ -286,7 +346,6 @@ class Orchestrator:
                 f"(scores: {decision.scores})"
             )
 
-            # Build listing package from research + decision
             item.listing_package = ListingPackage(
                 item_id=item.item_id,
                 job_id=job_id,
@@ -295,7 +354,6 @@ class Orchestrator:
                 research=parsed,
             )
 
-            # Phase 3: Listing — chosen platforms, concurrently
             listing_tasks = [
                 self.run_agent(item, get_playbook(platform), "listing")
                 for platform in decision.platforms

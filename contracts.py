@@ -53,13 +53,26 @@ class Playbook(ABC):
     platform: str  # "ebay" | "facebook" | "mercari" | "depop"
 
     @abstractmethod
-    def research_task(self, item: ItemCard) -> str:
-        """Generate Browser-Use task string for price research."""
+    def research_task(self, item: ItemCard) -> tuple[str, list[dict]]:
+        """Returns (task_string, initial_actions).
+        initial_actions pre-navigates to the target URL WITHOUT an LLM call.
+        task_string assumes the agent is ALREADY on the page.
+        Example:
+            return (
+                "Extract the prices of the first 5 sold listings and total count.",
+                [{"navigate": {"url": "https://ebay.com/sch/..."}}],
+            )
+        """
 
     @abstractmethod
-    def listing_task(self, item: ItemCard, package: ListingPackage) -> str:
-        """Generate Browser-Use task string for form-filling."""
+    def listing_task(self, item: ItemCard, package: ListingPackage) -> tuple[str, list[dict]]:
+        """Returns (task_string, initial_actions) for form-filling.
+        initial_actions navigates to the listing creation page.
+        task_string has step-by-step form fill instructions.
+        """
 
     @abstractmethod
     def parse_research(self, result: str) -> dict:
-        """Extract structured data from agent's research output."""
+        """Extract structured data from agent's research output.
+        Must return at minimum: {"avg_sold_price": float, "listings_found": int}
+        """
