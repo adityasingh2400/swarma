@@ -72,5 +72,16 @@ export function useWebSocket(jobId) {
     };
   }, [jobId, dispatch]);
 
-  return { connected, events, lastEvent, subscribe };
+  const send = useCallback((payload) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    try {
+      ws.send(typeof payload === 'string' ? payload : JSON.stringify(payload));
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  return { connected, events, lastEvent, subscribe, send };
 }
