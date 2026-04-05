@@ -8093,28 +8093,79 @@ body {
 }
 
 /* ── Result summary bar ── */
-.rp2-card-result {
+/* ── Valuation card ── */
+.rp2-valuation {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(255,107,107,0.04), rgba(255,159,67,0.06));
+  border: 1px solid rgba(255,159,67,0.15);
+}
+.rp2-val-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+.rp2-val-header svg { color: var(--text-tertiary); }
+.rp2-val-platforms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rp2-val-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  background: rgba(99, 102, 241, 0.06);
-  border: 1px solid rgba(99, 102, 241, 0.12);
 }
-.rp2-result-icon { color: rgb(99, 102, 241); flex-shrink: 0; }
-.rp2-result-route {
-  font-family: var(--font-accent);
+.rp2-val-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rp2-val-platform {
   font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex: 1;
+}
+.rp2-val-price {
+  font-family: var(--font-accent);
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
 }
-.rp2-result-price {
-  margin-left: auto;
+.rp2-val-best {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,107,107,0.08);
+  border: 1px solid rgba(255,107,107,0.12);
+  margin-top: 2px;
+}
+.rp2-val-best-label {
   font-family: var(--font-accent);
-  font-size: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+.rp2-val-best-price {
+  font-family: var(--font-accent);
+  font-size: 20px;
   font-weight: 800;
-  color: rgb(99, 102, 241);
+  color: #FF6B6B;
 }
 
 /* ── LEGACY: keep old .rp2-swarm-section hidden so no errors if referenced ── */

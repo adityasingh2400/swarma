@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import BrowserFeed from '../BrowserFeed';
 import FocusMode from '../FocusMode';
 import {
-  Search, TrendingUp, CheckCircle2,
+  Search, TrendingUp, CheckCircle2, DollarSign,
   Sparkles, Package, ChevronRight,
 } from 'lucide-react';
 import { ACTIVE_STATUSES, STATUS_COMPLETE } from '../../utils/contracts';
@@ -26,23 +26,23 @@ function getScreenshot(screenshots, agentId) {
 }
 
 // ── Animated price counter ───────────────────────────
-function AnimatedPrice({ value, delay = 0 }) {
+function AnimatedPrice({ value, delay = 0, prefix = '$' }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
+    if (!value) return;
     const t = setTimeout(() => {
-      const end = value;
-      const dur = 600;
+      const dur = 800;
       const start = performance.now();
       const tick = (now) => {
         const p = Math.min((now - start) / dur, 1);
-        setDisplay(Math.round(end * (1 - Math.pow(1 - p, 3))));
+        setDisplay(Math.round(value * (1 - Math.pow(1 - p, 3))));
         if (p < 1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     }, delay * 1000);
     return () => clearTimeout(t);
   }, [value, delay]);
-  return <span>${display}</span>;
+  return <span>{prefix}{display}</span>;
 }
 
 // ── Single agent feed tile ───────────────────────────
@@ -63,7 +63,6 @@ function AgentTile({ platform, agentId, screenshots, v2Agents, onClick }) {
       whileHover={{ scale: 1.02, y: -2 }}
       style={{ cursor: 'pointer' }}
     >
-      {/* Platform label */}
       <div className="rp2-agent-head">
         <div className="rp2-agent-dot" style={{ background: meta.color }} />
         <span className="rp2-agent-name">{meta.label}</span>
@@ -89,8 +88,6 @@ function AgentTile({ platform, agentId, screenshots, v2Agents, onClick }) {
           </motion.span>
         )}
       </div>
-
-      {/* Browser feed */}
       <div className="rp2-agent-feed">
         {shot ? (
           <BrowserFeed screenshotUrl={shot} size="thumbnail" />
@@ -104,7 +101,67 @@ function AgentTile({ platform, agentId, screenshots, v2Agents, onClick }) {
   );
 }
 
-// ── One item with its 3 orbiting agent feeds ─────────
+// ── Valuation card — shows after all agents complete ─
+function ValuationCard({ decision, item }) {
+  if (!decision) return null;
+
+  const prices = decision.prices || {};
+  const bestValue = decision.estimated_best_value || 0;
+  const platforms = Object.entries(prices)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  return (
+    <motion.div
+      className="rp2-valuation"
+      initial={{ opacity: 0, y: 16, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.5, ease: EASE }}
+    >
+      <div className="rp2-val-header">
+        <DollarSign size={14} />
+        <span>Market Valuation</span>
+      </div>
+
+      {/* Per-platform price breakdown */}
+      <div className="rp2-val-platforms">
+        {platforms.map(([platform, price], i) => {
+          const meta = PLATFORM_META[platform] || {};
+          return (
+            <motion.div
+              key={platform}
+              className="rp2-val-row"
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15 + i * 0.12, duration: 0.35, ease: EASE }}
+            >
+              <div className="rp2-val-dot" style={{ background: meta.color }} />
+              <span className="rp2-val-platform">{meta.label || platform}</span>
+              <span className="rp2-val-price">
+                <AnimatedPrice value={Math.round(price)} delay={0.3 + i * 0.15} />
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Recommended listing price */}
+      <motion.div
+        className="rp2-val-best"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.6, duration: 0.4, ...SPRING }}
+      >
+        <span className="rp2-val-best-label">List at</span>
+        <span className="rp2-val-best-price">
+          <AnimatedPrice value={Math.round(bestValue * 0.95)} delay={0.7} />
+        </span>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── One item with its 3 agent feeds ──────────────────
 function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, decision, onFocusAgent }) {
   const itemId = item?.item_id || '';
   const hasDamage = item.visible_defects?.length > 0;
@@ -125,7 +182,7 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, delay: index * 0.15, ease: EASE }}
     >
-      {/* ── Item hero (center) ── */}
+      {/* ── Item hero ── */}
       <div className="rp2-card-hero">
         <div className="rp2-card-glow" />
         <div className="rp2-card-img">
@@ -148,7 +205,7 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
 
       {/* ── 3 agent feeds ── */}
       <div className="rp2-card-agents">
-        {RESEARCH_PLATFORMS.map((platform, i) => (
+        {RESEARCH_PLATFORMS.map((platform) => (
           <AgentTile
             key={platform}
             platform={platform}
@@ -160,26 +217,9 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
         ))}
       </div>
 
-      {/* ── Result summary (appears when all agents done) ── */}
+      {/* ── Valuation (appears when all agents done) ── */}
       <AnimatePresence>
-        {allDone && decision && (
-          <motion.div
-            className="rp2-card-result"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4, ease: EASE }}
-          >
-            <Sparkles size={14} className="rp2-result-icon" />
-            <span className="rp2-result-route">
-              {decision.best_route === 'sell_as_is' ? 'Direct Resale' :
-               decision.best_route === 'repair_then_sell' ? 'Repair & Sell' : 'Best Route'}
-            </span>
-            <span className="rp2-result-price">
-              <AnimatedPrice value={decision.estimated_best_value || 0} delay={0.3} />
-            </span>
-          </motion.div>
-        )}
+        {allDone && <ValuationCard decision={decision} item={item} />}
       </AnimatePresence>
     </motion.div>
   );
@@ -196,7 +236,6 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
 
   return (
     <div className="rp2-page">
-      {/* Header */}
       <motion.div
         className="rp2-header"
         initial={{ opacity: 0, y: -12 }}
@@ -210,7 +249,6 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
         </span>
       </motion.div>
 
-      {/* Item cards grid */}
       <div className={`rp2-grid rp2-grid-${Math.min(items.length, 3)}`}>
         {items.map((item, i) => (
           <ItemResearchCard
@@ -226,7 +264,6 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
         ))}
       </div>
 
-      {/* Focus mode overlay */}
       <FocusMode
         agent={focusedAgent}
         screenshotUrl={focusedShot}
