@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { Scan, Check, ArrowRight } from 'lucide-react';
+import { Scan, Check } from 'lucide-react';
 import IntakePanel from './panels/IntakePanel';
 import AgentTheater from './panels/AgentTheater';
 import DecisionPanel from './panels/DecisionPanel';
@@ -392,20 +392,6 @@ function LayoutInner({
               exit={{ opacity: 0, filter: 'blur(4px)', transition: { duration: 0.3 } }}
               transition={{ duration: 0.4, ease: EASE }}
             >
-              {viewOverride && (globalStage === 'concierge-done' || globalStage === 'concierge') && (
-                <motion.button
-                  className="view-override-banner"
-                  onClick={() => setViewOverride(null)}
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: EASE }}
-                >
-                  <span>Results are ready</span>
-                  <ArrowRight size={14} />
-                  <span>View Decisions</span>
-                </motion.button>
-              )}
-
               <motion.div
                 className="proc-pipeline"
                 initial={{ opacity: 0, y: -16 }}
