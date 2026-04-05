@@ -39,6 +39,7 @@ class ItemCard(BaseModel):
     condition: str = ""
     hero_frame_paths: list[str] = Field(default_factory=list)
     all_frame_paths: list[str] = Field(default_factory=list)
+    listing_image_paths: list[str] = Field(default_factory=list)
     segment_start_sec: float = 0.0
     segment_end_sec: float = 0.0
     evidence_references: list[str] = Field(default_factory=list)

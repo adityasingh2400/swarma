@@ -385,6 +385,26 @@ async def _run_pipeline(job_id: str, video_path: str):
             item.hero_frame_paths = _hero_urls(item.hero_frame_paths)
             item.all_frame_paths = list(frame_urls_ordered)
 
+        # Save per-item frames to disk so listing agents can access them.
+        # Each item gets its OWN directory with ONLY its hero frames.
+        listing_img_base = Path(settings.listing_images_dir)
+        listing_img_base.mkdir(parents=True, exist_ok=True)
+        for item in items:
+            item_img_dir = listing_img_base / item.item_id
+            item_img_dir.mkdir(parents=True, exist_ok=True)
+            saved_paths: list[str] = []
+            for i, url_path in enumerate(item.hero_frame_paths):
+                frame_key = url_path.rsplit("/", 1)[-1] if "/" in url_path else url_path
+                jpeg_data = _intake_frame_store[job_id].get(frame_key)
+                if jpeg_data:
+                    img_path = item_img_dir / f"photo_{i + 1}.jpg"
+                    img_path.write_bytes(jpeg_data)
+                    saved_paths.append(str(img_path.resolve()))
+            item.listing_image_paths = saved_paths
+            swarma_line("pipeline", "item_images_saved",
+                        job_id=job_id, item=item.name_guess,
+                        item_id=item.item_id, images_n=len(saved_paths))
+
         job.transcript_text = t_txt
         job.frame_paths = frame_urls_ordered
         job.item_ids = [item.item_id for item in items]
@@ -422,6 +442,29 @@ async def _run_pipeline(job_id: str, video_path: str):
         })
 
         _job_items[job_id] = items
+
+        # Prepare per-item listing images from item-specific frames
+        from backend.intake import _prepare_listing_images
+        for item in items:
+            item_frames = []
+            for idx, jpeg_bytes in best_frames:
+                if not item.hero_frame_indices_raw or idx in item.hero_frame_indices_raw:
+                    item_frames.append((idx, jpeg_bytes))
+            if not item_frames:
+                item_frames = best_frames[:3]
+            raw_item = {
+                "frame_indices": item.hero_frame_indices_raw,
+                "bounding_box": None,
+            }
+            try:
+                await _prepare_listing_images(item.item_id, item_frames, raw_item)
+                swarma_line("pipeline", "listing_images_prepared",
+                            job_id=job_id, item=item.name_guess,
+                            item_id=item.item_id, frames_n=len(item_frames))
+            except Exception as img_err:
+                swarma_line("pipeline", "listing_images_failed",
+                            job_id=job_id, item=item.name_guess, error=str(img_err))
+
         for item in items:
             await ws_manager.broadcast_event(job_id, {
                 "type": "item_added",

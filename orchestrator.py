@@ -200,43 +200,32 @@ def _make_llm():
 # ---------------------------------------------------------------------------
 
 def _collect_listing_images(item: ItemCard) -> list[ListingImage]:
-    """Turn intake hero_frame_paths into ListingImage objects with absolute paths.
+    """Get this item's listing images from the per-item directory on disk.
 
-    intake.py saves best frames at data/optimized/{item_id}/listing_N.jpg.
-    hero_frame_paths may be URL paths (/api/jobs/.../intake-frames/...) or
-    frame_N references.  We resolve to the actual files on disk.
+    server.py saves each item's hero frames to data/listing-images/{item_id}/
+    during the pipeline. Each item gets ONLY its own frames — no shared fallbacks.
     """
     from pathlib import Path
 
     images: list[ListingImage] = []
-    optimized_dir = Path(settings.optimized_dir) / item.item_id
 
-    if optimized_dir.exists():
-        jpgs = sorted(optimized_dir.glob("*.jpg"))
-        for i, p in enumerate(jpgs[:6]):
-            role = "hero" if i == 0 else "secondary"
-            images.append(ListingImage(path=str(p.resolve()), role=role))
-
-    if not images:
-        cache_dir = Path(".reroutecache/listing_images")
-        if cache_dir.exists():
-            for name_dir in cache_dir.iterdir():
-                if item.name_guess.lower().replace(" ", "_")[:8] in name_dir.name.lower():
-                    jpgs = sorted(name_dir.glob("*.jpg"))
-                    for i, p in enumerate(jpgs[:6]):
-                        role = "hero" if i == 0 else "secondary"
-                        images.append(ListingImage(path=str(p.resolve()), role=role))
-                    break
+    if item.listing_image_paths:
+        for i, p in enumerate(item.listing_image_paths[:6]):
+            if Path(p).exists():
+                role = "hero" if i == 0 else "secondary"
+                images.append(ListingImage(path=p, role=role))
 
     if not images:
-        for frame_dir in [Path("data/frames"), Path("backend/.reroutecache/frames")]:
-            if frame_dir.exists():
-                jpgs = sorted(frame_dir.glob("*.jpg"))[:6]
-                for i, p in enumerate(jpgs):
-                    role = "hero" if i == 0 else "secondary"
-                    images.append(ListingImage(path=str(p.resolve()), role=role))
-                if images:
-                    break
+        item_dir = Path(settings.listing_images_dir) / item.item_id
+        if item_dir.exists():
+            jpgs = sorted(item_dir.glob("*.jpg"))
+            for i, p in enumerate(jpgs[:6]):
+                role = "hero" if i == 0 else "secondary"
+                images.append(ListingImage(path=str(p.resolve()), role=role))
+
+    if not images:
+        swarma_line("pipeline", "no_images_for_item",
+                    item=item.name_guess, item_id=item.item_id)
 
     return images
 
@@ -261,8 +250,10 @@ def _build_listing_package(
 
     title = item.name_guess
     if len(title) < 20:
-        extras = [v for k, v in specs.items() if k not in ("brand", "model") and v]
-        title = f"{title} {' '.join(extras[:3])}".strip()
+        extras = [v for k, v in specs.items()
+                  if k not in ("brand", "model") and v
+                  and "_" not in str(v)]
+        title = f"{title} {' '.join(extras[:2])}".strip()
 
     condition_label = item.condition_label
     defects = item.all_defects
@@ -370,7 +361,6 @@ class Orchestrator:
         storage = self.profiles.get(platform)
         return BrowserProfile(
             storage_state=storage,
-            user_data_dir=None,
             minimum_wait_page_load_time=0.1,
             wait_between_actions=0.1,
             headless=False,
@@ -748,28 +738,19 @@ class Orchestrator:
                     preloaded=len(preloaded_sessions))
 
         try:
-            # Phase 1: Research — all items, all platforms, concurrently
-            research_tasks = [
-                self.run_agent(item, pb, "research")
-                for item in items
-                for pb in playbooks
-            ]
-            swarma_line("pipeline", "research_phase_start", job_id=job_id,
-                        agents_n=len(research_tasks))
-
-            all_results = await asyncio.gather(*research_tasks, return_exceptions=True)
-
-            successes = sum(1 for r in all_results if not isinstance(r, BaseException))
-            failures = sum(1 for r in all_results if isinstance(r, BaseException))
-            swarma_line("pipeline", "research_phase_complete", job_id=job_id,
-                        successes=successes, failures=failures)
-
-            # Phase 2: Route decision + Phase 3: Listing — per item
-            for i, item in enumerate(items):
-                item_results = all_results[i * num_playbooks: (i + 1) * num_playbooks]
+            # Run each item's full lifecycle concurrently:
+            # research → route decision → listing, all in parallel across items
+            async def _run_item_pipeline(item: ItemCard):
+                """Complete pipeline for one item — research, decide, list."""
+                # Research: all platforms concurrently for this item
+                item_research = [
+                    self.run_agent(item, pb, "research")
+                    for pb in playbooks
+                ]
+                results = await asyncio.gather(*item_research, return_exceptions=True)
 
                 parsed: dict[str, dict] = {}
-                for pb, result in zip(playbooks, item_results):
+                for pb, result in zip(playbooks, results):
                     if isinstance(result, BaseException):
                         swarma_line("pipeline", "research_result_error", job_id=job_id,
                                     platform=pb.platform, item=item.name_guess,
@@ -788,7 +769,7 @@ class Orchestrator:
                 if not parsed:
                     swarma_line("pipeline", "no_research_results_skip_listing",
                                 job_id=job_id, item=item.name_guess)
-                    continue
+                    return
 
                 decision: RouteDecision = route_decision(item, parsed)
 
@@ -831,6 +812,14 @@ class Orchestrator:
                     await asyncio.gather(*listing_tasks, return_exceptions=True)
                     swarma_line("pipeline", "listing_phase_complete", job_id=job_id,
                                 item=item.name_guess)
+
+            # Launch all items concurrently
+            swarma_line("pipeline", "all_items_concurrent_start", job_id=job_id,
+                        items_n=len(items))
+            await asyncio.gather(
+                *[_run_item_pipeline(item) for item in items],
+                return_exceptions=True,
+            )
 
             swarma_line("pipeline", "complete", job_id=job_id)
 
