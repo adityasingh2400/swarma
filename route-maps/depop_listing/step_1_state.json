@@ -1,0 +1,22 @@
+{
+  "step": 1,
+  "url": "https://www.depop.com/products/create/first/",
+  "title": "Depop - buy, sell, discover unique fashion",
+  "page_summary": "",
+  "memory": "I have arrived at the Depop listing creation page. I can see several fields including photos, description, category, brand, and condition, but I need to scroll down to ensure I capture the price field and any other bottom-of-page elements before documenting the full structure.",
+  "next_goal": "",
+  "actions": [
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    },
+    {
+      "extract": {
+        "query": "List all fields, buttons, and dropdowns on the Depop product creation page in order from top to bottom. Include the label for each, the type of input, the photo upload section details, and the text of the submit/continue button. Note if there are any login prompts or blockers.",
+        "already_collected": []
+      }
+    }
+  ]
+}

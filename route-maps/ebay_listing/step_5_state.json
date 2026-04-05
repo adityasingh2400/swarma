@@ -1,0 +1,15 @@
+{
+  "step": 5,
+  "url": "https://www.ebay.com/sl/prelist/identify?title=Vintage+Nike+Shoes&caty=15709&catyIdPath%5B%5D=11450&catyIdPath%5B%5D=260012&catyIdPath%5B%5D=93427&catyIdPath%5B%5D=15709&isUid=false&sr=sug&radixTrackingId=231bcdb7-a2d3-44ed-90ed-2b8865411f08&aspects=eJyLrlbKS8xNVbJScipKzEtR0lEqS8wpBfKjlfwys1OVYmtjAcl0C0U%3D&view=cgtype",
+  "title": "List an item | eBay",
+  "page_summary": "",
+  "memory": "The previous step was on the \"Select condition\" page, which is still a pre-listing step. I clicked \"Continue\" with \"New with box\" selected to finally reach the full listing creation form. I am now waiting for the main listing page to load.",
+  "next_goal": "",
+  "actions": [
+    {
+      "click": {
+        "index": 11128
+      }
+    }
+  ]
+}

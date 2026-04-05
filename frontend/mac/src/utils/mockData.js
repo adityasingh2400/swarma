@@ -566,70 +566,43 @@ export function useMockMode() {
     }, STEP * 3);
     timersRef.current.push(t3);
 
-    // ── STAGE 2–3: Route bidding + decider (mock) → unlock Posting tab ──
-    const tBid = setTimeout(() => {
-      setPipelineStage('bidding');
-      setAgents((prev) => ({
-        ...prev,
-        marketplace_resale: {
-          status: 'agent_completed',
-          message: 'Comparable resale listings analyzed',
-          elapsed_ms: afterIntake + STEP,
-        },
-        trade_in: {
-          status: 'agent_completed',
-          message: 'Trade-in quotes gathered',
-          elapsed_ms: afterIntake + STEP,
-        },
-        return: {
-          status: 'agent_completed',
-          message: 'Return eligibility checked',
-          elapsed_ms: afterIntake + STEP,
-        },
-        repair_roi: {
-          status: 'agent_completed',
-          message: 'Repair ROI estimated',
-          elapsed_ms: afterIntake + STEP,
-        },
-      }));
-      setBids(buildMockBids());
-      setAgentsByItem(
-        Object.fromEntries(
-          MOCK_ITEM_DEFS.map((d) => [
-            d.item_id,
-            {
-              marketplace_resale: { status: 'agent_completed', message: 'Done' },
-              trade_in: { status: 'agent_completed', message: 'Done' },
-              return: { status: 'agent_completed', message: 'Done' },
-              repair_roi: { status: 'agent_completed', message: 'Done' },
-            },
-          ]),
-        ),
-      );
-      setStage3Plan({
-        plan: Object.fromEntries(
-          MOCK_ITEM_DEFS.map((d) => [
-            d.item_id,
-            { agents: ['marketplace_resale', 'trade_in', 'return', 'repair_roi'] },
-          ]),
-        ),
-      });
-    }, afterIntake + STEP);
-    timersRef.current.push(tBid);
+    const t4 = setTimeout(() => {
+      setV1Agent('condition_fusion', 'agent_started', 'Analyzing condition for all items...');
+    }, 6500 + D + 500);
+    timersRef.current.push(t4);
 
-    const tDecide = setTimeout(() => {
-      setPipelineStage('deciding');
-      setAgents((prev) => ({
-        ...prev,
-        route_decider: {
-          status: 'agent_completed',
-          message: 'Optimal routes selected for all items',
-          elapsed_ms: afterIntake + STEP * 2,
-        },
-      }));
+    const t5 = setTimeout(() => {
+      setV1Agent('condition_fusion', 'agent_progress', 'Inspecting iPhone 15 Pro — checking screen, back glass, ports...', {
+        elapsed_ms: 2000,
+      });
+    }, 8500 + D);
+    timersRef.current.push(t5);
+
+    const t6 = setTimeout(() => {
+      setV1Agent('condition_fusion', 'agent_progress', 'Inspecting AirPods Pro — verifying case, buds, charging port...', {
+        elapsed_ms: 4500,
+      });
+    }, 11000 + D);
+    timersRef.current.push(t6);
+
+    const t7 = setTimeout(() => {
+      setV1Agent('condition_fusion', 'agent_completed', 'Condition analysis complete for 2 items', {
+        elapsed_ms: 7000,
+      });
+    }, 13500 + D);
+    timersRef.current.push(t7);
+
+    // ── STAGE 2: Research Phase ──────────────────────
+    const t8 = setTimeout(() => {
+      setPipelineStage('research');
+      setBids(buildMockBids());
+    }, 14500 + D);
+    timersRef.current.push(t8);
+
+    const t9 = setTimeout(() => {
       setDecisions(buildMockDecisions());
-    }, afterIntake + STEP * 2);
-    timersRef.current.push(tDecide);
+    }, 16000 + D);
+    timersRef.current.push(t9);
 
     return mockJobId;
   }, [isMock, started, mockJobId, cleanup, setV1Agent, pushEvent]);

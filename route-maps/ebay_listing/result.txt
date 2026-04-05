@@ -1,0 +1,27 @@
+Route: ebay_listing
+Description: eBay listing creation flow
+URL: https://www.ebay.com/sell/create
+Time: 74.4s
+Screenshots: 12
+Steps: 12
+
+============================================================
+AGENT DOCUMENTATION:
+============================================================
+
+I have documented every field, button, and interactive element on the eBay listing creation page. 
+
+1. **URL:** https://www.ebay.com/lstng?draftId=5182232721813&mode=AddItem
+2. **Interactive Elements:**
+   - **Photos & Video:** 'Photo tips' button, 'Upload from computer', 'Upload from mobile', and image placeholders (Required).
+   - **Title:** 'Item title' input field (Required).
+   - **Item category:** 'Edit' button.
+   - **Item specifics (Required):** 'Brand' (Nike), 'US Shoe Size' (3-20), 'Color' (Beige to Yellow), 'Department' (Men, Teens, Unisex).
+   - **Item specifics (Additional):** 'Customized', 'Style Code', 'UK Shoe Size', 'Product Line', 'Model', 'Country of Origin', and 'Show more' button.
+   - **Description:** Rich text editor with Font Family, Font Size, Bold, Underline, 'Show HTML Code', and 'Use AI description' button.
+   - **Pricing:** Format toggle (Buy It Now/Auction), 'Item price' (Required), 'Quantity', 'Allow offers' switch, and 'Schedule your listing' switch.
+   - **Delivery:** Shipping Method (Shipping or pickup, etc.), 'View all shipping services', 'Who pays?' (Buyer/Seller pays), 'Edit shipping cost', 'Handling time' (Same day to 3 days).
+   - **Final Actions:** 'Edit' (Charity), 'List it' (Publish button), 'Save for later', and 'Preview'.
+3. **Sections:** Photos & Video, Title, Item category, Item specifics, Description, Pricing, Delivery, Charity.
+4. **Publish Button:** The final button is labeled 'List it'.
+5. **Popups/Blockers:** 'Photo tips' popup and 'Delivery details' edit window were identified. No login prompts or blockers were encountered on this page.
