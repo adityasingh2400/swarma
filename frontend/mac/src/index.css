@@ -10441,6 +10441,12 @@ body {
   font-size: 14px;
   color: var(--success);
 }
+.conc-thread-platform-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.6;
+}
 
 .conc-thread-messages {
   display: flex;

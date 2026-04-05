@@ -45,7 +45,8 @@ def match_demo_item(item: ItemCard) -> str | None:
 
 
 def is_full_demo(items: list[ItemCard]) -> bool:
-    return len(items) > 0 and all(match_demo_item(it) is not None for it in items)
+    # Disabled — real pipeline runs for all items now
+    return False
 
 
 def _load_cached_results() -> dict[str, str]:
