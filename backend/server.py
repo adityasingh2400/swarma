@@ -54,80 +54,68 @@ logger = logging.getLogger("swarmsell.server")
 _threads: dict[str, ConversationThread] = {}
 
 
-# ── Orchestrator Stub ─────────────────────────────────────────────────────────
-# Person 1 (Aditya) builds the real orchestrator. This stub provides the
-# interface contract so server.py can be developed and tested independently.
+# ── Orchestrator ──────────────────────────────────────────────────────────────
+# Try to load the real Browser-Use orchestrator with playbooks.
+# Falls back to a lightweight stub if imports fail.
+
+def _create_orchestrator():
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from orchestrator import Orchestrator
+        import playbooks as _pb_init  # noqa: F841 — triggers register_playbook calls
+        from orchestrator import PLAYBOOKS
+        logger.info("Real orchestrator loaded, playbooks: %s", list(PLAYBOOKS.keys()))
+        swarma_line("server", "orchestrator_real", playbooks=list(PLAYBOOKS.keys()))
+
+        orch = Orchestrator()
+
+        if not hasattr(orch, 'get_agent_states'):
+            def _get_agent_states(job_id=None):
+                return {a.agent_id: a.__dict__ if hasattr(a, '__dict__') else a
+                        for a in orch.get_active_agents()}
+            orch.get_agent_states = _get_agent_states
+
+        return orch
+    except Exception as exc:
+        logger.warning("Real orchestrator unavailable (%s), using stub", exc)
+        swarma_line("server", "orchestrator_stub_fallback", error=str(exc))
+        return _OrchestratorStub()
 
 
 class _OrchestratorStub:
-    """Stub matching the confirmed interface from streaming-server-intake-review.md.
-
-    Real interface (from Person 1):
-      orchestrator.events           — asyncio.Queue[AgentEvent]
-      orchestrator.start_pipeline(job_id, items) — Direct method call
-
-    CDP screencast hook points Person 1 must call when spinning up each agent:
-      # When the agent's Playwright Page is ready:
-      await streaming.start_screencast(agent_id, page)
-
-      # When the agent completes or is cancelled:
-      await streaming.stop_screencast(agent_id)
-    """
+    """Fallback stub when real orchestrator can't be imported."""
 
     def __init__(self):
         self.events: asyncio.Queue = asyncio.Queue()
         self._agents: dict[str, dict] = {}
 
     async def start_pipeline(self, job_id: str, items: list[ItemCard]) -> None:
-        """Stub: emit spawn events for each item's research agents."""
-        platforms = ["ebay", "facebook", "mercari", "apple", "amazon"]
+        platforms = ["ebay", "facebook", "mercari", "amazon"]
         for item in items:
             for platform in platforms:
-                agent_id = f"{platform}-research-{item.item_id[:6]}"
-                agent_state = {
-                    "agent_id": agent_id,
-                    "item_id": item.item_id,
-                    "platform": platform,
-                    "phase": "research",
-                    "status": "queued",
-                    "task": f"Research {item.name_guess} on {platform}",
-                    "started_at": None,
-                    "completed_at": None,
-                    "result": None,
-                    "error": None,
+                agent_id = f"{platform}-research-{item.item_id}"
+                self._agents[agent_id] = {
+                    "agent_id": agent_id, "item_id": item.item_id,
+                    "platform": platform, "phase": "research",
+                    "status": "queued", "task": f"Research {item.name_guess} on {platform}",
                 }
-                self._agents[agent_id] = agent_state
                 await self.events.put({
                     "type": "agent:spawn",
                     "data": {
-                        "agent_id": agent_id,
-                        "agentId": agent_id,
-                        "item_id": item.item_id,
-                        "platform": platform,
-                        "phase": "research",
-                        "status": "queued",
-                        "task": agent_state["task"],
+                        "agent_id": agent_id, "agentId": agent_id,
+                        "item_id": item.item_id, "platform": platform,
+                        "phase": "research", "status": "queued",
+                        "task": self._agents[agent_id]["task"],
                     },
                 })
-        logger.info("Stub orchestrator: queued %d agents for %d items", len(self._agents), len(items))
-        swarma_line(
-            "orchestrator.stub",
-            "start_pipeline_done",
-            job_id=job_id,
-            items_n=len(items),
-            agents_queued=len(self._agents),
-        )
-
-    def get_browser(self, agent_id: str):
-        """Stub: returns None. Real impl returns Browser-Use Browser instance."""
-        return None
+        swarma_line("orchestrator.stub", "spawned", job_id=job_id, agents_n=len(self._agents))
 
     def get_agent_states(self, job_id: str) -> dict[str, dict]:
-        """Return all agent states. Used by GET /api/jobs/{jobId}/agents."""
         return dict(self._agents)
 
 
-orchestrator = _OrchestratorStub()
+orchestrator = _create_orchestrator()
 
 
 # ── In-Memory Job Store ───────────────────────────────────────────────────────
