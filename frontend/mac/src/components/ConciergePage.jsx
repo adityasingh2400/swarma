@@ -1,13 +1,11 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Eye, Package, Video, X, ChevronLeft, ChevronRight,
+  Eye, Package, X, ChevronLeft, ChevronRight,
   MessageSquare, Send, Star, Check, ExternalLink,
-  ShoppingCart, Tag, Truck, Shield, MapPin, Heart, Share2, User,
+  Tag, Truck,
 } from 'lucide-react';
 import SwarmaLogo from './SwarmaLogo';
-import IntakePanel from './panels/IntakePanel';
-import { PLATFORMS as PLATFORM_IDS } from '../utils/contracts';
 
 const EASE = [0.32, 0.72, 0, 1];
 
@@ -417,7 +415,7 @@ function ItemsReadyList({ items, decisions, postingStatus, onItemClick }) {
 
 export default function ConciergePage({
   items, decisions, listings, threads, postingStatus,
-  screenshots, jobId, onUpload, onSendReply, send,
+  screenshots, jobId, onSendReply, send,
 }) {
   const [view, setView] = useState('hero');
   const [selectedItem, setSelectedItem] = useState(null);
@@ -435,41 +433,12 @@ export default function ConciergePage({
       const parts = k.split(':');
       if (parts[1]) platforms.add(parts[1]);
     });
-    return platforms.size || PLATFORM_IDS.length;
+    return platforms.size || 1;
   }, [postingStatus]);
 
   const threadCount = useMemo(() => {
     return (threads || []).length;
   }, [threads]);
-
-  const handleUpload = useCallback((file, url) => {
-    onUpload?.(file, url);
-    setView('hero');
-  }, [onUpload]);
-
-  if (view === 'film') {
-    return (
-      <motion.div
-        key="film-another"
-        className="conc-film-wrap"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      >
-        <motion.button
-          className="conc-back-btn btn-glass"
-          onClick={() => setView('hero')}
-          initial={{ opacity: 0, x: -12 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <ChevronLeft size={14} />
-          Back to Concierge
-        </motion.button>
-        <IntakePanel onUpload={handleUpload} fullscreen />
-      </motion.div>
-    );
-  }
 
   return (
     <motion.div
@@ -553,10 +522,6 @@ export default function ConciergePage({
               <button className="conc-action-btn btn-glass" onClick={() => setView('items')}>
                 <Package size={18} />
                 <span>Items Ready</span>
-              </button>
-              <button className="conc-action-btn btn-glass" onClick={() => setView('film')}>
-                <Video size={18} />
-                <span>Film Another</span>
               </button>
             </motion.div>
           </motion.div>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, Scale, Send, MessageSquare } from 'lucide-react';
 import Layout from './components/Layout';
@@ -8,7 +8,6 @@ import ExecuteRouteAnimation from './components/modules/ExecuteRouteAnimation';
 import PostingWorkspace from './components/modules/PostingWorkspace';
 import { useJob } from './hooks/useJob';
 import { useScreenshots } from './hooks/useScreenshots';
-import { startResearch } from './utils/api';
 import { useMockMode, getPostingDevMock } from './utils/mockData';
 
 const STEPS = [
@@ -35,6 +34,13 @@ function TopbarSteps({
   const unlocked = researchUnlocked(agents, items);
   const effectiveIdx = highlightIdx;
 
+  const listingAgents = useMemo(() => {
+    return Object.values(v2Agents || {}).filter(a => a.phase === 'listing');
+  }, [v2Agents]);
+  const listingDone = listingAgents.length > 0 && listingAgents.every(
+    a => a.status === 'complete' || a.status === 'error' || a.status === 'blocked'
+  );
+
   const agentsActive = useMemo(() => {
     const entries = Object.values(v2Agents || {});
     return entries.length > 0 && entries.some(a => a.status === 'running' || a.status === 'queued' || a.status === 'navigating');
@@ -50,14 +56,17 @@ function TopbarSteps({
         const canProcessing = i === 0;
         const canResearch = i === 1 && unlocked;
         const canPosting = i === 2 && effectiveIdx >= 1;
-        const clickable = canProcessing || canResearch || canPosting;
-        const isPulsing = i === 1 && unlocked && agentsActive && effectiveIdx === 0;
+        const canConcierge = i === 3 && (listingDone || effectiveIdx >= 2);
+        const clickable = canProcessing || canResearch || canPosting || canConcierge;
+        const isPulsing = (i === 1 && unlocked && agentsActive && effectiveIdx === 0)
+          || (i === 3 && listingDone && effectiveIdx === 2);
 
         let cls = 'ts-node';
         if (isCurrent) cls += ' ts-current ts-clickable';
         else if (isPast) cls += ' ts-past ts-clickable';
         else if (i === 1 && unlocked) cls += ' ts-available ts-clickable';
         else if (i === 2 && effectiveIdx >= 1) cls += ' ts-available ts-clickable';
+        else if (canConcierge) cls += ' ts-available ts-clickable';
         else cls += ' ts-future';
         if (isPulsing) cls += ' ts-pulsing';
 
@@ -65,6 +74,7 @@ function TopbarSteps({
           if (canProcessing) onStepClick?.(0);
           else if (canResearch) onStepClick?.(1);
           else if (canPosting) onStepClick?.(2);
+          else if (canConcierge) onStepClick?.(3);
         };
 
         return (
@@ -151,25 +161,31 @@ export default function App() {
   const [topbarStepIdx, setTopbarStepIdx] = useState(0);
   const [theaterNavRequest, setTheaterNavRequest] = useState(null);
 
-  const researchTriggered = useRef(false);
-
   useEffect(() => {
     setTopbarStepIdx(0);
     setTheaterNavRequest(null);
-    researchTriggered.current = false;
   }, [job?.job_id]);
+
+  // Auto-advance to Research when the first CDP frame arrives
+  useEffect(() => {
+    if (topbarStepIdx === 0 && screenshots instanceof Map && screenshots.size > 0) {
+      setTopbarStepIdx(1);
+    }
+  }, [topbarStepIdx, screenshots]);
+
+  // Auto-advance to Posting when the first listing-agent CDP frame arrives
+  useEffect(() => {
+    if (topbarStepIdx !== 1 || !(screenshots instanceof Map)) return;
+    const listingAgents = Object.values(v2Agents || {}).filter(a => a.phase === 'listing');
+    if (listingAgents.length === 0) return;
+    const hasListingFrame = listingAgents.some(a => screenshots.has(a.agent_id));
+    if (hasListingFrame) setTopbarStepIdx(2);
+  }, [topbarStepIdx, v2Agents, screenshots]);
 
   const handleTopbarStep = useCallback((groupIdx) => {
     setTopbarStepIdx(groupIdx);
     setTheaterNavRequest({ groupIdx, id: Date.now() });
-
-    if (groupIdx === 1 && jobId && !researchTriggered.current) {
-      researchTriggered.current = true;
-      startResearch(jobId).catch((err) =>
-        console.error('Failed to trigger research:', err),
-      );
-    }
-  }, [jobId]);
+  }, []);
 
   const handleTheaterStageFromPipeline = useCallback(() => {
     // no-op: topbar step only changes on direct topbar click (handleTopbarStep)

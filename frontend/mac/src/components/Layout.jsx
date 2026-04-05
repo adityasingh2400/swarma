@@ -204,7 +204,7 @@ function DevPreview() {
             <DecisionPanel items={mock.items} decisions={mock.decisions} agents={{}} onExecuteItem={noop} fullscreen />
           )}
           {page === 'concierge' && (
-            <ConciergePage items={mock.items} decisions={mock.decisions} listings={mock.listings} threads={mock.threads} postingStatus={{}} screenshots={new Map()} jobId="mock-preview" onUpload={noop} onSendReply={noop} send={noop} />
+            <ConciergePage items={mock.items} decisions={mock.decisions} listings={mock.listings} threads={mock.threads} postingStatus={{}} screenshots={new Map()} jobId="mock-preview" onSendReply={noop} send={noop} />
           )}
           {page === 'market-sweep' && (
             <MarketSweep job={mock.job} items={mock.items} bids={mock.bids} decisions={mock.decisions} />
@@ -341,7 +341,7 @@ function LayoutInner({
     [agents, v2Agents, pipelineStage],
   );
 
-  const showConciergeResults = globalStage === 'concierge-done' || globalStage === 'concierge';
+  const showConcierge = topbarStepIdx === 3;
 
   const handleUpload = (file, url) => {
     setVideoUrl(url);
@@ -383,7 +383,7 @@ function LayoutInner({
           )}
 
           {/* ── Phase: Processing ───────────────────────────── */}
-          {phase === 'processing' && !showConciergeResults && topbarStepIdx === 0 && (
+          {phase === 'processing' && !showConcierge && topbarStepIdx === 0 && (
             <motion.div
               key="processing"
               className="proc-layout"
@@ -418,7 +418,7 @@ function LayoutInner({
           )}
 
           {/* ── Phase: Research ─────────────────────────────── */}
-          {phase === 'processing' && topbarStepIdx === 1 && !showConciergeResults && (
+          {phase === 'processing' && topbarStepIdx === 1 && !showConcierge && (
             <motion.div
               key="research"
               className="research-fullscreen"
@@ -439,7 +439,7 @@ function LayoutInner({
           )}
 
           {/* ── Phase: Posting ──────────────────────────────── */}
-          {phase === 'processing' && topbarStepIdx === 2 && !showConciergeResults && (
+          {phase === 'processing' && topbarStepIdx === 2 && !showConcierge && (
             <motion.div
               key="posting"
               className="research-fullscreen"
@@ -463,8 +463,8 @@ function LayoutInner({
             </motion.div>
           )}
 
-          {/* ── Phase: Concierge Results ────────────────────── */}
-          {phase === 'processing' && showConciergeResults && (
+          {/* ── Phase: Concierge ──────────────────────────── */}
+          {phase === 'processing' && showConcierge && (
             <motion.div
               key="concierge-results"
               className="concierge-fullscreen"
@@ -481,7 +481,6 @@ function LayoutInner({
                 postingStatus={postingStatus}
                 screenshots={screenshots}
                 jobId={job?.job_id}
-                onUpload={handleUpload}
                 onSendReply={onSendReply}
                 send={send}
               />

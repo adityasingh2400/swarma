@@ -63,38 +63,38 @@ class UnifiedInboxSystem:
         if not thread.messages:
             return "Hi! Thanks for your interest. Let me know if you have any questions!"
 
+        history = "\n".join(
+            f"{m.sender}: {m.text}" for m in thread.messages[-10:]
+        )
+
+        listing = store.get_listing(thread.item_id)
+        price = listing.price_strategy if listing else 0.0
+        offer = thread.current_offer or 0.0
+
+        prompt = REPLY_PROMPT.format(
+            history=history,
+            price=f"{price:.2f}",
+            offer=f"{offer:.2f}" if offer else "none",
+        )
+
         try:
-            history = "\n".join(
-                f"{m.sender}: {m.text}" for m in thread.messages[-10:]
-            )
-
-            listing = store.get_listing(thread.item_id)
-            price = listing.price_strategy if listing else 0.0
-            offer = thread.current_offer or 0.0
-
-            prompt = REPLY_PROMPT.format(
-                history=history,
-                price=f"{price:.2f}",
-                offer=f"{offer:.2f}" if offer else "none",
-            )
-
-            from backend.config import settings
-            if settings.demo_mode and not settings.gemini_api_key:
-                return self._mock_reply(thread)
-
             client = self.gemini._get_client()
             response = client.models.generate_content(
                 model=GEMINI_MODEL,
                 contents=[prompt],
             )
             reply = response.text.strip()
-            thread.suggested_reply = reply
-            await store.add_thread(thread)
-            return reply
-
+            if reply:
+                thread.suggested_reply = reply
+                try:
+                    await store.add_thread(thread)
+                except Exception:
+                    pass
+                return reply
         except Exception:
-            logger.exception("Reply suggestion failed for thread %s", thread.thread_id)
-            return self._mock_reply(thread)
+            logger.exception("Gemini reply failed for thread %s, using fallback", thread.thread_id)
+
+        return self._mock_reply(thread)
 
     async def rank_buyers(self, item_id: str) -> list[ConversationThread]:
         threads = store.get_threads_for_item(item_id)
@@ -131,9 +131,22 @@ class UnifiedInboxSystem:
 
     @staticmethod
     def _mock_reply(thread: ConversationThread) -> str:
-        if thread.current_offer:
-            return f"Thanks for the offer of ${thread.current_offer:.2f}! Let me think about it and get back to you shortly."
         last = thread.messages[-1] if thread.messages else None
-        if last and "condition" in last.text.lower():
-            return "Great question! The item is in the condition described in the listing. Happy to send more photos if needed!"
+        last_text = (last.text or "").lower() if last else ""
+
+        if thread.current_offer and thread.current_offer > 0:
+            return f"Thanks for the offer of ${thread.current_offer:.0f}! I could do ${thread.current_offer * 1.05:.0f} — that's the lowest I can go. Let me know!"
+
+        if any(w in last_text for w in ["condition", "scratches", "damage", "defect"]):
+            return "Great question! The item is in the condition described in the listing. I can send more photos if that would help."
+
+        if any(w in last_text for w in ["available", "still have", "sold"]):
+            return "Yes, it's still available! Would you like to set up a time to pick it up?"
+
+        if any(w in last_text for w in ["price", "lower", "discount", "deal", "negotiate"]):
+            return "I'm open to reasonable offers! What did you have in mind?"
+
+        if any(w in last_text for w in ["ship", "deliver", "mail", "pickup"]):
+            return "I can do local pickup or ship it out. Let me know what works best for you!"
+
         return "Thanks for reaching out! Let me know if you have any questions about the item."

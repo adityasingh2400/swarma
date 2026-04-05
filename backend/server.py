@@ -764,8 +764,24 @@ async def suggest_reply(job_id: str, thread_id: str):
 
 
 def _mock_suggest(thread: ConversationThread) -> str:
-    if thread.current_offer:
-        return f"Thanks for the offer of ${thread.current_offer:.2f}! Let me think about it and get back to you shortly."
+    last = thread.messages[-1] if thread.messages else None
+    last_text = (last.text or "").lower() if last else ""
+
+    if thread.current_offer and thread.current_offer > 0:
+        return f"Thanks for the offer of ${thread.current_offer:.0f}! I could do ${thread.current_offer * 1.05:.0f} — that's the lowest I can go. Let me know!"
+
+    if any(w in last_text for w in ["condition", "scratches", "damage", "defect"]):
+        return "Great question! The item is in the condition described in the listing. I can send more photos if that would help."
+
+    if any(w in last_text for w in ["available", "still have", "sold"]):
+        return "Yes, it's still available! Would you like to set up a time to pick it up?"
+
+    if any(w in last_text for w in ["price", "lower", "discount", "deal", "negotiate"]):
+        return "I'm open to reasonable offers! What did you have in mind?"
+
+    if any(w in last_text for w in ["ship", "deliver", "mail", "pickup"]):
+        return "I can do local pickup or ship it out. Let me know what works best for you!"
+
     return "Thanks for reaching out! Let me know if you have any questions about the item."
 
 
