@@ -100,9 +100,12 @@ class _OrchestratorStub:
                 await self.events.put({
                     "type": "agent:spawn",
                     "data": {
+                        "agent_id": agent_id,
                         "agentId": agent_id,
+                        "item_id": item.item_id,
                         "platform": platform,
                         "phase": "research",
+                        "status": "queued",
                         "task": agent_state["task"],
                     },
                 })

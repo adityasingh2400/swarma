@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, Scale, Send, MessageSquare } from 'lucide-react';
 import Layout from './components/Layout';
@@ -12,26 +12,68 @@ import { useMockMode, getPostingDevMock } from './utils/mockData';
 
 const STEPS = [
   { id: 'processing', label: 'Processing', icon: Cpu },
-  { id: 'bidding', label: 'Route Bidding', icon: Scale },
+  { id: 'research', label: 'Research', icon: Scale },
   { id: 'posting', label: 'Posting', icon: Send },
   { id: 'concierge', label: 'Concierge', icon: MessageSquare },
 ];
 
-function TopbarSteps({ pipelineStage }) {
-  let activeIdx = 0;
-  if (pipelineStage === 'executing') activeIdx = 1;
+function researchUnlocked(agents, items) {
+  if ((items?.length ?? 0) > 0) return true;
+  const st = agents?.intake?.status;
+  return st === 'agent_completed' || st === 'done';
+}
+
+function TopbarSteps({
+  pipelineStage,
+  agents,
+  items,
+  highlightIdx,
+  onStepClick,
+}) {
+  const unlocked = researchUnlocked(agents, items);
+  const effectiveIdx = pipelineStage === 'executing' ? 1 : highlightIdx;
 
   return (
     <div className="topbar-steps">
       {STEPS.map((step, i) => {
         const Icon = step.icon;
-        const isCurrent = i === activeIdx;
-        const isPast = i < activeIdx;
-        const cls = isCurrent ? 'ts-current' : isPast ? 'ts-past' : 'ts-future';
+        const isCurrent = i === effectiveIdx;
+        const isPast = i < effectiveIdx;
+        const isFuture = i > effectiveIdx;
+        const canProcessing = i === 0;
+        const canResearch = i === 1 && unlocked;
+        const clickable = canProcessing || canResearch;
+
+        let cls = 'ts-node';
+        if (isCurrent) cls += ' ts-current ts-clickable';
+        else if (isPast) cls += ' ts-past ts-clickable';
+        else if (i === 1 && unlocked) cls += ' ts-available';
+        else cls += ' ts-future';
+
+        const activate = () => {
+          if (canProcessing) onStepClick?.(0);
+          else if (canResearch) onStepClick?.(1);
+        };
+
         return (
           <div key={step.id} className="topbar-step-group">
-            {i > 0 && <div className={`ts-line ${isPast ? 'ts-line-done' : ''}`} />}
-            <div className={`ts-node ${cls}`}>
+            {i > 0 && <div className={`ts-line ${effectiveIdx >= i ? 'ts-line-done' : ''}`} />}
+            <div
+              className={cls}
+              role={clickable ? 'button' : undefined}
+              tabIndex={clickable ? 0 : undefined}
+              onClick={clickable ? activate : undefined}
+              onKeyDown={
+                clickable
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        activate();
+                      }
+                    }
+                  : undefined
+              }
+            >
               <Icon size={12} />
               <span>{step.label}</span>
             </div>
@@ -94,6 +136,26 @@ export default function App() {
 
   const [simModal, setSimModal] = useState(null);
   const [execAnim, setExecAnim] = useState(null);
+  const [topbarStepIdx, setTopbarStepIdx] = useState(0);
+  const [theaterNavRequest, setTheaterNavRequest] = useState(null);
+
+  useEffect(() => {
+    setTopbarStepIdx(0);
+    setTheaterNavRequest(null);
+  }, [job?.job_id]);
+
+  const handleTopbarStep = useCallback((groupIdx) => {
+    setTopbarStepIdx(groupIdx);
+    setTheaterNavRequest({ groupIdx, id: Date.now() });
+  }, []);
+
+  const handleTheaterStageFromPipeline = useCallback((groupIdx) => {
+    setTopbarStepIdx(groupIdx);
+  }, []);
+
+  const handleTheaterNavConsumed = useCallback(() => {
+    setTheaterNavRequest(null);
+  }, []);
 
   const handleUpload = useCallback(async (file) => {
     if (mock.isMock) {
@@ -156,7 +218,13 @@ export default function App() {
               <span className="topbar-title">Swarma</span>
               {mock.isMock && <span className="topbar-subtitle">MOCK MODE</span>}
             </div>
-            <TopbarSteps pipelineStage={pipelineStage} />
+            <TopbarSteps
+              pipelineStage={pipelineStage}
+              agents={agents}
+              items={items}
+              highlightIdx={topbarStepIdx}
+              onStepClick={handleTopbarStep}
+            />
             <div className="topbar-controls" />
           </motion.header>
         )}
@@ -184,6 +252,9 @@ export default function App() {
           postingStatus={postingStatus}
           send={send}
           screenshots={screenshots}
+          theaterNavRequest={theaterNavRequest}
+          onTheaterNavConsumed={handleTheaterNavConsumed}
+          onTheaterStageChange={handleTheaterStageFromPipeline}
         />
       </AnimatePresence>
 

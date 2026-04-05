@@ -17,7 +17,7 @@ import PostingWorkspace from './PostingWorkspace';
 const STAGES = [
   { id: 1, label: 'Processing', desc: 'Extracting frames, transcribing, and analyzing items',
     agents: [{ id: 'intake', name: 'Intake', icon: Cpu }] },
-  { id: 2, label: 'Route Bidding', desc: 'Each item has its own fleet of agents racing in parallel',
+  { id: 2, label: 'Research', desc: 'Each item has its own fleet of agents racing in parallel',
     agents: [
       { id: 'marketplace_resale', name: 'Resale', icon: Search },
       { id: 'trade_in', name: 'Trade-In', icon: RefreshCw },
@@ -43,8 +43,18 @@ const ROUTE_MAP = {
 function getStatus(s) {
   if (!s) return 'idle';
   const v = s.status;
-  if (v === 'agent_started' || v === 'thinking' || v === 'agent_progress') return 'thinking';
-  if (v === 'agent_completed' || v === 'done') return 'done';
+  if (
+    v === 'agent_started'
+    || v === 'thinking'
+    || v === 'agent_progress'
+    || v === 'queued'
+    || v === 'running'
+    || v === 'navigating'
+    || v === 'filling'
+  ) {
+    return 'thinking';
+  }
+  if (v === 'agent_completed' || v === 'done' || v === 'complete') return 'done';
   if (v === 'agent_error' || v === 'error') return 'error';
   return 'idle';
 }
@@ -886,7 +896,7 @@ export default function MissionControl({
   job = null, listings = {}, onExecuteItem, overrideStageIdx,
   postingStatus = {},
   miniPlayer,
-  prefetchRouteBidding = false,
+  prefetchResearch = false,
 }) {
   const autoIdx = getActiveStageIndex(agents);
   const activeIdx = overrideStageIdx != null ? Math.min(overrideStageIdx, STAGES.length - 1) : autoIdx;
@@ -906,9 +916,9 @@ export default function MissionControl({
     return { total, active, done };
   }, [stage3Plan, agentsByItem]);
 
-  const mountRouteBidding = activeIdx === 1 || (prefetchRouteBidding && activeIdx === 0);
+  const mountResearch = activeIdx === 1 || (prefetchResearch && activeIdx === 0);
 
-  const routeBiddingBody = (
+  const researchBody = (
     <>
       {stage3TaskCount.total > 0 && (
         <div className="mc-stage3-counter">
@@ -966,9 +976,9 @@ export default function MissionControl({
           )}
         </AnimatePresence>
 
-        {mountRouteBidding && (
+        {mountResearch && (
           <div
-            className={`mc-route-bidding-layer ${activeIdx === 1 ? 'mc-rbl-visible' : 'mc-rbl-prefetch'}`}
+            className={`mc-research-layer ${activeIdx === 1 ? 'mc-research-visible' : 'mc-research-prefetch'}`}
             aria-hidden={activeIdx !== 1}
           >
             <motion.div
@@ -977,7 +987,7 @@ export default function MissionControl({
               animate={{ opacity: activeIdx === 1 ? 1 : 0 }}
               transition={{ duration: 0.2 }}
             >
-              {routeBiddingBody}
+              {researchBody}
             </motion.div>
           </div>
         )}

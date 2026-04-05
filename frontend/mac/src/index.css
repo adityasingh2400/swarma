@@ -277,9 +277,7 @@ body {
   font-weight: 500;
   white-space: nowrap;
   transition: all 300ms;
-  pointer-events: none;
   user-select: none;
-  cursor: default;
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-tertiary);
   opacity: 0.55;
@@ -306,6 +304,34 @@ body {
   background: rgba(0, 0, 0, 0.03);
   color: var(--text-tertiary);
   opacity: 0.35;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* Unlocked next step (e.g. Research after intake) — clickable, readable contrast */
+.ts-available {
+  pointer-events: auto;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
+  opacity: 0.88;
+  font-weight: 600;
+}
+.ts-available svg {
+  color: var(--text-secondary);
+}
+.ts-available:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.09);
+}
+
+.ts-clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.ts-past.ts-clickable:hover,
+.ts-current.ts-clickable:hover {
+  opacity: 1;
 }
 
 /* ===== LAYOUT (Unified flow) ===== */
@@ -2577,8 +2603,8 @@ body {
   position: relative;
 }
 
-/* Route bidding mounts in prefetch layer (hidden) while Processing stays visible */
-.mc-route-bidding-layer.mc-rbl-prefetch {
+/* Research stage mounts in prefetch layer (hidden) while Processing stays visible */
+.mc-research-layer.mc-research-prefetch {
   position: absolute;
   left: 0;
   top: 0;
@@ -2590,7 +2616,7 @@ body {
   pointer-events: none;
   z-index: 0;
 }
-.mc-route-bidding-layer.mc-rbl-visible {
+.mc-research-layer.mc-research-visible {
   position: relative;
   height: auto;
   overflow: visible;
@@ -6914,7 +6940,7 @@ body {
   opacity: 0.9;
 }
 
-/* Route Bidding cluster: base .ab2-parallel-cluster sets cursor:default later — win when clickable */
+/* Research cluster: base .ab2-parallel-cluster sets cursor:default later — win when clickable */
 .ab2-parallel-cluster.ab2-clickable {
   cursor: pointer;
 }

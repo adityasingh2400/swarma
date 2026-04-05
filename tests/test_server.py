@@ -259,7 +259,15 @@ class TestOrchestratorStub:
         event = self.stub.events.get_nowait()
         assert "type" in event and "data" in event
         data = event["data"]
-        assert {"agentId", "platform", "phase", "task"} <= set(data.keys())
+        assert {
+            "agentId",
+            "agent_id",
+            "item_id",
+            "platform",
+            "phase",
+            "task",
+            "status",
+        } <= set(data.keys())
 
     @pytest.mark.anyio
     async def test_start_pipeline_spawns_all_platforms(self):

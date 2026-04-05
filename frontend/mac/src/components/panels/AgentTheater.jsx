@@ -8,7 +8,7 @@ import { ACTIVE_STATUSES } from '../../utils/contracts';
 
 const STAGE_GROUPS = [
   { id: 'processing', label: 'Processing', icon: Cpu, agents: ['intake'], stage: 1, concurrent: false },
-  { id: 'routes', label: 'Route Bidding', icon: Search,
+  { id: 'routes', label: 'Research', icon: Search,
     agents: ['marketplace_resale', 'trade_in', 'return', 'repair_roi'], stage: 2, concurrent: true,
     subLabels: [
       { id: 'marketplace_resale', label: 'Resale', icon: Search },
@@ -71,6 +71,8 @@ export default function AgentTheater({
   postingStatus = {},
   send,
   miniPlayer,
+  theaterNavRequest,
+  onTheaterNavConsumed,
 }) {
   const currentGroupIdx = useMemo(() => getCurrentStageGroup(agents), [agents]);
   const [userSelectedGroup, setUserSelectedGroup] = useState(null);
@@ -81,15 +83,21 @@ export default function AgentTheater({
     setUserSelectedGroup(null);
   }, [job?.job_id]);
 
-  /** Pipeline may advance to route bidding while we keep showing Processing until the user clicks. */
+  useEffect(() => {
+    if (theaterNavRequest?.id == null) return;
+    setUserSelectedGroup(theaterNavRequest.groupIdx);
+    onTheaterNavConsumed?.();
+  }, [theaterNavRequest?.id, theaterNavRequest?.groupIdx, onTheaterNavConsumed]);
+
+  /** Pipeline may advance to research while we keep showing Processing until the user clicks. */
   const displayGroupIdx = useMemo(() => {
     if (userSelectedGroup != null) return userSelectedGroup;
     if (intakeDone) return 0;
     return currentGroupIdx;
   }, [userSelectedGroup, intakeDone, currentGroupIdx]);
 
-  // Prefetch route-bidding UI while still on Processing once a job exists (no intake-done gate).
-  const prefetchRouteBidding = Boolean(job?.job_id) && displayGroupIdx === 0;
+  // Prefetch research UI while still on Processing once items exist (no intake-done gate).
+  const prefetchResearch = (items?.length ?? 0) > 0 && displayGroupIdx === 0;
 
   const handleStageClick = (stageIndex) => {
     const group = STAGE_GROUPS[stageIndex];
@@ -97,7 +105,7 @@ export default function AgentTheater({
     const status = getGroupStatus(group, agents);
     const routesIdx = 1;
 
-    // Route Bidding is always navigable — no hard wait for intake "done" (status can lag or mismatch).
+    // Research is always navigable — no hard wait for intake "done" (status can lag or mismatch).
     if (stageIndex === routesIdx) {
       setUserSelectedGroup(stageIndex);
       onStageClick?.(stageIndex);
@@ -207,7 +215,7 @@ export default function AgentTheater({
           listings={listings}
           onExecuteItem={onExecuteItem}
           overrideStageIdx={mcStageIdx}
-          prefetchRouteBidding={prefetchRouteBidding}
+          prefetchResearch={prefetchResearch}
           v2Agents={v2Agents}
           pipelineStage={pipelineStage}
           postingStatus={postingStatus}

@@ -4,7 +4,6 @@ import { Scan, Check, ArrowRight } from 'lucide-react';
 import IntakePanel from './panels/IntakePanel';
 import AgentTheater from './panels/AgentTheater';
 import DecisionPanel from './panels/DecisionPanel';
-import SwarmGrid from './SwarmGrid';
 import FocusMode from './FocusMode';
 import ResearchPage from './research/ResearchPage';
 import ConciergePage from './ConciergePage';
@@ -250,7 +249,7 @@ function getGlobalStage(agents, v2Agents, pipelineStage) {
     const hasActive = v2Entries.some((a) => ACTIVE_STATUSES.has(a.status));
     const allComplete = v2Entries.every((a) => a.status === 'complete' || a.status === 'error');
     if (allComplete) return 'concierge-done';
-    if (hasActive) return 'bidding';
+    if (hasActive) return 'research';
   }
 
   const s = (id) => {
@@ -263,7 +262,7 @@ function getGlobalStage(agents, v2Agents, pipelineStage) {
   if (s('concierge') === 'thinking') return 'concierge';
   if (s('route_decider') === 'done' || s('route_decider') === 'thinking') return 'deciding';
   const routeAgents = ['marketplace_resale', 'trade_in', 'return', 'repair_roi'];
-  if (routeAgents.some((a) => s(a) === 'thinking' || s(a) === 'done')) return 'bidding';
+  if (routeAgents.some((a) => s(a) === 'thinking' || s(a) === 'done')) return 'research';
   if (s('condition_fusion') === 'done' || s('condition_fusion') === 'thinking') return 'processing';
   if (s('intake') === 'done' || s('intake') === 'thinking') return 'processing';
   return 'idle';
@@ -323,6 +322,9 @@ function LayoutInner({
   agentsRaw, agentsByItem, stage3Plan, events, lastEvent,
   onUpload, onExecuteItem, onSendReply,
   v2Agents = {}, pipelineStage, postingStatus = {}, send, screenshots,
+  theaterNavRequest,
+  onTheaterNavConsumed,
+  onTheaterStageChange,
 }) {
   const [phase, setPhase] = useState('intake');
   const [videoUrl, setVideoUrl] = useState(null);
@@ -338,8 +340,6 @@ function LayoutInner({
     () => getGlobalStage(agents, v2Agents, pipelineStage),
     [agents, v2Agents, pipelineStage],
   );
-  const useV2 = Object.keys(v2Agents).length > 0;
-
   useEffect(() => {
     if (processingHardStop) return;
     if (researchReady || phase !== 'processing' || items.length === 0) return;
@@ -438,28 +438,15 @@ function LayoutInner({
                   agentsRaw={agentsRaw} agentsByItem={agentsByItem}
                   stage3Plan={stage3Plan} events={events} lastEvent={lastEvent}
                   onExecuteItem={onExecuteItem} onSendReply={onSendReply}
-                  v2Agents={v2Agents} pipelineStage={pipelineStage}                   postingStatus={postingStatus} send={send}
+                  v2Agents={v2Agents} pipelineStage={pipelineStage} postingStatus={postingStatus} send={send}
+                  theaterNavRequest={theaterNavRequest}
+                  onTheaterNavConsumed={onTheaterNavConsumed}
+                  onStageClick={onTheaterStageChange}
                   miniPlayer={videoUrl ? (
                     <MiniPlayer videoUrl={videoUrl} items={items} globalStage={globalStage} agents={agents} />
                   ) : null}
                 />
               </motion.div>
-
-              {useV2 && Object.keys(v2Agents).length > 0 && (
-                <motion.div
-                  className="proc-swarm"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.4, ease: EASE }}
-                >
-                  <SwarmGrid
-                    v2Agents={v2Agents}
-                    screenshots={screenshots}
-                    onFocusAgent={setFocusedAgentId}
-                    focusedAgentId={focusedAgentId}
-                  />
-                </motion.div>
-              )}
             </motion.div>
           )}
 

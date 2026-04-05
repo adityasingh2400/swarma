@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { uploadVideo, getJobState, executeItem as execItem, sendReply as replyApi } from '../utils/api';
 import { swarmaFe, summarizeWsEvent } from '../utils/debugLog';
+import { buildV2RouteAgentsRaw, normalizeV2AgentsMap } from '../utils/v2RouteBridge';
 import {
   EVENT_AGENT_SPAWN, EVENT_AGENT_STATUS, EVENT_AGENT_ERROR,
   EVENT_AGENT_COMPLETE, EVENT_AGENT_RESULT, EVENT_ITEM_IDENTIFIED,
@@ -43,12 +44,20 @@ export function useJob(jobId) {
   const [postingStatus, setPostingStatus] = useState({});
   // Internal: per-item agent states: { agentName: { itemId: state } }
   const [agentsRaw, setAgentsRaw] = useState({});
+  const agentsRawMerged = useMemo(() => {
+    const patch = buildV2RouteAgentsRaw(v2Agents, items);
+    const out = { ...agentsRaw };
+    for (const [agentName, itemMap] of Object.entries(patch)) {
+      out[agentName] = { ...(out[agentName] || {}), ...itemMap };
+    }
+    return out;
+  }, [agentsRaw, v2Agents, items]);
   // Exposed: aggregated agent states (highest priority per agent)
-  const agents = useMemo(() => aggregateAgents(agentsRaw), [agentsRaw]);
+  const agents = useMemo(() => aggregateAgents(agentsRawMerged), [agentsRawMerged]);
   // Exposed: item-centric view: { itemId: { agentName: state } }
   const agentsByItem = useMemo(() => {
     const result = {};
-    for (const [agentName, itemMap] of Object.entries(agentsRaw)) {
+    for (const [agentName, itemMap] of Object.entries(agentsRawMerged)) {
       for (const [itemId, state] of Object.entries(itemMap)) {
         if (itemId === '_global') continue;
         if (!result[itemId]) result[itemId] = {};
@@ -56,7 +65,7 @@ export function useJob(jobId) {
       }
     }
     return result;
-  }, [agentsRaw]);
+  }, [agentsRawMerged]);
 
   const { connected, events, lastEvent, subscribe, send } = useWebSocket(jobId);
   const prevJobRef = useRef(null);
@@ -132,6 +141,9 @@ export function useJob(jobId) {
               raw[agent] = { [st.item_id || '_global']: st };
             }
             setAgentsRaw(raw);
+          }
+          if (data.agents && typeof data.agents === 'object') {
+            setV2Agents(normalizeV2AgentsMap(data.agents));
           }
           break;
 
@@ -262,48 +274,65 @@ export function useJob(jobId) {
           });
           break;
 
-        case EVENT_AGENT_SPAWN:
+        case EVENT_AGENT_SPAWN: {
+          const aid = data.agent_id ?? data.agentId;
+          if (!aid) break;
           setV2Agents((prev) => ({
             ...prev,
-            [data.agent_id]: {
+            [aid]: {
               started_at: null, completed_at: null, error: null, result: null,
               ...data,
+              agent_id: aid,
               status: data.status || 'queued',
             },
           }));
           break;
-        case EVENT_AGENT_STATUS:
+        }
+        case EVENT_AGENT_STATUS: {
+          const aid = data.agent_id ?? data.agentId;
+          if (!aid) break;
           setV2Agents((prev) => {
-            const existing = prev[data.agent_id] || {};
+            const existing = prev[aid] || {};
             if (existing.status === 'complete' || existing.status === 'error') return prev;
-            return { ...prev, [data.agent_id]: { ...existing, ...data } };
+            return { ...prev, [aid]: { ...existing, ...data, agent_id: aid } };
           });
           break;
-        case EVENT_AGENT_ERROR:
+        }
+        case EVENT_AGENT_ERROR: {
+          const aid = data.agent_id ?? data.agentId;
+          if (!aid) break;
           setV2Agents((prev) => {
-            const existing = prev[data.agent_id] || {};
-            return { ...prev, [data.agent_id]: { ...existing, ...data, status: 'error' } };
+            const existing = prev[aid] || {};
+            return { ...prev, [aid]: { ...existing, ...data, agent_id: aid, status: 'error' } };
           });
           break;
-        case EVENT_AGENT_COMPLETE:
+        }
+        case EVENT_AGENT_COMPLETE: {
+          const aid = data.agent_id ?? data.agentId;
+          if (!aid) break;
           setV2Agents((prev) => {
-            const existing = prev[data.agent_id] || {};
+            const existing = prev[aid] || {};
             return {
               ...prev,
-              [data.agent_id]: {
+              [aid]: {
                 ...existing, ...data,
+                agent_id: aid,
                 status: 'complete',
                 completed_at: data.completed_at || Date.now() / 1000,
               },
             };
           });
           break;
-        case EVENT_AGENT_RESULT:
+        }
+        case EVENT_AGENT_RESULT: {
+          const aid = data.agent_id ?? data.agentId;
+          if (!aid) break;
           setV2Agents((prev) => {
-            const existing = prev[data.agent_id] || {};
-            return { ...prev, [data.agent_id]: { ...existing, result: data.result } };
+            const existing = prev[aid] || {};
+            return { ...prev, [aid]: { ...existing, result: data.result, agent_id: aid } };
           });
           break;
+        }
         case EVENT_ITEM_IDENTIFIED:
           setItems((prev) => {
             const idx = prev.findIndex((i) => i.item_id === data.item_id);
@@ -313,7 +342,7 @@ export function useJob(jobId) {
           });
           break;
         case EVENT_STATE_SNAPSHOT:
-          if (data.agents) setV2Agents(data.agents);
+          if (data.agents) setV2Agents(normalizeV2AgentsMap(data.agents));
           if (data.items) setItems(data.items);
           if (data.pipeline_stage) setPipelineStage(data.pipeline_stage);
           break;
@@ -388,7 +417,7 @@ export function useJob(jobId) {
     listings,
     threads,
     agents,
-    agentsRaw,
+    agentsRaw: agentsRawMerged,
     agentsByItem,
     stage3Plan,
     v2Agents,

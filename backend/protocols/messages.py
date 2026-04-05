@@ -36,7 +36,7 @@ class ItemAnalysisResponse(Model):
     count: int = 0
 
 
-# ── Route Bidding ─────────────────────────────────────────────────────────────
+# ── Research (per-platform listing research) ─────────────────────────────────
 
 class RouteBidRequest(Model):
     job_id: str
