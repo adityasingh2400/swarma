@@ -1,194 +1,139 @@
-"""CDP screenshot capture + binary WebSocket framing.
+"""CDP screencast capture + binary WebSocket framing.
 
-Captures screenshots from Browser-Use agent browser contexts via CDP,
-encodes them as JPEG at two quality levels (grid thumbnail + focus),
-and stores them in a module-level ring buffer for the server to read.
+Uses Chrome DevTools Protocol (CDP) Page.screencastFrame events for async
+video broadcast — no polling. Each agent gets its own CDP session when its
+browser page is ready; the browser pushes JPEG frames directly to the handler.
+
+CDP scales frames to 320×240 before encoding — no server-side PIL processing.
+The frame handler is a pure store: decode base64, write to frame_store.
 
 Binary frame format (confirmed with Person 4):
   [0x01] [32-byte utf8 agentId null-padded] [4-byte uint32 BE timestamp] [JPEG bytes]
   Header total: 37 bytes.
+
+Person 1 hook points — call these from the real orchestrator:
+  await streaming.start_screencast(agent_id, page)  # on browser page ready
+  await streaming.stop_screencast(agent_id)          # on agent done / cancelled
 """
 from __future__ import annotations
 
-import asyncio
+import base64
 import logging
 import struct
 import time
-from dataclasses import dataclass, field
-from io import BytesIO
-
-from PIL import Image
+from dataclasses import dataclass
 
 from backend.config import settings
 
 logger = logging.getLogger("reroute.streaming")
 
-# ── Frame Store (module-level ring buffer) ────────────────────────────────────
+
+# ── Frame Store ───────────────────────────────────────────────────────────────
 # Latest frame always wins. No stale accumulation.
-# Event loop thread owns writes; server.py reads.
+# CDP callback writes; server.py reads.
 
 
 @dataclass(slots=True)
 class FrameData:
-    grid: bytes  # 320x240 JPEG q60 ~20KB
-    focus: bytes  # 1280x960 JPEG q80 ~100KB
-    ts: float  # time.time() when captured
+    jpeg: bytes  # 320×240 JPEG q60, pre-scaled by CDP — no server-side resize
+    ts: float    # time.time() when received
 
 
 frame_store: dict[str, FrameData] = {}
 
-# Tracks which agent is currently focused (higher FPS delivery).
-# Set by server.py when it receives focus:request / focus:release.
-focused_agent_id: str | None = None
-
-
-# ── JPEG Encoding (runs in thread pool) ───────────────────────────────────────
-
-
-def _encode_and_resize(png_bytes: bytes) -> tuple[bytes, bytes]:
-    """Decode a PNG screenshot, produce grid + focus JPEG variants.
-
-    This runs in a thread pool to avoid blocking the event loop.
-    Returns (grid_jpeg, focus_jpeg).
-    """
-    img = Image.open(BytesIO(png_bytes))
-
-    # Focus resolution
-    focus_img = img.resize(
-        (settings.screenshot_focus_width, settings.screenshot_focus_height),
-        Image.LANCZOS,
-    )
-    focus_buf = BytesIO()
-    focus_img.save(focus_buf, format="JPEG", quality=settings.screenshot_focus_quality)
-    focus_jpeg = focus_buf.getvalue()
-
-    # Grid thumbnail
-    grid_img = img.resize(
-        (settings.screenshot_grid_width, settings.screenshot_grid_height),
-        Image.LANCZOS,
-    )
-    grid_buf = BytesIO()
-    grid_img.save(grid_buf, format="JPEG", quality=settings.screenshot_grid_quality)
-    grid_jpeg = grid_buf.getvalue()
-
-    return grid_jpeg, focus_jpeg
+# Active CDP sessions — kept so stop_screencast can tear them down.
+_cdp_sessions: dict[str, object] = {}
 
 
 # ── Binary Frame Encoding ─────────────────────────────────────────────────────
 
 
 def encode_binary_frame(agent_id: str, jpeg_bytes: bytes) -> bytes:
-    """Encode a screenshot into the binary WS frame format.
+    """Pack a JPEG into the confirmed binary WS frame format.
 
     Format: [0x01][32-byte utf8 agentId null-padded][4-byte uint32 BE timestamp][JPEG]
     """
-    # Version byte
-    version = b"\x01"
-
-    # Agent ID: 32 bytes, utf8, null-padded
-    agent_bytes = agent_id.encode("utf-8")[:32]
-    agent_padded = agent_bytes.ljust(32, b"\x00")
-
-    # Timestamp: uint32 big-endian (seconds since epoch, wraps ~2106)
+    agent_bytes = agent_id.encode("utf-8")[:32].ljust(32, b"\x00")
     ts = struct.pack(">I", int(time.time()) & 0xFFFFFFFF)
-
-    return version + agent_padded + ts + jpeg_bytes
-
-
-# ── Screenshot Capture Loop ───────────────────────────────────────────────────
+    return b"\x01" + agent_bytes + ts + jpeg_bytes
 
 
-async def capture_loop(agent_id: str, get_page_fn):
-    """Continuously capture CDP screenshots for one agent.
+# ── CDP Screencast ────────────────────────────────────────────────────────────
+
+
+async def start_screencast(agent_id: str, page) -> None:
+    """Start a CDP screencast session for one agent's Playwright Page.
+
+    The browser pushes JPEG frames via Page.screencastFrame events.
+    CDP performs the resize to the configured grid dimensions before encoding —
+    no server-side image processing.
 
     Args:
         agent_id: Unique agent identifier (e.g. "ebay-research-0").
-        get_page_fn: An async callable that returns a Playwright Page object
-                     (or None if the agent's browser is not yet ready).
-                     This is a callable rather than a direct Page reference
-                     because the page may change during context recycling.
+        page:     Playwright Page from Browser-Use's browser_session.
 
-    The loop runs at settings.screenshot_capture_fps (default 2 fps).
-    It writes to frame_store[agent_id] on every capture.
-    The loop exits when cancelled (agent completes or is stopped).
-
-    NOTE: get_page_fn is stubbed for now. The actual implementation depends
-    on how Browser-Use exposes CDP access from its Browser object. Person 1
-    will provide get_browser(agent_id) -> Browser, and we need to extract
-    a Playwright Page from that. See TODO below.
+    Called by the orchestrator immediately after the agent's browser page is ready.
     """
-    interval = 1.0 / settings.screenshot_capture_fps
-    logger.info("capture_loop started for %s (%.1f fps)", agent_id, settings.screenshot_capture_fps)
+    if agent_id in _cdp_sessions:
+        logger.warning("start_screencast called twice for %s — stopping old session", agent_id)
+        await stop_screencast(agent_id)
 
-    try:
-        while True:
-            page = None
-            try:
-                page = await get_page_fn()
-            except Exception:
-                logger.debug("get_page_fn not ready for %s, retrying", agent_id)
-                await asyncio.sleep(interval)
-                continue
+    cdp = await page.context.new_cdp_session(page)
+    _cdp_sessions[agent_id] = cdp
 
-            if page is None:
-                await asyncio.sleep(interval)
-                continue
+    # everyNthFrame: 1 out of every N frames from the browser's vsync (~60 Hz).
+    # fps=2 → everyNthFrame=30; fps=5 → 12; fps=1 → 60.
+    every_n = max(1, round(60 / settings.screenshot_capture_fps))
 
-            try:
-                # CDP screenshot returns PNG bytes
-                png_bytes = await page.screenshot(type="png")
+    await cdp.send("Page.startScreencast", {
+        "format": "jpeg",
+        "quality": settings.screenshot_grid_quality,     # 60
+        "maxWidth": settings.screenshot_grid_width,      # 320
+        "maxHeight": settings.screenshot_grid_height,    # 240
+        "everyNthFrame": every_n,
+    })
 
-                # Offload JPEG encode + resize to thread pool
-                grid_jpeg, focus_jpeg = await asyncio.to_thread(
-                    _encode_and_resize, png_bytes
-                )
+    async def _on_frame(params: dict) -> None:
+        session_id = params["sessionId"]
+        try:
+            await cdp.send("Page.screencastFrameAck", {"sessionId": session_id})
+        except Exception as exc:
+            logger.debug("screencastFrameAck failed for %s (session likely torn down): %s", agent_id, exc)
+        jpeg_bytes = base64.b64decode(params["data"])
+        frame_store[agent_id] = FrameData(jpeg=jpeg_bytes, ts=time.time())
 
-                # Event loop thread writes to frame_store (no race condition)
-                frame_store[agent_id] = FrameData(
-                    grid=grid_jpeg,
-                    focus=focus_jpeg,
-                    ts=time.time(),
-                )
-
-            except Exception as exc:
-                # Page may have been closed during context recycling
-                logger.warning("Screenshot capture failed for %s: %s", agent_id, exc)
-
-            await asyncio.sleep(interval)
-
-    except asyncio.CancelledError:
-        logger.info("capture_loop stopped for %s", agent_id)
-        # Clean up frame store entry
-        frame_store.pop(agent_id, None)
-        raise
+    cdp.on("Page.screencastFrame", _on_frame)
+    logger.info(
+        "CDP screencast started for %s (everyNthFrame=%d, ~%.1f fps)",
+        agent_id, every_n, 60 / every_n,
+    )
 
 
-def stop_capture(agent_id: str) -> None:
-    """Remove an agent's frame data from the store.
+async def stop_screencast(agent_id: str) -> None:
+    """Stop the CDP screencast session and remove the agent's frames.
 
-    Called when an agent completes or is recycled. The capture_loop task
-    should be cancelled separately.
+    Called by the orchestrator when an agent completes or is cancelled.
     """
+    cdp = _cdp_sessions.pop(agent_id, None)
+    if cdp is not None:
+        try:
+            await cdp.send("Page.stopScreencast")
+            await cdp.detach()
+        except Exception as exc:
+            logger.debug("CDP teardown for %s: %s", agent_id, exc)
     frame_store.pop(agent_id, None)
+    logger.info("CDP screencast stopped for %s", agent_id)
 
 
 # ── Delivery Helpers (used by server.py WS screenshot endpoint) ───────────────
 
 
-def get_frame_for_delivery(agent_id: str) -> tuple[bytes, bool] | None:
-    """Get the latest frame for an agent, choosing grid or focus quality.
-
-    Returns (jpeg_bytes, is_focus) or None if no frame available.
-    """
+def get_frame_for_delivery(agent_id: str) -> bytes | None:
+    """Return the latest JPEG bytes for this agent, or None if no frame yet."""
     frame = frame_store.get(agent_id)
-    if frame is None:
-        return None
-
-    if agent_id == focused_agent_id:
-        return frame.focus, True
-    return frame.grid, False
+    return frame.jpeg if frame is not None else None
 
 
 def get_all_agent_ids() -> list[str]:
-    """Return all agent IDs that have frames in the store."""
+    """Return all agent IDs that currently have frames in the store."""
     return list(frame_store.keys())

@@ -16,7 +16,6 @@ Visual feed:
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import time
 
@@ -28,6 +27,7 @@ from extraction import make_research_tools
 from models.item_card import ItemCard
 from models.listing_package import ListingPackage
 from route_decision import route_decision
+import backend.streaming as streaming
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,8 @@ def _make_llm():
             model="gemini-2.0-flash",
             google_api_key=settings.gemini_api_key,
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("Gemini LLM init failed, falling back to ChatBrowserUse: %s", exc)
         from browser_use import ChatBrowserUse
         return ChatBrowserUse()
 
@@ -164,10 +165,19 @@ class Orchestrator:
                      initial_actions: list[dict] | None = None,
                      use_vision: bool | str = False,
                      platform: str = "",
-                     phase: str = "") -> Agent:
+                     phase: str = "",
+                     step_prehook=None) -> Agent:
         """Build an Agent with all speed + visual optimizations."""
-        # Research agents get custom JS extraction tools (replaces slow LLM extract)
         tools = make_research_tools(platform) if phase == "research" else None
+        base_cb = self._make_step_callback(agent_id)
+
+        if step_prehook is not None:
+            async def _combined_cb(state, model_output, step):
+                await step_prehook(state, model_output, step)
+                base_cb(state, model_output, step)
+            cb = _combined_cb
+        else:
+            cb = base_cb
 
         agent = Agent(
             task=task_str,
@@ -179,7 +189,7 @@ class Orchestrator:
             use_vision=use_vision,
             initial_actions=initial_actions,
             tools=tools,
-            register_new_step_callback=self._make_step_callback(agent_id),
+            register_new_step_callback=cb,
         )
         return agent
 
@@ -222,13 +232,28 @@ class Orchestrator:
             use_vision: bool | str = "auto" if phase == "listing" else False
 
             try:
+                # Hook: start CDP screencast on the first step (browser is ready by then).
+                # agent_box holds the agent reference so the closure can reach it
+                # after Agent() returns but before agent.run() fires the callback.
+                agent_box: list[Agent | None] = [None]
+                sc_started = [False]
+
+                async def _screencast_on_first_step(state, model_output, step):
+                    if sc_started[0]:
+                        return
+                    sc_started[0] = True
+                    page = await agent_box[0].browser_session.get_current_page()
+                    await streaming.start_screencast(agent_id, page)
+
                 agent = self._build_agent(
                     agent_id, task_str, profile,
                     initial_actions=initial_actions,
                     use_vision=use_vision,
                     platform=playbook.platform,
                     phase=phase,
+                    step_prehook=_screencast_on_first_step,
                 )
+                agent_box[0] = agent
                 self.agents[agent_id] = agent
 
                 history = await agent.run()
@@ -247,11 +272,11 @@ class Orchestrator:
                     data={"duration_s": duration},
                 ))
 
-                logger.info(f"Agent {agent_id} completed in {duration:.1f}s")
+                logger.info("Agent %s completed in %.1fs", agent_id, duration)
                 return history
 
             except Exception as first_err:
-                logger.warning(f"Agent {agent_id} failed: {first_err}, retrying...")
+                logger.warning("Agent %s failed: %s, retrying...", agent_id, first_err)
                 self._update_state(agent_id, status="retrying")
                 self._emit(AgentEvent(
                     type="agent:status", agent_id=agent_id,
@@ -277,7 +302,7 @@ class Orchestrator:
                         type="agent:complete", agent_id=agent_id,
                         data={"duration_s": duration, "retried": True},
                     ))
-                    logger.info(f"Agent {agent_id} completed on retry in {duration:.1f}s")
+                    logger.info("Agent %s completed on retry in %.1fs", agent_id, duration)
                     return history
 
                 except Exception as retry_err:
@@ -286,7 +311,7 @@ class Orchestrator:
                         type="agent:error", agent_id=agent_id,
                         data={"error": str(retry_err), "status": "blocked"},
                     ))
-                    logger.error(f"Agent {agent_id} blocked after retry: {retry_err}")
+                    logger.error("Agent %s blocked after retry: %s", agent_id, retry_err)
                     raise
 
                 finally:
@@ -294,6 +319,7 @@ class Orchestrator:
 
             finally:
                 self.agents.pop(agent_id, None)
+                await streaming.stop_screencast(agent_id)
 
     # --- Pipeline ---
 
@@ -307,8 +333,8 @@ class Orchestrator:
             return
 
         logger.info(
-            f"Starting pipeline for job {job_id}: {len(items)} items, "
-            f"{num_playbooks} playbooks, {len(items) * num_playbooks} research agents"
+            "Starting pipeline for job %s: %d items, %d playbooks, %d research agents",
+            job_id, len(items), num_playbooks, len(items) * num_playbooks,
         )
 
         # Phase 1: Research — all items, all platforms, concurrently
@@ -326,15 +352,15 @@ class Orchestrator:
             parsed: dict[str, dict] = {}
             for pb, result in zip(playbooks, item_results):
                 if isinstance(result, BaseException):
-                    logger.warning(f"Research failed for {pb.platform}/{item.item_id}: {result}")
+                    logger.warning("Research failed for %s/%s: %s", pb.platform, item.item_id, result)
                     continue
                 try:
                     parsed[pb.platform] = pb.parse_research(result.final_result())
                 except Exception as e:
-                    logger.warning(f"Parse failed for {pb.platform}/{item.item_id}: {e}")
+                    logger.warning("Parse failed for %s/%s: %s", pb.platform, item.item_id, e)
 
             if not parsed:
-                logger.warning(f"No research results for item {item.item_id}, skipping listing")
+                logger.warning("No research results for item %s, skipping listing", item.item_id)
                 continue
 
             decision: RouteDecision = route_decision(item, parsed)
@@ -350,9 +376,8 @@ class Orchestrator:
                 },
             ))
             logger.info(
-                f"Route decision for {item.name_guess}: "
-                f"{', '.join(decision.platforms)} "
-                f"(scores: {decision.scores})"
+                "Route decision for %s: %s (scores: %s)",
+                item.name_guess, ", ".join(decision.platforms), decision.scores,
             )
 
             item.listing_package = ListingPackage(

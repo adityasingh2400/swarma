@@ -6,7 +6,14 @@
       "Bash(./setup)",
       "Bash(mkdir -p .claude/skills)",
       "Bash(ls .claude/skills/gstack/*.md)",
-      "Bash(ls .claude/skills/gstack/*.skill.*)"
+      "Bash(ls .claude/skills/gstack/*.skill.*)",
+      "Bash(bash start_auth_chrome.sh)",
+      "WebSearch",
+      "WebFetch(domain:docs.browser-use.com)",
+      "Bash(pip show:*)",
+      "Bash(python:*)",
+      "Bash(grep -v \"^$\")",
+      "Skill(qa)"
     ]
   }
 }

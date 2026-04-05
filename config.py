@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     mercari_cookies: str = "./auth/mercari-cookies.json"
     depop_cookies: str = "./auth/depop-cookies.json"
 
+    # Screencast
+    screencast_fps: int = 30
+
     # Server
     api_host: str = "0.0.0.0"
     api_port: int = 8080
