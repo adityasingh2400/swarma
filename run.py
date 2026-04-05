@@ -6,7 +6,7 @@ from config import settings
 def main():
     settings.ensure_dirs()
     uvicorn.run(
-        "server:app",
+        "backend.server:app",
         host=settings.api_host,
         port=settings.api_port,
         reload=True,

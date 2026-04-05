@@ -39,12 +39,9 @@ from backend.models.item_card import ItemCard
 from backend.models.job import Job, JobStatus
 from backend.streaming import (
     encode_binary_frame,
-    focused_agent_id,
-    frame_store,
     get_all_agent_ids,
     get_frame_for_delivery,
 )
-import backend.streaming as streaming_mod
 
 logger = logging.getLogger("reroute.server")
 
@@ -59,8 +56,14 @@ class _OrchestratorStub:
 
     Real interface (from Person 1):
       orchestrator.events           — asyncio.Queue[AgentEvent]
-      orchestrator.get_browser(id)  — Returns Browser-Use Browser instance
       orchestrator.start_pipeline(job_id, items) — Direct method call
+
+    CDP screencast hook points Person 1 must call when spinning up each agent:
+      # When the agent's Playwright Page is ready:
+      await streaming.start_screencast(agent_id, page)
+
+      # When the agent completes or is cancelled:
+      await streaming.stop_screencast(agent_id)
     """
 
     def __init__(self):
@@ -207,18 +210,14 @@ async def _event_drain_loop(job_id: str):
 
 
 async def _screenshot_push_loop(job_id: str):
-    """Push latest screenshots to WS clients at configured delivery rates.
+    """Push latest screenshots to all WS clients at a uniform rate.
 
-    Grid agents: settings.screenshot_grid_delivery_fps (default 1 fps)
-    Focused agent: settings.screenshot_focus_delivery_fps (default 3 fps)
+    All agents are delivered at settings.screenshot_grid_delivery_fps (default 1 fps).
+    No per-agent differentiation — the whole swarm is always live simultaneously.
 
     Uses frame_store (module-level dict in streaming.py) as the source.
     """
-    grid_interval = 1.0 / settings.screenshot_grid_delivery_fps
-    focus_interval = 1.0 / settings.screenshot_focus_delivery_fps
-    min_interval = min(grid_interval, focus_interval)
-
-    # Track last delivery time per agent to implement per-agent throttling
+    interval = 1.0 / settings.screenshot_grid_delivery_fps
     last_sent: dict[str, float] = {}
 
     logger.info("Screenshot push loop started for job %s", job_id)
@@ -230,25 +229,18 @@ async def _screenshot_push_loop(job_id: str):
 
             now = time.time()
             for agent_id in get_all_agent_ids():
-                # Determine delivery interval based on focus state
-                is_focused = agent_id == streaming_mod.focused_agent_id
-                interval = focus_interval if is_focused else grid_interval
-
-                # Throttle: skip if we sent too recently
-                last = last_sent.get(agent_id, 0)
-                if now - last < interval:
+                if now - last_sent.get(agent_id, 0) < interval:
                     continue
 
-                result = get_frame_for_delivery(agent_id)
-                if result is None:
+                jpeg_bytes = get_frame_for_delivery(agent_id)
+                if jpeg_bytes is None:
                     continue
 
-                jpeg_bytes, _ = result
                 binary_frame = encode_binary_frame(agent_id, jpeg_bytes)
                 await ws_manager.broadcast_screenshot(job_id, binary_frame)
                 last_sent[agent_id] = now
 
-            await asyncio.sleep(min_interval)
+            await asyncio.sleep(interval)
 
     except asyncio.CancelledError:
         logger.info("Screenshot push loop stopped for job %s", job_id)
@@ -437,11 +429,7 @@ async def get_job_items(job_id: str):
 
 @app.websocket("/ws/{job_id}/events")
 async def ws_events(ws: WebSocket, job_id: str):
-    """JSON text frames: agent lifecycle events.
-
-    Client can send focus:request / focus:release messages to control
-    screenshot delivery rate for a specific agent.
-    """
+    """JSON text frames: agent lifecycle events."""
     await ws_manager.connect_events(job_id, ws)
     try:
         # Send initial state on connect (reconnection strategy option C)
@@ -455,22 +443,9 @@ async def ws_events(ws: WebSocket, job_id: str):
                 },
             })
 
-        # Listen for client messages (focus mode control)
+        # Keep connection alive; client messages are currently informational only
         while True:
-            data = await ws.receive_json()
-            msg_type = data.get("type")
-
-            if msg_type == "focus:request":
-                agent_id = data.get("agent_id")
-                if agent_id:
-                    streaming_mod.focused_agent_id = agent_id
-                    logger.info("Focus mode: %s", agent_id)
-
-            elif msg_type == "focus:release":
-                agent_id = data.get("agent_id")
-                if streaming_mod.focused_agent_id == agent_id:
-                    streaming_mod.focused_agent_id = None
-                    logger.info("Focus released: %s", agent_id)
+            await ws.receive_json()
 
     except WebSocketDisconnect:
         ws_manager.disconnect_events(job_id, ws)
