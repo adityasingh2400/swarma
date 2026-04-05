@@ -91,7 +91,7 @@ class _OrchestratorStub:
         self._agents: dict[str, dict] = {}
 
     async def start_pipeline(self, job_id: str, items: list[ItemCard]) -> None:
-        platforms = ["ebay", "facebook", "mercari", "amazon"]
+        platforms = ["ebay", "facebook", "amazon"]
         for item in items:
             for platform in platforms:
                 agent_id = f"{platform}-research-{item.item_id}"
@@ -443,28 +443,6 @@ async def _run_pipeline(job_id: str, video_path: str):
 
         _job_items[job_id] = items
 
-        # Prepare per-item listing images from item-specific frames
-        from backend.intake import _prepare_listing_images
-        for item in items:
-            item_frames = []
-            for idx, jpeg_bytes in best_frames:
-                if not item.hero_frame_indices_raw or idx in item.hero_frame_indices_raw:
-                    item_frames.append((idx, jpeg_bytes))
-            if not item_frames:
-                item_frames = best_frames[:3]
-            raw_item = {
-                "frame_indices": item.hero_frame_indices_raw,
-                "bounding_box": None,
-            }
-            try:
-                await _prepare_listing_images(item.item_id, item_frames, raw_item)
-                swarma_line("pipeline", "listing_images_prepared",
-                            job_id=job_id, item=item.name_guess,
-                            item_id=item.item_id, frames_n=len(item_frames))
-            except Exception as img_err:
-                swarma_line("pipeline", "listing_images_failed",
-                            job_id=job_id, item=item.name_guess, error=str(img_err))
-
         for item in items:
             await ws_manager.broadcast_event(job_id, {
                 "type": "item_added",
@@ -583,6 +561,15 @@ async def local_ip():
         ip = "127.0.0.1"
     logger.info("GET /api/local-ip → %s", ip)
     return {"ip": ip}
+
+
+@app.get("/phone")
+async def phone_chat_page():
+    """Serve the buyer-chat HTML page for the phone demo."""
+    chat_path = Path(__file__).resolve().parent.parent / "frontend" / "phone" / "chat.html"
+    if not chat_path.exists():
+        raise HTTPException(status_code=404, detail="Phone chat page not found")
+    return Response(content=chat_path.read_text(), media_type="text/html")
 
 
 class UploadResponse(BaseModel):
@@ -780,6 +767,12 @@ async def reply_to_thread(job_id: str, thread_id: str, body: ReplyRequest):
     from backend.models.conversation import ChatMessage
     from datetime import datetime
     thread.messages.append(ChatMessage(sender="seller", text=body.text, timestamp=datetime.utcnow()))
+    thread.suggested_reply = ""
+
+    await ws_manager.broadcast_event(job_id, {
+        "type": "thread_updated",
+        "data": thread.model_dump(mode="json"),
+    })
     swarma_line("http", "inbox_reply", job_id=job_id, thread_id=thread_id, msg_count=len(thread.messages))
     return thread.model_dump(mode="json")
 
@@ -828,6 +821,44 @@ def _mock_suggest(thread: ConversationThread) -> str:
     return "Thanks for reaching out! Let me know if you have any questions about the item."
 
 
+@app.get("/api/buyer-chat/items")
+async def buyer_chat_list_items():
+    """Return all items across all jobs so the phone buyer-chat can pick one."""
+    result = []
+    for job_id, items in _job_items.items():
+        job = _jobs.get(job_id)
+        for item in items:
+            hero = item.hero_frame_paths[0] if item.hero_frame_paths else None
+            decision = None
+            try:
+                from backend.storage.store import store
+                decision = store.get_decision(item.item_id)
+            except Exception:
+                pass
+            price = 0.0
+            if decision:
+                price = getattr(decision, "estimated_best_value", 0) or 0
+            result.append({
+                "item_id": item.item_id,
+                "job_id": job_id,
+                "name": item.name_guess,
+                "title": item.name_guess,
+                "condition": item.condition_label,
+                "hero_image": hero,
+                "price": price,
+            })
+    swarma_line("http", "buyer_chat_items", items_n=len(result))
+    return result
+
+
+def _find_job_for_item(item_id: str) -> str:
+    """Look up which job owns a given item_id."""
+    for jid, items in _job_items.items():
+        if any(it.item_id == item_id for it in items):
+            return jid
+    return ""
+
+
 @app.get("/api/buyer-chat/{item_id}/thread")
 async def buyer_chat_get_thread(item_id: str):
     """Get or create the buyer chat thread for an item."""
@@ -838,6 +869,7 @@ async def buyer_chat_get_thread(item_id: str):
         thread = ConversationThread(
             thread_id=thread_id,
             item_id=item_id,
+            job_id=_find_job_for_item(item_id),
             platform="facebook",
             buyer_handle="Phone Buyer",
         )
@@ -860,6 +892,7 @@ async def buyer_chat_send(item_id: str, body: BuyerChatRequest):
         thread = ConversationThread(
             thread_id=thread_id,
             item_id=item_id,
+            job_id=_find_job_for_item(item_id),
             platform="facebook",
             buyer_handle=body.buyer_name,
         )
@@ -889,6 +922,16 @@ async def buyer_chat_send(item_id: str, body: BuyerChatRequest):
         swarma_line("http", "buyer_chat_auto_reply", item_id=item_id, source="mock_fallback", error=str(exc))
 
     thread.messages.append(ChatMessage(sender="seller", text=seller_reply, timestamp=datetime.utcnow()))
+    thread.suggested_reply = ""
+
+    # Broadcast to seller's concierge page via WebSocket
+    job_id = thread.job_id or _find_job_for_item(item_id)
+    if job_id:
+        await ws_manager.broadcast_event(job_id, {
+            "type": "thread_updated",
+            "data": thread.model_dump(mode="json"),
+        })
+
     return thread.model_dump(mode="json")
 
 
@@ -903,7 +946,7 @@ async def get_item_screenshots(job_id: str, item_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
     import base64
-    platforms = ["ebay", "facebook", "mercari", "depop"]
+    platforms = ["ebay", "facebook", "depop"]
     result = {}
     item_prefix = item_id[:6]
     for platform in platforms:
