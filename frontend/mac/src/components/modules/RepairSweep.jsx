@@ -135,7 +135,7 @@ export default function RepairSweep({ items, bids }) {
           className="rs-net-gain"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.8, type: 'spring' }}
+          transition={{ delay: 0.8, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
         >
           <div className="rs-net-gain-label">
             <Sparkles size={12} style={{ display: 'inline', marginRight: 4 }} />

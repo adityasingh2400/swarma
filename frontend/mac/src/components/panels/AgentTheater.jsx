@@ -4,6 +4,7 @@ import {
   Trophy, MessageSquare,
 } from 'lucide-react';
 import MissionControl from '../modules/MissionControl';
+import { ACTIVE_STATUSES } from '../../utils/contracts';
 
 const STAGE_GROUPS = [
   { id: 'processing', label: 'Processing', icon: Cpu, agents: ['intake', 'condition_fusion'], stage: 1, concurrent: false },
@@ -23,9 +24,10 @@ const STAGE_GROUPS = [
 function normalizeStatus(rawStatus) {
   if (!rawStatus) return 'idle';
   if (rawStatus === 'agent_started' || rawStatus === 'thinking') return 'thinking';
-  if (rawStatus === 'agent_completed' || rawStatus === 'done') return 'done';
+  if (rawStatus === 'agent_completed' || rawStatus === 'done' || rawStatus === 'complete') return 'done';
   if (rawStatus === 'agent_error' || rawStatus === 'error') return 'error';
   if (rawStatus === 'agent_progress') return 'thinking';
+  if (ACTIVE_STATUSES.has(rawStatus)) return 'thinking';
   return rawStatus;
 }
 
@@ -64,6 +66,10 @@ export default function AgentTheater({
   onExecuteItem,
   onSendReply,
   onStageClick,
+  v2Agents = {},
+  pipelineStage,
+  send,
+  miniPlayer,
 }) {
   const currentGroupIdx = useMemo(() => getCurrentStageGroup(agents), [agents]);
   const [userSelectedGroup, setUserSelectedGroup] = useState(null);
@@ -174,6 +180,10 @@ export default function AgentTheater({
           listings={listings}
           onExecuteItem={onExecuteItem}
           overrideStageIdx={mcStageIdx}
+          v2Agents={v2Agents}
+          pipelineStage={pipelineStage}
+          send={send}
+          miniPlayer={miniPlayer}
         />
       </div>
     </div>

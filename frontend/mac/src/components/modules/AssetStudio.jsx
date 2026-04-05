@@ -107,7 +107,7 @@ export default function AssetStudio({ items, listings }) {
                   }}
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.7, type: 'spring' }}
+                  transition={{ delay: 0.7, duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
                 />
               </div>
             </motion.div>
@@ -157,7 +157,7 @@ export default function AssetStudio({ items, listings }) {
                   }}
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.7, type: 'spring' }}
+                  transition={{ delay: 0.7, duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
                 />
               )}
             </div>
