@@ -1,0 +1,40 @@
+{
+  "step": 7,
+  "url": "https://www.ebay.com/lstng?draftId=5182232721813&mode=AddItem",
+  "title": "List an item | eBay",
+  "page_summary": "",
+  "memory": "The page has loaded sufficiently to see several sections (Photos & Video, Title, Item Category, Condition, Item Specifics). I have scrolled down multiple pages to ensure all sections and the final publish button are visible in the buffer before I perform the extraction.",
+  "next_goal": "",
+  "actions": [
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    },
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    },
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    },
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    },
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    }
+  ]
+}

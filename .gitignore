@@ -58,3 +58,6 @@ test.MOV
 .agents/
 .claude/
 CLAUDE.md
+.env
+auth/
+/tmp/

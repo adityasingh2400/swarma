@@ -1,0 +1,20 @@
+{
+  "step": 4,
+  "url": "https://www.ebay.com/sl/prelist/identify?title=Vintage+Nike+Shoes&caty=15709&catyIdPath%5B%5D=11450&catyIdPath%5B%5D=260012&catyIdPath%5B%5D=93427&catyIdPath%5B%5D=15709&isUid=false&sr=sug&radixTrackingId=231bcdb7-a2d3-44ed-90ed-2b8865411f08&aspects=eJyLrlbKS8xNVbJScipKzEtR0lEqS8wpBfKjlfwys1OVYmtjAcl0C0U%3D&view=cgtype",
+  "title": "List an item | eBay",
+  "page_summary": "",
+  "memory": "The previous action successfully clicked \"Continue without match,\" leading to a \"Select condition\" page. I am now on a pre-listing step where condition must be selected before reaching the full listing creation form.",
+  "next_goal": "",
+  "actions": [
+    {
+      "click": {
+        "index": 11140
+      }
+    },
+    {
+      "wait": {
+        "seconds": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+Route: facebook_listing
+Description: Facebook Marketplace listing creation
+URL: https://www.facebook.com/marketplace/create/item
+Time: 28.8s
+Screenshots: 3
+Steps: 3
+
+============================================================
+AGENT DOCUMENTATION:
+============================================================
+
+I have documented the Facebook Marketplace item creation page as requested.
+
+1. **Current URL:** https://www.facebook.com/marketplace/create/item
+2. **Interactive Elements (Top to Bottom):**
+    - **Button:** 'Save draft'
+    - **Photo Upload Area:** 'Add photos or drag and drop' (Element [865])
+    - **Video Upload Area:** 'Add video or drag and drop' (Element [881])
+    - **Button:** 'Try it' (for phone uploads)
+    - **Input Field:** 'Title' (Element [448])
+    - **Input Field:** 'Price' (Element [449])
+    - **Dropdown/Combobox:** 'Category' (Element [450])
+    - **Dropdown/Combobox:** 'Condition' (Element [454])
+    - **Text Area:** 'Description' (Element [451])
+    - **Expandable Button:** 'More details'
+    - **Toggle/Switch:** 'Boost listing after publish'
+    - **Toggle/Switch:** 'Hide from friends'
+    - **Submit Button:** 'Next' (Primary action at the bottom)
+3. **Visible Label Text:** Labels include 'Title', 'Price', 'Category', 'Condition', 'Description', 'More details', 'Boost listing after publish', and 'Hide from friends'.
+4. **Order:** Elements are listed in their visual and DOM order from the top of the creation form to the 'Next' button.
+5. **Photo Upload Area:** Identified by the label 'Photos · 0 / 10' and the interactive 'Add photos' button/drag-and-drop zone.
+6. **Submit Button Text:** The final button to proceed is labeled 'Next'.
+7. **Prompts/Location:** No login popups were observed. The listing preview displays a location prompt/info: 'Listed a few seconds ago in Goleta'.

@@ -1,0 +1,15 @@
+{
+  "step": 1,
+  "url": "https://www.depop.com/search/?q=iphone+15+pro+256gb",
+  "title": "Search | Depop",
+  "page_summary": "",
+  "memory": "The initial search for \"iphone 15 pro 256gb\" returned zero results on Depop, so I cannot document specific listings for this query yet. I will wait a moment to see if results load or if I need to adjust the search.",
+  "next_goal": "",
+  "actions": [
+    {
+      "wait": {
+        "seconds": 3
+      }
+    }
+  ]
+}

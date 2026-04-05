@@ -1,0 +1,73 @@
+Route: mercari_listing
+Description: Mercari listing creation flow
+URL: https://www.mercari.com/sell/
+Time: 45.0s
+Screenshots: 4
+Steps: 4
+
+============================================================
+AGENT DOCUMENTATION:
+============================================================
+
+I have documented all fields and sections on the Mercari listing creation page:
+
+1. **URL**: https://www.mercari.com/sell/
+
+2. **Sections and Fields (Top to Bottom)**:
+
+   *   **Photos Section**
+       *   **Field**: Photo Upload Area
+       *   **Label**: 'Add up to 12 photos' / 'Or drag and drop'
+       *   **Interactive Element**: File input ([index 151])
+       *   **Mechanics**: Users can click to browse files or drag and drop images. Supports up to 12 photos.
+       *   **Status**: Required (implied for a listing).
+
+   *   **Product info Section**
+       *   **Field**: Title
+       *   **Label**: 'Title'
+       *   **Type**: Input field ([index 118])
+       *   **Status**: REQUIRED (has `required=true` attribute).
+       *   **Details**: 80 character limit; placeholder 'What are you selling?'.
+       *   **Field**: Description
+       *   **Label**: 'Description'
+       *   **Type**: Textarea ([index 119])
+       *   **Status**: REQUIRED (has `required=true` attribute).
+       *   **Details**: 1000 character limit; placeholder 'Describe your item (5+ words)'.
+       *   **Field**: Category
+       *   **Label**: 'Category'
+       *   **Type**: Dropdown/Selection ([index 152])
+       *   **Status**: Required.
+       *   **Field**: Brand
+       *   **Label**: 'Brand'
+       *   **Type**: Input field ([index 121])
+       *   **Status**: Optional (no required attribute).
+       *   **Field**: Condition
+       *   **Label**: 'Condition'
+       *   **Options**: 'New', 'Like new', 'Good', 'Fair', 'Poor' ([indices 387-410]).
+       *   **Status**: Required.
+
+   *   **Shipping Section**
+       *   **Button**: 'Add a shipping address' ([index 154])
+       *   **Field**: Shipping method
+       *   **Label**: 'Shipping method'
+       *   **Option**: 'Prepaid label' ([index 155])
+       *   **Field**: Shipping label
+       *   **Label**: 'Shipping label'
+       *   **Type**: Input/Selection ([index 122])
+       *   **Status**: REQUIRED (has `required=true` attribute).
+       *   **Field**: Free Shipping Toggle
+       *   **Label**: 'Offer buyers free shipping?'
+       *   **Option**: 'Yes (Recommended)' ([index 157]).
+
+   *   **Pricing Section**
+       *   **Field**: Item price
+       *   **Label**: 'Item price'
+       *   **Type**: Numeric input ([index 124])
+       *   **Status**: Required.
+       *   **Display**: 'You earn' (Dynamic calculation field).
+
+3. **Submit Button**:
+   *   **Text**: 'List' ([index 160])
+   *   **Secondary Action**: 'Save draft' ([index 159]).
+
+4. **Popups/Blockers**: None currently active. A promotional modal was dismissed earlier in the session.
