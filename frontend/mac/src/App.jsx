@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity } from 'lucide-react';
+import { Activity, Cpu, Scale, Send, MessageSquare } from 'lucide-react';
 import Layout from './components/Layout';
 import SwarmaLogo from './components/SwarmaLogo';
 import ListingSimulationModal from './components/modules/ListingSimulationModal';
@@ -10,6 +10,38 @@ import { useJob } from './hooks/useJob';
 import { useScreenshots } from './hooks/useScreenshots';
 import { useMockMode, getPostingDevMock } from './utils/mockData';
 import { ACTIVE_STATUSES } from './utils/contracts';
+
+const STEPS = [
+  { id: 'processing', label: 'Processing', icon: Cpu },
+  { id: 'bidding', label: 'Route Bidding', icon: Scale },
+  { id: 'posting', label: 'Posting', icon: Send },
+  { id: 'concierge', label: 'Concierge', icon: MessageSquare },
+];
+
+function TopbarSteps({ pipelineStage }) {
+  let activeIdx = 0;
+  if (pipelineStage === 'executing') activeIdx = 1;
+
+  return (
+    <div className="topbar-steps">
+      {STEPS.map((step, i) => {
+        const Icon = step.icon;
+        const isCurrent = i === activeIdx;
+        const isPast = i < activeIdx;
+        const cls = isCurrent ? 'ts-current' : isPast ? 'ts-past' : 'ts-future';
+        return (
+          <div key={step.id} className="topbar-step-group">
+            {i > 0 && <div className={`ts-line ${isPast ? 'ts-line-done' : ''}`} />}
+            <div className={`ts-node ${cls}`}>
+              <Icon size={12} />
+              <span>{step.label}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function App() {
   const postingDev = useMemo(() => {
@@ -128,42 +160,15 @@ export default function App() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 2.4, ease: [0.32, 0.72, 0, 1] }}
       >
-        <div className="topbar-brand">
+        <div className="topbar-brand" onClick={() => { window.location.href = window.location.pathname; }} style={{ cursor: 'pointer' }}>
           <SwarmaLogo size={28} />
           <span className="topbar-title">Swarma</span>
           {mock.isMock && <span className="topbar-subtitle">MOCK MODE</span>}
         </div>
-        <div className="topbar-controls">
-          {agentSummary.total > 0 ? (
-            <div className="topbar-agents">
-              <Activity size={14} className={agentSummary.active > 0 ? 'agent-active-icon' : ''} />
-              <span>
-                {agentSummary.active > 0
-                  ? `${agentSummary.active} agent${agentSummary.active !== 1 ? 's' : ''} working`
-                  : `${agentSummary.done}/${agentSummary.total} complete`}
-              </span>
-            </div>
-          ) : (
-            <div className="topbar-auth">
-              <motion.button
-                className="topbar-btn topbar-btn-ghost"
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
-              >
-                Log in
-              </motion.button>
-              <motion.button
-                className="topbar-btn topbar-btn-primary"
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
-              >
-                Sign up
-              </motion.button>
-            </div>
-          )}
-        </div>
+        {job && (
+          <TopbarSteps pipelineStage={pipelineStage} />
+        )}
+        <div className="topbar-controls" />
       </motion.header>
 
       <AnimatePresence mode="wait">

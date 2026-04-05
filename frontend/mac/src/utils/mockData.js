@@ -266,8 +266,8 @@ const MOCK_ITEM_DEFS = [
     item_id: 'item-1',
     name_guess: 'iPhone 15 Pro 256GB Natural Titanium',
     confidence: 0.96,
-    visible_defects: [{ description: 'Minor scratch on back glass', severity: 'minor' }],
-    spoken_defects: ['Small scratch mentioned by seller'],
+    visible_defects: [{ description: 'Hairline scratch on rear glass — cosmetic only', severity: 'minor' }],
+    spoken_defects: ['Seller noted a faint mark on the back'],
   },
   {
     item_id: 'item-2',
@@ -280,8 +280,8 @@ const MOCK_ITEM_DEFS = [
     item_id: 'item-3',
     name_guess: 'Apple Watch Ultra 2 49mm Titanium',
     confidence: 0.91,
-    visible_defects: [{ description: 'Light scuff on titanium case edge', severity: 'minor' }],
-    spoken_defects: ['Tiny mark on the side'],
+    visible_defects: [{ description: 'Surface scuff on titanium case — barely visible', severity: 'minor' }],
+    spoken_defects: ['Seller mentioned a small mark on the case edge'],
   },
 ];
 
@@ -501,7 +501,11 @@ export function useMockMode() {
     setPipelineStage('intake');
 
     // Generate frame images
-    const frameLabels = ['Wide shot', 'iPhone close-up', 'Back glass', 'Screen detail', 'AirPods box', 'AirPods close-up'];
+    const frameLabels = [
+      'iPhone — Front', 'iPhone — Side', 'iPhone — Back', 'iPhone — Detail',
+      'AirPods — Front', 'AirPods — Side', 'AirPods — Back', 'AirPods — Detail',
+      'Watch — Front', 'Watch — Side', 'Watch — Back', 'Watch — Detail',
+    ];
     const frameBlobs = await Promise.all(frameLabels.map((label, i) => generateFrameBlob(i, label)));
     const frameUrls = frameBlobs.map((blob) => {
       const url = URL.createObjectURL(blob);
@@ -523,86 +527,60 @@ export function useMockMode() {
       itemFrameUrls.push(urls);
     }
 
-    const STEP = 6000;
-    const afterIntake = STEP * 4;
+    const STEP = 2000;
+    const FRAME_DRIP = 800;
 
-    // ── STAGE 1: Processing / Intake ──
+    // ── Start analyzing ──
     const t0 = setTimeout(() => {
       setV1Agent('intake', 'agent_started', 'Extracting frames from video...');
-      setPipelineStage('analysis');
+      setPipelineStage('analyzing');
     }, 500);
     timersRef.current.push(t0);
 
-    const t1 = setTimeout(() => {
-      setV1Agent('intake', 'agent_progress', 'Extracted 6 frames, transcribing audio...', {
-        frame_paths: frameUrls,
-        elapsed_ms: STEP,
-      });
-      setJob((prev) => ({ ...prev, frame_paths: frameUrls }));
-    }, STEP);
-    timersRef.current.push(t1);
+    // ── Drip frames one by one (starts at STEP) ──
+    frameUrls.forEach((url, i) => {
+      const t = setTimeout(() => {
+        const soFar = frameUrls.slice(0, i + 1);
+        setV1Agent('intake', 'agent_progress', `Extracting frame ${i + 1} of ${frameUrls.length}...`, {
+          frame_paths: soFar,
+          elapsed_ms: STEP + i * FRAME_DRIP,
+        });
+        setJob((prev) => ({ ...prev, frame_paths: soFar }));
+      }, STEP + i * FRAME_DRIP);
+      timersRef.current.push(t);
+    });
 
+    const framesEndMs = STEP + frameUrls.length * FRAME_DRIP;
+
+    // ── Transcript arrives concurrently (starts at STEP + 1s) ──
+    const transcriptMs = STEP + 1000;
     const t2 = setTimeout(() => {
-      setV1Agent('intake', 'agent_progress', 'Transcription complete. Running item detection...', {
-        frame_paths: frameUrls,
+      setV1Agent('intake', 'agent_progress', 'Transcribing audio...', {
+        frame_paths: frameUrls.slice(0, 1),
         transcript_text: MOCK_TRANSCRIPT,
-        elapsed_ms: STEP * 2,
+        elapsed_ms: transcriptMs,
       });
-      setJob((prev) => ({ ...prev, frame_paths: frameUrls, transcript_text: MOCK_TRANSCRIPT }));
-    }, STEP * 2);
+      setJob((prev) => ({ ...prev, transcript_text: MOCK_TRANSCRIPT }));
+    }, transcriptMs);
     timersRef.current.push(t2);
 
+    // ── Items: wait for BOTH frames done AND transcript streamed ──
+    const transcriptWords = MOCK_TRANSCRIPT.split(/\s+/).length;
+    const transcriptDoneMs = transcriptMs + transcriptWords * 100 + 1500;
+    const bothDoneMs = Math.max(framesEndMs, transcriptDoneMs) + 1000;
     const t3 = setTimeout(() => {
       const richItems = MOCK_ITEM_DEFS.map((def, i) => ({
         ...def,
         hero_frame_paths: itemFrameUrls[i],
       }));
       setItems(richItems);
-      setV1Agent('intake', 'agent_completed', `Found ${richItems.length} items`, {
+      setV1Agent('intake', 'agent_completed', `Detected ${richItems.length} items`, {
         frame_paths: frameUrls,
         transcript_text: MOCK_TRANSCRIPT,
-        elapsed_ms: STEP * 3,
+        elapsed_ms: bothDoneMs,
       });
-    }, STEP * 3);
+    }, bothDoneMs);
     timersRef.current.push(t3);
-
-    const t4 = setTimeout(() => {
-      setV1Agent('condition_fusion', 'agent_started', 'Analyzing condition for all items...');
-    }, 6500 + D + 500);
-    timersRef.current.push(t4);
-
-    const t5 = setTimeout(() => {
-      setV1Agent('condition_fusion', 'agent_progress', 'Inspecting iPhone 15 Pro — checking screen, back glass, ports...', {
-        elapsed_ms: 2000,
-      });
-    }, 8500 + D);
-    timersRef.current.push(t5);
-
-    const t6 = setTimeout(() => {
-      setV1Agent('condition_fusion', 'agent_progress', 'Inspecting AirPods Pro — verifying case, buds, charging port...', {
-        elapsed_ms: 4500,
-      });
-    }, 11000 + D);
-    timersRef.current.push(t6);
-
-    const t7 = setTimeout(() => {
-      setV1Agent('condition_fusion', 'agent_completed', 'Condition analysis complete for 2 items', {
-        elapsed_ms: 7000,
-      });
-    }, 13500 + D);
-    timersRef.current.push(t7);
-
-    // ── STAGE 2: Research Phase ──────────────────────
-    const t8 = setTimeout(() => {
-      setPipelineStage('research');
-      setBids(buildMockBids());
-    }, 14500 + D);
-    timersRef.current.push(t8);
-
-    const t9 = setTimeout(() => {
-      setDecisions(buildMockDecisions());
-    }, 16000 + D);
-    timersRef.current.push(t9);
 
     return mockJobId;
   }, [isMock, started, mockJobId, cleanup, setV1Agent, pushEvent]);

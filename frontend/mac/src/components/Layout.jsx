@@ -11,6 +11,12 @@ import { ACTIVE_STATUSES } from '../utils/contracts';
 
 const EASE = [0.32, 0.72, 0, 1];
 
+/** Dev: add ?processingStop to the URL to stay on the processing page (no Research / Concierge swap). */
+function readProcessingHardStop() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).has('processingStop');
+}
+
 function getGlobalStage(agents, v2Agents, pipelineStage) {
   if (pipelineStage) return pipelineStage;
 
@@ -38,9 +44,20 @@ function getGlobalStage(agents, v2Agents, pipelineStage) {
   return 'idle';
 }
 
-function MiniPlayer({ videoUrl, items, globalStage }) {
+function MiniPlayer({ videoUrl, items, globalStage, agents }) {
   const hasItems = items.length > 0;
+  const intakeStatus = agents?.intake?.status;
   const isAnalyzing = !hasItems && globalStage !== 'idle' && globalStage !== 'concierge-done';
+  const frameCount = agents?.intake?.frame_paths?.length || 0;
+
+  let statusText = '';
+  if (hasItems) {
+    statusText = `${items.length} item${items.length !== 1 ? 's' : ''} detected`;
+  } else if (frameCount > 0) {
+    statusText = `${frameCount} frames extracted`;
+  } else if (intakeStatus === 'agent_started' || intakeStatus === 'agent_progress') {
+    statusText = 'Analyzing...';
+  }
 
   return (
     <div className="mp-wrap">
@@ -51,16 +68,22 @@ function MiniPlayer({ videoUrl, items, globalStage }) {
       >
         <video src={videoUrl} muted autoPlay loop playsInline />
         {isAnalyzing && <div className="mp-scanbar" />}
-        <div className="mp-overlay">
-          {hasItems && (
-            <div className="mp-status">
-              <Check size={11} className="mp-icon-done" />
-              <span>{items.length} detected</span>
-            </div>
-          )}
-          <div className="mp-badge"><Scan size={10} /><span>LIVE</span></div>
-        </div>
       </motion.div>
+      <AnimatePresence mode="wait">
+        {statusText && (
+          <motion.div
+            key={statusText}
+            className={`mp-status-pill ${hasItems ? 'mp-status-done' : ''}`}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.3 }}
+          >
+            {hasItems ? <Check size={10} /> : <Scan size={10} />}
+            <span>{statusText}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -75,6 +98,7 @@ export default function Layout({
   const [videoUrl, setVideoUrl] = useState(null);
   const [focusedAgentId, setFocusedAgentId] = useState(null);
   const [researchReady, setResearchReady] = useState(false);
+  const processingHardStop = true; // hard stop at processing
 
   useEffect(() => {
     return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
@@ -86,15 +110,17 @@ export default function Layout({
   );
   const useV2 = Object.keys(v2Agents).length > 0;
 
-  // Transition to research phase when condition_fusion is done and items exist
   useEffect(() => {
-    const cfStatus = agents?.condition_fusion?.status;
-    const cfDone = cfStatus === 'agent_completed' || cfStatus === 'done';
-    if (cfDone && items.length > 0 && phase === 'processing' && !researchReady) {
+    if (processingHardStop) return;
+    if (researchReady || phase !== 'processing' || items.length === 0) return;
+    const intakeStatus = agents?.intake?.status;
+    const intakeDone = intakeStatus === 'agent_completed' || intakeStatus === 'done';
+    const stageReady = pipelineStage === 'executing' || pipelineStage === 'research';
+    if (intakeDone || stageReady) {
       const t = setTimeout(() => setResearchReady(true), 800);
       return () => clearTimeout(t);
     }
-  }, [agents, items, phase, researchReady]);
+  }, [agents, items, phase, researchReady, pipelineStage, processingHardStop]);
 
   const [viewOverride, setViewOverride] = useState(null);
   const activeView = viewOverride || globalStage;
@@ -103,7 +129,9 @@ export default function Layout({
     if (viewOverride && viewOverride === globalStage) setViewOverride(null);
   }, [globalStage, viewOverride]);
 
-  const showConciergeResults = activeView === 'concierge-done' || activeView === 'concierge';
+  const showConciergeResults = !processingHardStop
+    && (activeView === 'concierge-done' || activeView === 'concierge');
+  const researchGateOpen = !processingHardStop && researchReady;
 
   const [settled, setSettled] = useState(false);
 
@@ -115,7 +143,7 @@ export default function Layout({
 
   useEffect(() => {
     if (phase === 'processing' && !settled) {
-      const id = setTimeout(() => setSettled(true), 6000);
+      const id = setTimeout(() => setSettled(true), 2000);
       return () => clearTimeout(id);
     }
   }, [phase, settled]);
@@ -159,7 +187,7 @@ export default function Layout({
           )}
 
           {/* ── Phase: Processing ───────────────────────────── */}
-          {phase === 'processing' && !showConciergeResults && !researchReady && (
+          {phase === 'processing' && !showConciergeResults && !researchGateOpen && (
             <motion.div
               key="processing"
               className="proc-layout"
@@ -197,7 +225,7 @@ export default function Layout({
                   v2Agents={v2Agents} pipelineStage={pipelineStage} postingStatus={postingStatus} send={send}
                   settled={settled}
                   miniPlayer={videoUrl ? (
-                    <MiniPlayer videoUrl={videoUrl} items={items} globalStage={globalStage} />
+                    <MiniPlayer videoUrl={videoUrl} items={items} globalStage={globalStage} agents={agents} />
                   ) : null}
                 />
               </motion.div>
@@ -221,7 +249,7 @@ export default function Layout({
           )}
 
           {/* ── Phase: Research ─────────────────────────────── */}
-          {phase === 'processing' && researchReady && !showConciergeResults && (
+          {phase === 'processing' && researchGateOpen && !showConciergeResults && (
             <motion.div
               key="research"
               className="research-fullscreen"

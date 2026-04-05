@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import {
   Cpu, Eye, Search, RefreshCw, Package, Wrench,
@@ -478,122 +479,117 @@ function ItemDetailModal({ item, onClose }) {
 
   const E = [0.32, 0.72, 0, 1];
 
-  return (
-    <>
-      <motion.div
-        className="idm-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
-        onClick={onClose}
-      />
-      <motion.div
-        className="idm-container"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      >
-        <motion.div
-          className="idm-panel"
-          initial={{ scale: 0.92, y: 30, opacity: 0, filter: 'blur(8px)' }}
-          animate={{ scale: 1, y: 0, opacity: 1, filter: 'blur(0px)' }}
-          exit={{ scale: 0.95, y: 16, opacity: 0, filter: 'blur(4px)', transition: { duration: 0.2, ease: E } }}
-          transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="idm-header">
-            <motion.h3 className="idm-title"
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.15, duration: 0.4, ease: E }}
-            >
-              {item.name_guess}
-            </motion.h3>
-            <motion.button
-              className="idm-close"
-              onClick={onClose}
-              whileHover={{ rotate: 90, scale: 1.1, backgroundColor: 'var(--bg-elevated)' }}
-              whileTap={{ scale: 0.9 }}
-              transition={{ duration: 0.2 }}
-            >
-              <X size={18} />
-            </motion.button>
-          </div>
+  const allDefects = [
+    ...(item.visible_defects || []).map((d) => ({ icon: 'eye', text: d.description || d, severity: d.severity })),
+    ...(item.spoken_defects || []).map((d) => ({ icon: 'msg', text: typeof d === 'string' ? d : d.description })),
+  ];
 
+  const bubbles = [
+    { label: 'Condition', value: condition, variant: condition === 'Like New' ? 'success' : 'warning' },
+    item.confidence != null && { label: 'Confidence', value: `${(item.confidence * 100).toFixed(0)}%` },
+    ...allDefects.map((d) => ({
+      label: d.icon === 'eye' ? 'Defect' : 'Seller Note',
+      value: d.text,
+      severity: d.severity,
+      icon: d.icon,
+    })),
+  ].filter(Boolean);
+
+  const orbitRadius = 190;
+  const angleStep = (2 * Math.PI) / bubbles.length;
+
+  return (
+    <motion.div
+      className="idm-container"
+      key="item-detail-modal"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      onClick={onClose}
+    >
+      <div className="idm-backdrop" />
+      <motion.div
+        className="idm-orbit-stage"
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.6, opacity: 0, transition: { duration: 0.25, ease: E } }}
+        transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+      >
+        <motion.button
+          className="idm-orbit-close"
+          onClick={onClose}
+          whileHover={{ rotate: 90, scale: 1.15 }}
+          whileTap={{ scale: 0.85 }}
+        >
+          <X size={16} />
+        </motion.button>
+
+        <motion.h3 className="idm-orbit-name"
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ delay: 0.1, duration: 0.4, ease: E }}
+        >
+          {item.name_guess}
+        </motion.h3>
+
+        <div className="idm-orbit-ring">
           {frames.length > 0 && (
-            <motion.div className="idm-carousel"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1, duration: 0.5, ease: E }}
+            <motion.div className="idm-orbit-img"
+              initial={{ opacity: 0, scale: 0.7, rotate: -8 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0.5, rotate: 8 }}
+              transition={{ delay: 0.05, type: 'spring', damping: 20, stiffness: 200 }}
             >
               <ItemCarousel frames={frames} alt={item.name_guess} />
             </motion.div>
           )}
 
-          <div className="idm-details">
-            <motion.div className="idm-row"
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2, duration: 0.35, ease: E }}>
-              <span className="idm-label">Condition</span>
-              <Badge variant={condition === 'Like New' ? 'success' : 'warning'}>{condition}</Badge>
-            </motion.div>
+          {bubbles.map((b, i) => {
+            const angle = angleStep * i - Math.PI / 2;
+            const x = Math.cos(angle) * orbitRadius;
+            const y = Math.sin(angle) * orbitRadius;
 
-            {item.confidence != null && (
-              <motion.div className="idm-row"
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.25, duration: 0.35, ease: E }}>
-                <span className="idm-label">Confidence</span>
-                <span className="idm-value">{(item.confidence * 100).toFixed(0)}%</span>
+            return (
+              <motion.div
+                key={i}
+                className="idm-orbit-bubble"
+                initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                animate={{
+                  opacity: 1,
+                  scale: 1,
+                  x,
+                  y,
+                }}
+                exit={{
+                  opacity: 0,
+                  scale: 0,
+                  x: 0,
+                  y: 0,
+                  transition: { duration: 0.2, delay: i * 0.03 },
+                }}
+                transition={{
+                  delay: 0.15 + i * 0.1,
+                  type: 'spring',
+                  damping: 14,
+                  stiffness: 180,
+                }}
+                whileHover={{ scale: 1.12, transition: { duration: 0.2 } }}
+              >
+                <span className="idm-orb-label">{b.label}</span>
+                <span className="idm-orb-value">
+                  {b.icon === 'eye' && <AlertTriangle size={10} />}
+                  {b.icon === 'msg' && <MessageSquare size={10} />}
+                  {b.variant ? <Badge variant={b.variant}>{b.value}</Badge> : b.value}
+                </span>
               </motion.div>
-            )}
-
-            {item.visible_defects?.length > 0 && (
-              <motion.div className="idm-section"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.4, ease: E }}>
-                <span className="idm-label">Visible Defects</span>
-                <div className="idm-defects-list">
-                  {item.visible_defects.map((d, i) => (
-                    <motion.div key={i} className="idm-defect"
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.35 + i * 0.06, duration: 0.3, ease: E }}>
-                      <AlertTriangle size={12} />
-                      <span>{d.description || d}</span>
-                      {d.severity && <Badge variant={d.severity === 'major' ? 'danger' : 'warning'}>{d.severity}</Badge>}
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {item.spoken_defects?.length > 0 && (
-              <motion.div className="idm-section"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35, duration: 0.4, ease: E }}>
-                <span className="idm-label">Mentioned by Seller</span>
-                <div className="idm-defects-list">
-                  {item.spoken_defects.map((d, i) => (
-                    <motion.div key={i} className="idm-defect"
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.4 + i * 0.06, duration: 0.3, ease: E }}>
-                      <MessageSquare size={12} />
-                      <span>{typeof d === 'string' ? d : d.description}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </div>
-        </motion.div>
+            );
+          })}
+        </div>
       </motion.div>
-    </>
+    </motion.div>
   );
 }
 
@@ -642,6 +638,33 @@ function IntakeStrip({ state }) {
 function SkeletonPulse({ width = '100%', height = 12, radius = 6, style }) {
   return (
     <div className="skeleton-pulse" style={{ width, height, borderRadius: radius, ...style }} />
+  );
+}
+
+function StreamingText({ text, wordsPerTick = 2, intervalMs = 40 }) {
+  const words = useMemo(() => (text || '').split(/\s+/), [text]);
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    setCount(0);
+    if (!words.length) return;
+    const id = setInterval(() => {
+      setCount((c) => {
+        if (c >= words.length) { clearInterval(id); return c; }
+        return c + wordsPerTick;
+      });
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [words, wordsPerTick, intervalMs]);
+
+  const visible = words.slice(0, count).join(' ');
+  const done = count >= words.length;
+
+  return (
+    <p className="ext-transcript-text">
+      {visible}
+      {!done && <span className="streaming-cursor" />}
+    </p>
   );
 }
 
@@ -713,6 +736,7 @@ function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
             </motion.div>
           )}
 
+          {/* Items on top — pushes everything below */}
           <AnimatePresence>
             {hasItems && (
               <motion.div className="pc-section"
@@ -766,13 +790,15 @@ function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
                         )}
                         <div className="mc-tile-header">
                           <span className="mc-tile-name">{item.name_guess}</span>
-                          <Badge variant={condition === 'Like New' ? 'success' : 'warning'}>{condition}</Badge>
+                          <motion.span
+                            className={`mc-cond-pill ${condition === 'Like New' ? 'mc-cond-mint' : condition === 'Fair' ? 'mc-cond-fair' : 'mc-cond-good'}`}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: i * 0.12 + 0.4, duration: 0.5, ease: E }}
+                          >
+                            {condition}
+                          </motion.span>
                         </div>
-                        {item.visible_defects?.length > 0 && (
-                          <div className="mc-tile-defects">
-                            <AlertTriangle size={10} /> {item.visible_defects.map((d) => d.description || d).join(', ')}
-                          </div>
-                        )}
                       </motion.div>
                     );
                   })}
@@ -781,6 +807,7 @@ function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
             )}
           </AnimatePresence>
 
+          {/* Transcript — pushes frames down when it arrives */}
           <AnimatePresence>
             {hasTranscript && (
               <motion.div className="pc-section"
@@ -792,15 +819,16 @@ function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
               >
                 <div className="ext-transcript">
                   <div className="ext-transcript-label"><FileText size={12} /> Transcript</div>
-                  <p className="ext-transcript-text">{transcript}</p>
+                  <StreamingText text={transcript} wordsPerTick={1} intervalMs={100} />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
+          {/* Frames — at the bottom, pushed down by transcript & items */}
           <AnimatePresence>
             {hasFrames && (
-              <motion.div className="pc-section"
+              <motion.div className="pc-section" style={{ marginTop: 10 }}
                 key="filmstrip"
                 layout
                 initial={{ opacity: 0, y: -16, filter: 'blur(6px)' }}
@@ -808,18 +836,22 @@ function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
                 transition={{ duration: 0.5, ease: E }}
               >
                 <div className="ext-filmstrip">
-                  <div className="ext-filmstrip-label"><Image size={12} /> {framePaths.length} frames extracted</div>
-                  <div className="ext-filmstrip-rail filmstrip-grid" style={{ gridTemplateColumns: `repeat(${Math.min(framePaths.length, 4)}, 1fr)` }}>
-                    {framePaths.map((fp, i) => (
-                      <motion.div key={i} className="ext-frame"
-                        initial={{ opacity: 0, scale: 0.85, y: 8 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        whileHover={{ scale: 1.05, y: -2, transition: { duration: 0.2 } }}
-                        transition={{ delay: i * 0.06 + 0.1, duration: 0.35, ease: E }}>
-                        <img src={fp} alt={`Frame ${i + 1}`} />
-                        <span className="ext-frame-num">{i + 1}</span>
-                      </motion.div>
-                    ))}
+                  <div className="ext-filmstrip-label"><Image size={12} /> {framePaths.length} frame{framePaths.length !== 1 ? 's' : ''} extracted</div>
+                  <div className="ext-filmstrip-rail filmstrip-grid">
+                    <AnimatePresence>
+                      {framePaths.map((fp, i) => (
+                        <motion.div key={fp} className="ext-frame"
+                          layout
+                          initial={{ opacity: 0, scale: 0.5, y: 12, filter: 'blur(4px)' }}
+                          animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          whileHover={{ scale: 1.05, y: -2, transition: { duration: 0.2 } }}
+                          transition={{ type: 'spring', damping: 20, stiffness: 260 }}>
+                          <img src={fp} alt={`Frame ${i + 1}`} />
+                          <span className="ext-frame-num">{i + 1}</span>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   </div>
                 </div>
               </motion.div>
@@ -829,11 +861,14 @@ function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
         </motion.div>
       </div>
 
-      <AnimatePresence>
-        {selectedItem && (
-          <ItemDetailModal item={selectedItem} onClose={closeModal} />
-        )}
-      </AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
+          {selectedItem && (
+            <ItemDetailModal item={selectedItem} onClose={closeModal} />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
