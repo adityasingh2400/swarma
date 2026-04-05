@@ -278,7 +278,7 @@ async def parse_items_from_transcript(transcript: str) -> list[str]:
                     "- Do NOT split one item into multiple entries (e.g. 'Apple Watch' and "
                     "'Apple Watch band' are the same item — return only the main item).\n"
                     "- Maximum 2 items. Pick the most prominent ones if more are mentioned.\n\n"
-                    "Return ONLY a JSON array of strings. No extra text."
+                    "Return ONLY a JSON array of strings, ordered from MOST prominent to LEAST prominent. No extra text."
                 ),
             },
             {"role": "user", "content": transcript},
