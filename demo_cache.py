@@ -250,17 +250,17 @@ async def run_cached_pipeline(
         if not t.done():
             t.cancel()
 
-    # ── 5. Listing — REAL browser agents so items actually post to Facebook ──
+    # ── 5. Listing — REAL browser agents, ONE AT A TIME to avoid Chrome crashes ──
     from orchestrator import get_playbook, PLAYBOOKS, _LISTING_PLATFORMS
     swarma_line("demo_cache", "listing_handoff_real", job_id=job_id)
 
-    listing_tasks = []
     for item in items:
         for platform in decision_map[item.item_id].platforms:
             if platform in PLAYBOOKS and platform in _LISTING_PLATFORMS:
-                listing_tasks.append(orchestrator.run_agent(item, get_playbook(platform), "listing"))
-
-    if listing_tasks:
-        await asyncio.gather(*listing_tasks, return_exceptions=True)
+                swarma_line("demo_cache", "listing_start", item=item.name_guess, platform=platform)
+                try:
+                    await orchestrator.run_agent(item, get_playbook(platform), "listing")
+                except Exception as exc:
+                    swarma_line("demo_cache", "listing_failed", item=item.name_guess, error=str(exc))
 
     swarma_line("demo_cache", "pipeline_complete", job_id=job_id)
