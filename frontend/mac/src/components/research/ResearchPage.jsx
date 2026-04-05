@@ -4,9 +4,31 @@ import BrowserFeed from '../BrowserFeed';
 import FocusMode from '../FocusMode';
 import {
   Search, TrendingUp, CheckCircle2, DollarSign,
-  Sparkles, Package, ChevronRight,
+  Sparkles, Package,
 } from 'lucide-react';
-import { ACTIVE_STATUSES, STATUS_COMPLETE } from '../../utils/contracts';
+import {
+  ACTIVE_STATUSES,
+  STATUS_COMPLETE,
+  STATUS_QUEUED,
+  PHASE_RESEARCH,
+} from '../../utils/contracts';
+
+/** Focus overlay needs an agent shape; WS may lag behind screenshot thumbnails. */
+function resolveAgentForFocus(agentId, v2Agents) {
+  if (!agentId) return null;
+  const existing = v2Agents?.[agentId];
+  if (existing && typeof existing === 'object') return existing;
+  const m = String(agentId).match(/^(facebook|depop|amazon)-research-(.+)$/i);
+  const platform = m ? m[1].toLowerCase() : 'research';
+  return {
+    agent_id: agentId,
+    platform,
+    phase: PHASE_RESEARCH,
+    status: STATUS_QUEUED,
+    task: 'Market research…',
+    started_at: null,
+  };
+}
 
 const EASE = [0.32, 0.72, 0, 1];
 const SPRING = { type: 'spring', damping: 25, stiffness: 200 };
@@ -21,8 +43,22 @@ const RESEARCH_PLATFORMS = ['facebook', 'depop', 'amazon'];
 
 function getScreenshot(screenshots, agentId) {
   if (!screenshots || !agentId) return null;
-  if (screenshots instanceof Map) return screenshots.get(agentId)?.url || null;
-  return screenshots[agentId]?.url || null;
+  const want = String(agentId).trim();
+  const wantLower = want.toLowerCase();
+  if (screenshots instanceof Map) {
+    const hit = screenshots.get(want) ?? screenshots.get(agentId);
+    if (hit?.url) return hit.url;
+    for (const [k, v] of screenshots.entries()) {
+      if (k && String(k).trim().toLowerCase() === wantLower) return v?.url ?? null;
+    }
+    return null;
+  }
+  const o = screenshots[want] ?? screenshots[agentId];
+  if (o?.url) return o.url;
+  for (const k of Object.keys(screenshots)) {
+    if (k && k.toLowerCase() === wantLower) return screenshots[k]?.url ?? null;
+  }
+  return null;
 }
 
 // ── Animated price counter ───────────────────────────
@@ -53,39 +89,44 @@ function AgentTile({ platform, agentId, screenshots, v2Agents, onClick }) {
   const isActive = agent && ACTIVE_STATUSES.has(agent.status);
   const isDone = agent?.status === STATUS_COMPLETE;
 
+  const activate = useCallback(() => {
+    onClick?.(agentId);
+  }, [onClick, agentId]);
+
   return (
     <motion.div
       className="rp2-agent-tile"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${meta.label} research view`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: EASE }}
-      onClick={() => onClick?.(agentId)}
+      onClick={(e) => {
+        e.stopPropagation();
+        activate();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          activate();
+        }
+      }}
       whileHover={{ scale: 1.02, y: -2 }}
+      whileTap={{ scale: 0.98 }}
       style={{ cursor: 'pointer' }}
     >
       <div className="rp2-agent-head">
         <div className="rp2-agent-dot" style={{ background: meta.color }} />
         <span className="rp2-agent-name">{meta.label}</span>
         {isActive && (
-          <motion.span
-            className="rp2-agent-live"
-            animate={{ opacity: [1, 0.4, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
-            LIVE
-          </motion.span>
+          <span className="rp2-agent-live rp2-agent-live--pulse">LIVE</span>
         )}
         {isDone && (
           <span className="rp2-agent-done"><CheckCircle2 size={10} /> Done</span>
         )}
         {!agent && !shot && (
-          <motion.span
-            className="rp2-agent-waiting"
-            animate={{ opacity: [0.3, 0.7, 0.3] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          >
-            Loading...
-          </motion.span>
+          <span className="rp2-agent-waiting rp2-agent-waiting--pulse">Loading...</span>
         )}
       </div>
       <div className="rp2-agent-feed">
@@ -123,7 +164,6 @@ function ValuationCard({ decision, item }) {
         <span>Market Valuation</span>
       </div>
 
-      {/* Per-platform price breakdown */}
       <div className="rp2-val-platforms">
         {platforms.map(([platform, price], i) => {
           const meta = PLATFORM_META[platform] || {};
@@ -145,7 +185,6 @@ function ValuationCard({ decision, item }) {
         })}
       </div>
 
-      {/* Recommended listing price */}
       <motion.div
         className="rp2-val-best"
         initial={{ opacity: 0, scale: 0.9 }}
@@ -162,9 +201,11 @@ function ValuationCard({ decision, item }) {
 }
 
 // ── One item with its 3 agent feeds ──────────────────
-function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, decision, onFocusAgent }) {
+function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, decision, onFocusAgent, onHeroPreview }) {
   const itemId = item?.item_id || '';
   const hasDamage = item.visible_defects?.length > 0;
+  const heroSrc = item.hero_frame_paths?.[0];
+  const heroOpen = Boolean(heroSrc && onHeroPreview);
 
   const allDone = useMemo(() => {
     return RESEARCH_PLATFORMS.every(p => {
@@ -182,12 +223,27 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, delay: index * 0.15, ease: EASE }}
     >
-      {/* ── Item hero ── */}
-      <div className="rp2-card-hero">
+      <div
+        className={`rp2-card-hero${heroOpen ? ' rp2-card-hero--clickable' : ''}`}
+        role={heroOpen ? 'button' : undefined}
+        tabIndex={heroOpen ? 0 : undefined}
+        aria-label={heroOpen ? `Enlarge photo for ${item.name_guess}` : undefined}
+        onClick={heroOpen ? () => onHeroPreview(heroSrc) : undefined}
+        onKeyDown={
+          heroOpen
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onHeroPreview(heroSrc);
+                }
+              }
+            : undefined
+        }
+      >
         <div className="rp2-card-glow" />
         <div className="rp2-card-img">
-          {item.hero_frame_paths?.[0] ? (
-            <img src={item.hero_frame_paths[0]} alt={item.name_guess} />
+          {heroSrc ? (
+            <img src={heroSrc} alt={item.name_guess} />
           ) : (
             <div className="rp2-card-img-ph"><Package size={28} /></div>
           )}
@@ -203,7 +259,6 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
         </div>
       </div>
 
-      {/* ── 3 agent feeds ── */}
       <div className="rp2-card-agents">
         {RESEARCH_PLATFORMS.map((platform) => (
           <AgentTile
@@ -217,7 +272,6 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
         ))}
       </div>
 
-      {/* ── Valuation (appears when all agents done) ── */}
       <AnimatePresence>
         {allDone && <ValuationCard decision={decision} item={item} />}
       </AnimatePresence>
@@ -228,11 +282,31 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
 // ── Main page ────────────────────────────────────────
 export default function ResearchPage({ items, bids, decisions, v2Agents, screenshots, send }) {
   const [focusedAgentId, setFocusedAgentId] = useState(null);
+  const [heroPreviewUrl, setHeroPreviewUrl] = useState(null);
+
+  const openAgentFocus = useCallback((agentId) => {
+    setHeroPreviewUrl(null);
+    setFocusedAgentId(agentId);
+  }, []);
+
+  const openHeroPreview = useCallback((url) => {
+    setFocusedAgentId(null);
+    setHeroPreviewUrl(url);
+  }, []);
+
+  useEffect(() => {
+    if (!heroPreviewUrl) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setHeroPreviewUrl(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [heroPreviewUrl]);
 
   if (!items || items.length === 0) return null;
 
-  const focusedAgent = focusedAgentId ? (v2Agents || {})[focusedAgentId] : null;
   const focusedShot = focusedAgentId ? getScreenshot(screenshots, focusedAgentId) : null;
+  const focusedAgent = focusedAgentId ? resolveAgentForFocus(focusedAgentId, v2Agents) : null;
 
   return (
     <div className="rp2-page">
@@ -259,10 +333,33 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
             v2Agents={v2Agents}
             screenshots={screenshots}
             decision={decisions[item.item_id]}
-            onFocusAgent={setFocusedAgentId}
+            onFocusAgent={openAgentFocus}
+            onHeroPreview={openHeroPreview}
           />
         ))}
       </div>
+
+      {heroPreviewUrl && (
+        <div
+          className="rp2-preview-overlay"
+          onClick={() => setHeroPreviewUrl(null)}
+          role="presentation"
+        >
+          <button
+            type="button"
+            className="rp2-preview-close"
+            onClick={() => setHeroPreviewUrl(null)}
+            aria-label="Close preview"
+          >
+            ×
+          </button>
+          <img
+            src={heroPreviewUrl}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       <FocusMode
         agent={focusedAgent}

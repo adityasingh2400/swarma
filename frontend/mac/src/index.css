@@ -6278,6 +6278,30 @@ body {
   box-shadow: none;
 }
 
+/* Processing items: Like New = light green; Good/Fair = light brown (no metallic text) */
+.proc-layout .mc-cond-mint {
+  color: #a8c9b0;
+  -webkit-text-fill-color: #a8c9b0;
+  background: none;
+  background-image: none;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  animation: none;
+  filter: none;
+}
+
+.proc-layout .mc-cond-good,
+.proc-layout .mc-cond-fair {
+  color: #d4b896;
+  -webkit-text-fill-color: #d4b896;
+  background: none;
+  background-image: none;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  animation: none;
+  filter: none;
+}
+
 .proc-layout .mp-frame {
   background: rgba(0, 0, 0, 0.05);
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -7548,7 +7572,7 @@ body {
 .fm-overlay {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 9060;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7655,6 +7679,11 @@ body {
   padding: 16px;
   position: relative;
   z-index: 2;
+}
+.fm-feed .bf-img {
+  object-fit: contain;
+  object-position: top center;
+  background: rgba(0, 0, 0, 0.06);
 }
 .fm-footer {
   display: flex;
@@ -7880,6 +7909,49 @@ body {
   gap: 20px;
 }
 
+/* Full-size item hero preview (click product image on research cards) */
+.rp2-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(28, 25, 23, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: zoom-out;
+}
+.rp2-preview-overlay img {
+  max-width: min(92vw, 720px);
+  max-height: 85vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  cursor: default;
+}
+.rp2-preview-close {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ── Header bar ── */
 .rp2-header {
   display: flex;
@@ -7943,6 +8015,14 @@ body {
   align-items: center;
   gap: 10px;
   position: relative;
+}
+.rp2-card-hero--clickable {
+  cursor: zoom-in;
+  border-radius: var(--radius-md);
+}
+.rp2-card-hero--clickable:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
 }
 .rp2-card-glow {
   position: absolute;
@@ -8024,6 +8104,8 @@ body {
   border: 1px solid rgba(245, 212, 184, 0.35);
   background: transparent;
   transition: border-color 200ms ease, box-shadow 200ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .rp2-agent-tile:hover {
   border-color: var(--primary);
@@ -8054,6 +8136,16 @@ body {
   color: var(--live);
   letter-spacing: 0.08em;
 }
+.rp2-agent-live--pulse {
+  animation: rp2-live-soft 2s ease-in-out infinite;
+}
+.rp2-agent-waiting--pulse {
+  animation: rp2-live-soft 2s ease-in-out infinite;
+}
+@keyframes rp2-live-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.42; }
+}
 .rp2-agent-done {
   display: flex;
   align-items: center;
@@ -8075,7 +8167,16 @@ body {
   background: transparent;
 }
 .rp2-agent-feed .bf-container { height: 100%; }
-.rp2-agent-feed .bf-img { width: 100%; height: 100%; object-fit: cover; }
+.rp2-agent-feed .bf-img {
+  width: 100%;
+  height: 100%;
+  /* contain: full page (e.g. Depop mobile) stays visible vs cover cropping to a sliver */
+  object-fit: contain;
+  object-position: top center;
+  pointer-events: none;
+  user-select: none;
+  background: rgba(0, 0, 0, 0.06);
+}
 
 /* Research page: no filled “browser chrome” slab behind screenshots */
 .rp2-page .bf-container {

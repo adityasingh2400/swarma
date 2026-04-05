@@ -55,26 +55,52 @@ echo ""
 echo "Port: ${PORT}"
 echo ""
 
-# -n = new app instance even if Chrome is already running (macOS)
-# (Two branches: macOS bash 3.2 + set -u errors on "${empty_array[@]}".)
-if [[ "${SWARMA_USE_DEFAULT_CHROME_PROFILE:-}" == "1" ]]; then
-  open -na "Google Chrome" --args \
-    --remote-debugging-port="${PORT}" \
-    --user-data-dir="${USER_DATA_DIR}" \
-    --profile-directory="${PROFILE_DIR}" \
-    --no-first-run \
-    --no-default-browser-check
+# macOS: `open -na Google Chrome --args ...` often fails to apply flags, so the window
+# opens on an existing Chrome process WITHOUT --remote-debugging-port → curl never succeeds.
+# Launching the binary directly guarantees CDP binds (still use a separate user-data-dir
+# unless SWARMA_USE_DEFAULT_CHROME_PROFILE=1).
+CHROME_MAC="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+launch_via_open() {
+  if [[ "${SWARMA_USE_DEFAULT_CHROME_PROFILE:-}" == "1" ]]; then
+    open -na "Google Chrome" --args \
+      --remote-debugging-port="${PORT}" \
+      --user-data-dir="${USER_DATA_DIR}" \
+      --profile-directory="${PROFILE_DIR}" \
+      --no-first-run \
+      --no-default-browser-check
+  else
+    open -na "Google Chrome" --args \
+      --remote-debugging-port="${PORT}" \
+      --user-data-dir="${USER_DATA_DIR}" \
+      --no-first-run \
+      --no-default-browser-check
+  fi
+}
+
+if [[ "$(uname -s)" == "Darwin" && -x "$CHROME_MAC" ]]; then
+  echo "Starting Chrome via: ${CHROME_MAC}"
+  if [[ "${SWARMA_USE_DEFAULT_CHROME_PROFILE:-}" == "1" ]]; then
+    "$CHROME_MAC" \
+      --remote-debugging-port="${PORT}" \
+      --user-data-dir="${USER_DATA_DIR}" \
+      --profile-directory="${PROFILE_DIR}" \
+      --no-first-run \
+      --no-default-browser-check &
+  else
+    "$CHROME_MAC" \
+      --remote-debugging-port="${PORT}" \
+      --user-data-dir="${USER_DATA_DIR}" \
+      --no-first-run \
+      --no-default-browser-check &
+  fi
+  disown 2>/dev/null || true
 else
-  open -na "Google Chrome" --args \
-    --remote-debugging-port="${PORT}" \
-    --user-data-dir="${USER_DATA_DIR}" \
-    --no-first-run \
-    --no-default-browser-check
+  launch_via_open
 fi
 
 echo "Chrome launch requested."
 echo "Waiting for debugging port..."
-for i in 1 2 3 4 5 6 7 8 9 10; do
+for i in {1..25}; do
   if curl -sS "http://127.0.0.1:${PORT}/json/version" >/dev/null 2>&1; then
     echo "✅ Remote debugging active on http://127.0.0.1:${PORT}"
     exit 0
@@ -82,8 +108,10 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
 done
 
-echo "⚠️  Port ${PORT} not responding after ~10s."
-echo "   Check that Google Chrome is installed, or try a free port:"
-echo "   SWARMA_CHROME_DEBUG_PORT=9223 bash start_auth_chrome.sh"
-echo "   (and point your tooling at that port if applicable)"
+echo "⚠️  Port ${PORT} not responding after ~25s."
+echo "   Common causes:"
+echo "   • Another app is using port ${PORT}:  lsof -nP -iTCP:${PORT} -sTCP:LISTEN"
+echo "   • Try:  SWARMA_CHROME_DEBUG_PORT=9223 bash start_auth_chrome.sh"
+echo "   • With real profile: quit every Chrome window (Cmd+Q), then SWARMA_USE_DEFAULT_CHROME_PROFILE=1 ..."
+echo "   • Chrome must be installed at: ${CHROME_MAC}"
 exit 1

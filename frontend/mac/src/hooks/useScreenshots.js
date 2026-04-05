@@ -27,12 +27,16 @@ function parseFrame(arrayBuffer) {
   return { agentId, timestamp, blob };
 }
 
+/** Cap UI refresh rate per agent so blob URL swaps don’t thrash React / <img> (visible flicker). */
+const SCREENSHOT_UI_MIN_MS = 160;
+
 export function useScreenshots(jobId) {
   const [screenshots, setScreenshots] = useState(new Map());
   const [connected, setConnected] = useState(false);
   const wsRef = useRef(null);
   const reconnectTimer = useRef(null);
   const urlMapRef = useRef(new Map());
+  const lastUiApplyRef = useRef(new Map());
 
   const cleanup = useCallback(() => {
     urlMapRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -83,6 +87,13 @@ export function useScreenshots(jobId) {
           });
         }
 
+        const now = Date.now();
+        const lastApply = lastUiApplyRef.current.get(frame.agentId);
+        if (lastApply != null && now - lastApply < SCREENSHOT_UI_MIN_MS) {
+          return;
+        }
+        lastUiApplyRef.current.set(frame.agentId, now);
+
         const prevUrl = urlMapRef.current.get(frame.agentId);
         if (prevUrl) URL.revokeObjectURL(prevUrl);
 
@@ -116,6 +127,7 @@ export function useScreenshots(jobId) {
       swarmaFe('useScreenshots', 'cleanup', { jobId });
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) wsRef.current.close();
+      lastUiApplyRef.current.clear();
       cleanup();
       setConnected(false);
     };
