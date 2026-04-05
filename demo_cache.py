@@ -74,12 +74,9 @@ def _get_frame_files(agent_id: str) -> list[Path]:
 
 def _parse_research_from_result(result_str: str) -> dict:
     """Parse cached research result string into structured dict."""
-    from playbooks.base import BasePlaybook
-    # Use a temporary instance just for parsing
-    pb = BasePlaybook.__new__(BasePlaybook)
-    pb.platform = "unknown"
+    from playbooks.facebook import FacebookPlaybook
     try:
-        return pb._parse_price_list_research(result_str, price_type="active")
+        return FacebookPlaybook().parse_research(result_str)
     except Exception:
         return {"avg_sold_price": 0.0, "listings_found": 0}
 
