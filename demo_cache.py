@@ -150,6 +150,10 @@ async def run_cached_pipeline(
 
     swarma_line("demo_cache", "start", job_id=job_id, items_n=len(items))
 
+    # Set up gates — server WS handler will .set() these when user clicks tabs
+    orchestrator._demo_research_gate = asyncio.Event()
+    orchestrator._demo_posting_gate = asyncio.Event()
+
     # ── 1. Advertise research agents ──
     research_plan = []  # (item, platform, agent_id, cached_agent_id)
     for item in items:
@@ -171,20 +175,27 @@ async def run_cached_pipeline(
 
     await asyncio.sleep(0.3)
 
-    # ── 2. Preload — mark preloaded + start frame replay for all research agents ──
-    replay_tasks = []
+    # ── 2. Mark preloaded (triggers blue glow on Research icon) ──
     for item, platform, agent_id, cached_aid in research_plan:
         states[agent_id].status = "preloaded"
         emit(AgentEvent(type="agent:status", agent_id=agent_id, data={"status": "preloaded"}))
+
+    # ── WAIT for user to click Research tab ──
+    swarma_line("demo_cache", "waiting_for_research_click", job_id=job_id)
+    await orchestrator._demo_research_gate.wait()
+    swarma_line("demo_cache", "research_click_received", job_id=job_id)
+
+    # ── 3. Start frame replay + mark running ──
+    replay_tasks = []
+    for item, platform, agent_id, cached_aid in research_plan:
         if cached_aid:
             replay_tasks.append(_replay_frames(agent_id, cached_aid, fps=3.0))
 
-    # Start all frame replays concurrently (they run in background)
     frame_runners = [asyncio.ensure_future(t) for t in replay_tasks]
 
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.3)
 
-    # ── 3. Research — mark running, wait, then complete with cached results ──
+    # ── 4. Research — mark running, stagger completions ──
     for item, platform, agent_id, cached_aid in research_plan:
         states[agent_id].status = "running"
         states[agent_id].started_at = time.time()

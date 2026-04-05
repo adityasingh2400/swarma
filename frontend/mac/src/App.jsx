@@ -42,13 +42,11 @@ function TopbarSteps({
     a => a.status === 'complete' || a.status === 'error' || a.status === 'blocked'
   );
 
-  // Research glow: every research agent has a screenshot frame in the frontend
+  // Research glow: all research agents preloaded (ready to show when clicked)
   const researchReady = useMemo(() => {
     const research = Object.values(v2Agents || {}).filter(a => a.phase === 'research');
-    if (research.length === 0) return false;
-    if (!(screenshots instanceof Map)) return false;
-    return research.every(a => screenshots.has(a.agent_id));
-  }, [v2Agents, screenshots]);
+    return research.length > 0 && research.every(a => a.status !== 'ready');
+  }, [v2Agents]);
 
   // Posting glow: every listing agent has a screenshot frame in the frontend
   const listingReady = useMemo(() => {
@@ -185,7 +183,9 @@ export default function App() {
   const handleTopbarStep = useCallback((groupIdx) => {
     setTopbarStepIdx(groupIdx);
     setTheaterNavRequest({ groupIdx, id: Date.now() });
-  }, []);
+    // Tell backend which stage the user navigated to (demo cache waits for this)
+    if (send) send({ type: 'stage:navigate', step: groupIdx });
+  }, [send]);
 
   const handleTheaterStageFromPipeline = useCallback(() => {
     // no-op: topbar step only changes on direct topbar click (handleTopbarStep)

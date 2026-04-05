@@ -1158,11 +1158,20 @@ async def ws_events(ws: WebSocket, job_id: str):
         else:
             swarma_line("ws.events", "initial_state_skipped_no_job", job_id=job_id)
 
-        # Keep connection alive; client messages are currently informational only
+        # Keep connection alive; handle client navigation signals
         ping_n = 0
         while True:
             raw = await ws.receive_json()
             ping_n += 1
+
+            # Demo cache: unblock research/posting when user clicks the tab
+            if isinstance(raw, dict) and raw.get("type") == "stage:navigate":
+                step = raw.get("step")
+                if step == 1 and hasattr(orchestrator, '_demo_research_gate'):
+                    orchestrator._demo_research_gate.set()
+                elif step == 2 and hasattr(orchestrator, '_demo_posting_gate'):
+                    orchestrator._demo_posting_gate.set()
+
             if ping_n <= 3 or ping_n % 50 == 0:
                 swarma_line(
                     "ws.events",
