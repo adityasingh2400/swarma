@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Smartphone, ArrowUpFromLine, Scan } from 'lucide-react';
+import SwarmaLogo from '../SwarmaLogo';
 
 const EASE = [0.32, 0.72, 0, 1];
 
@@ -19,14 +20,14 @@ function PhoneQR() {
     const port = window.location.port || '8080';
     return `http://${host}:${port}/phone/`;
   }, [detectedIP]);
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(phoneUrl)}&bgcolor=FFF7F0&color=EF4444`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(phoneUrl)}&bgcolor=FFFFFF&color=FF8557`;
 
   return (
     <motion.div
       className="intake-qr-panel glass-enhanced"
       initial={{ opacity: 0, y: 40, scale: 0.94 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 1.0, delay: 3.6, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 1.0, delay: 4.0, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="intake-qr-badge">
         <Smartphone size={14} />
@@ -79,20 +80,32 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
 
   return (
     <div className="intake-fs">
+      <motion.div
+        className="intake-brand"
+        initial={{ opacity: 0, y: -16 }}
+        animate={uploading ? { opacity: 0, y: -12 } : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <SwarmaLogo size={38} />
+        <span className="intake-brand-name">Swarma</span>
+      </motion.div>
+
       <div className="intake-fs-content">
+
         <motion.div
           className="intake-fs-header"
-          animate={uploading ? { opacity: 0, y: -12 } : {}}
-          transition={uploading ? { duration: 0.4, ease: EASE } : {}}
+          initial={{ opacity: 1, y: 0 }}
+          animate={uploading ? { opacity: 0, y: -12 } : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: EASE }}
         >
           <h1 className="intake-fs-title">
-            {'Film it.'.split('').map((ch, i) => (
+            {'You film it.'.split('').map((ch, i) => (
               <motion.span
                 key={`a${i}`}
                 className="intake-char"
                 initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ duration: 0.9, delay: 0.4 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ duration: 0.9, delay: 0.7 + i * 0.06, ease: [0.16, 1, 0.3, 1] }}
               >
                 {ch === ' ' ? '\u00A0' : ch}
               </motion.span>
@@ -101,15 +114,15 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
               className="intake-char-space"
               initial={{ width: 0 }}
               animate={{ width: '0.35em' }}
-              transition={{ duration: 0.6, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.6, delay: 1.5, ease: [0.16, 1, 0.3, 1] }}
             />
-            {'Sell it.'.split('').map((ch, i) => (
+            {'We sell it.'.split('').map((ch, i) => (
               <motion.span
                 key={`b${i}`}
                 className="intake-char"
                 initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                transition={{ duration: 0.9, delay: 1.3 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
+                transition={{ duration: 0.9, delay: 1.7 + i * 0.06, ease: [0.16, 1, 0.3, 1] }}
               >
                 {ch === ' ' ? '\u00A0' : ch}
               </motion.span>
@@ -120,7 +133,7 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
             className="intake-fs-subtitle"
             initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ duration: 1.0, delay: 2.4, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 1.0, delay: 2.8, ease: [0.16, 1, 0.3, 1] }}
           >
             One video. Every marketplace. Zero effort.
           </motion.p>
@@ -145,7 +158,7 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
             }
             transition={uploading
               ? { duration: 0.4, ease: EASE }
-              : { duration: 1.0, delay: 3.0, ease: [0.16, 1, 0.3, 1] }
+              : { duration: 1.0, delay: 3.4, ease: [0.16, 1, 0.3, 1] }
             }
             whileHover={uploading ? {} : { y: -2, transition: { duration: 0.25, ease: EASE } }}
           >
@@ -219,7 +232,7 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
             className="intake-divider"
             initial={{ opacity: 0 }}
             animate={uploading ? { opacity: 0 } : { opacity: 1 }}
-            transition={{ duration: uploading ? 0.25 : 0.8, delay: uploading ? 0 : 3.4, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: uploading ? 0.25 : 0.8, delay: uploading ? 0 : 3.8, ease: [0.16, 1, 0.3, 1] }}
           >
             <span className="intake-divider-text">or</span>
           </motion.div>

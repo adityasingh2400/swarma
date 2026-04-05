@@ -480,115 +480,99 @@ function ItemDetailModal({ item, onClose }) {
   const E = [0.32, 0.72, 0, 1];
 
   const allDefects = [
-    ...(item.visible_defects || []).map((d) => ({ icon: 'eye', text: d.description || d, severity: d.severity })),
-    ...(item.spoken_defects || []).map((d) => ({ icon: 'msg', text: typeof d === 'string' ? d : d.description })),
+    ...(item.visible_defects || []).map((d) => ({ label: 'Defect', text: d.description || d })),
+    ...(item.spoken_defects || []).map((d) => ({ label: 'Seller Note', text: typeof d === 'string' ? d : d.description })),
   ];
 
-  const bubbles = [
-    { label: 'Condition', value: condition, variant: condition === 'Like New' ? 'success' : 'warning' },
-    item.confidence != null && { label: 'Confidence', value: `${(item.confidence * 100).toFixed(0)}%` },
-    ...allDefects.map((d) => ({
-      label: d.icon === 'eye' ? 'Defect' : 'Seller Note',
-      value: d.text,
-      severity: d.severity,
-      icon: d.icon,
-    })),
+  const leftBubbles = [
+    { label: 'Condition', value: condition },
+    ...allDefects.map((d) => ({ label: d.label, value: d.text })),
   ].filter(Boolean);
 
-  const orbitRadius = 190;
-  const angleStep = (2 * Math.PI) / bubbles.length;
+  const rightBubbles = [
+    { label: 'Item Type', value: item.name_guess?.split(' ').slice(0, 2).join(' ') || 'Unknown' },
+    frames.length > 1 && { label: 'Views', value: `${frames.length} angles captured` },
+  ].filter(Boolean);
+
+  const smooth = { type: 'spring', damping: 30, stiffness: 170, mass: 1 };
+  const gentle = { type: 'spring', damping: 35, stiffness: 150, mass: 1.2 };
 
   return (
     <motion.div
-      className="idm-container"
+      className="ide-overlay"
       key="item-detail-modal"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       onClick={onClose}
     >
-      <div className="idm-backdrop" />
-      <motion.div
-        className="idm-orbit-stage"
-        onClick={(e) => e.stopPropagation()}
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.6, opacity: 0, transition: { duration: 0.25, ease: E } }}
-        transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+      <motion.button
+        className="ide-close"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ delay: 0.4, duration: 0.3 }}
+        onClick={onClose}
       >
-        <motion.button
-          className="idm-orbit-close"
-          onClick={onClose}
-          whileHover={{ rotate: 90, scale: 1.15 }}
-          whileTap={{ scale: 0.85 }}
-        >
-          <X size={16} />
-        </motion.button>
+        ×
+      </motion.button>
 
-        <motion.h3 className="idm-orbit-name"
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ delay: 0.1, duration: 0.4, ease: E }}
+      <div className="ide-canvas" onClick={(e) => e.stopPropagation()}>
+        <motion.div
+          className="ide-hero"
+          initial={{ scale: 0.85, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 10, transition: { duration: 0.3, ease: [0.4, 0, 1, 1] } }}
+          transition={{ ...smooth, delay: 0.08 }}
         >
-          {item.name_guess}
-        </motion.h3>
-
-        <div className="idm-orbit-ring">
-          {frames.length > 0 && (
-            <motion.div className="idm-orbit-img"
-              initial={{ opacity: 0, scale: 0.7, rotate: -8 }}
-              animate={{ opacity: 1, scale: 1, rotate: 0 }}
-              exit={{ opacity: 0, scale: 0.5, rotate: 8 }}
-              transition={{ delay: 0.05, type: 'spring', damping: 20, stiffness: 200 }}
-            >
+          <div className="ide-hero-glow" />
+          <div className="ide-hero-img-wrap">
+            {frames.length > 0 ? (
               <ItemCarousel frames={frames} alt={item.name_guess} />
+            ) : (
+              <div className="ide-hero-placeholder" />
+            )}
+          </div>
+          <h2 className="ide-hero-name">{item.name_guess}</h2>
+        </motion.div>
+
+        <div className="ide-bubbles ide-bubbles-left">
+          {leftBubbles.map((b, i) => (
+            <motion.div
+              key={`l-${i}`}
+              className="ide-bubble"
+              style={{ '--float-dur': `${5 + i * 1.1}s`, '--float-delay': `${i * 0.5}s`, '--float-y': `${-4 - i * 1.5}px` }}
+              initial={{ opacity: 0, x: 100, scale: 0.6 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 60, scale: 0.7, transition: { duration: 0.25, delay: i * 0.04, ease: [0.4, 0, 1, 1] } }}
+              transition={{ delay: 0.2 + i * 0.09, ...gentle }}
+            >
+              <div className="ide-bubble-label">{b.label}</div>
+              <div className="ide-bubble-value">{b.value}</div>
             </motion.div>
-          )}
-
-          {bubbles.map((b, i) => {
-            const angle = angleStep * i - Math.PI / 2;
-            const x = Math.cos(angle) * orbitRadius;
-            const y = Math.sin(angle) * orbitRadius;
-
-            return (
-              <motion.div
-                key={i}
-                className="idm-orbit-bubble"
-                initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  x,
-                  y,
-                }}
-                exit={{
-                  opacity: 0,
-                  scale: 0,
-                  x: 0,
-                  y: 0,
-                  transition: { duration: 0.2, delay: i * 0.03 },
-                }}
-                transition={{
-                  delay: 0.15 + i * 0.1,
-                  type: 'spring',
-                  damping: 14,
-                  stiffness: 180,
-                }}
-                whileHover={{ scale: 1.12, transition: { duration: 0.2 } }}
-              >
-                <span className="idm-orb-label">{b.label}</span>
-                <span className="idm-orb-value">
-                  {b.icon === 'eye' && <AlertTriangle size={10} />}
-                  {b.icon === 'msg' && <MessageSquare size={10} />}
-                  {b.variant ? <Badge variant={b.variant}>{b.value}</Badge> : b.value}
-                </span>
-              </motion.div>
-            );
-          })}
+          ))}
         </div>
-      </motion.div>
+
+        <div className="ide-bubbles ide-bubbles-right">
+          {rightBubbles.map((b, i) => (
+            <motion.div
+              key={`r-${i}`}
+              className="ide-bubble"
+              style={{ '--float-dur': `${5.5 + i * 1}s`, '--float-delay': `${0.3 + i * 0.6}s`, '--float-y': `${-5 - i * 1.5}px` }}
+              initial={{ opacity: 0, x: -100, scale: 0.6 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -60, scale: 0.7, transition: { duration: 0.25, delay: i * 0.04, ease: [0.4, 0, 1, 1] } }}
+              transition={{ delay: 0.2 + i * 0.09, ...gentle }}
+            >
+              <div className="ide-bubble-label">{b.label}</div>
+              <div className="ide-bubble-value">{b.value}</div>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="ide-bottom" />
+      </div>
     </motion.div>
   );
 }
