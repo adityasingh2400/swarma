@@ -357,7 +357,7 @@ async def lifespan(_app: FastAPI):
     logger.info("ReRoute v2 server shutting down")
 
 
-app = FastAPI(title="ReRoute v2", lifespan=lifespan)
+app = FastAPI(title="SwarmSell", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
