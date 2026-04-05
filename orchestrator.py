@@ -319,12 +319,15 @@ def _build_listing_package(
     )
 
 
+_LISTING_PLATFORMS = {"facebook"}
+
+
 def _should_list_on_platform(item: ItemCard, platform: str) -> bool:
-    """Gate check: skip platforms that are known-bad for this item category."""
-    if platform == "depop" and item.category != item.category.CLOTHING:
-        swarma_line("pipeline", "skip_platform",
+    """Gate check: only Facebook is allowed for listing. All others are research-only."""
+    if platform not in _LISTING_PLATFORMS:
+        swarma_line("pipeline", "skip_listing",
                     item=item.name_guess, platform=platform,
-                    reason="depop is clothing-only, item is " + item.category.value)
+                    reason="listing restricted to " + ", ".join(_LISTING_PLATFORMS))
         return False
     return True
 
@@ -641,17 +644,15 @@ class Orchestrator:
     # --- Pipeline ---
 
     def release_research(self):
-        """Called when the user clicks Research — unblocks the waiting pipeline."""
-        swarma_line("orchestrator", "research_gate_opened")
-        self._research_gate.set()
+        """No-op — kept for API compat. Research starts automatically after preload."""
+        pass
 
     async def start_pipeline(self, job_id: str, items: list[ItemCard]) -> None:
-        """Full pipeline: advertise → preload browsers → WAIT → research → listing.
+        """Full pipeline: advertise → preload browsers → research → listing.
 
-        1. Emit agent:spawn "ready" for every planned agent
-        2. Pre-launch browsers and navigate to target URLs (preload)
-        3. Block on _research_gate until the user clicks "Research"
-        4. Run the actual Browser-Use agents on the already-open pages
+        After intake, browsers are pre-launched and navigated to target URLs.
+        Research begins automatically once preload finishes. The frontend
+        auto-advances to the Research page when the first CDP frame arrives.
         """
         playbooks = get_all_playbooks()
         num_playbooks = len(playbooks)
@@ -743,13 +744,8 @@ class Orchestrator:
         ]
         await asyncio.gather(*preload_tasks, return_exceptions=True)
 
-        swarma_line("pipeline", "preload_complete_waiting_for_gate",
-                    job_id=job_id, preloaded=len(preloaded_sessions))
-
-        # ── 3. GATE: wait until the user clicks "Research" ──
-        self._research_gate.clear()
-        await self._research_gate.wait()
-        swarma_line("pipeline", "research_gate_passed", job_id=job_id)
+        swarma_line("pipeline", "preload_complete", job_id=job_id,
+                    preloaded=len(preloaded_sessions))
 
         try:
             # Phase 1: Research — all items, all platforms, concurrently
