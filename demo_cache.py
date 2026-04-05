@@ -210,6 +210,7 @@ async def run_cached_pipeline(
     await asyncio.gather(*research_tasks)
 
     # ── 4. Route decisions ──
+    decision_map = {}
     for item in items:
         demo_key = match_demo_item(item)
         parsed = {}
@@ -226,50 +227,29 @@ async def run_cached_pipeline(
             "scores": decision.scores,
         }))
 
+        decision_map[item.item_id] = decision
         pkg = _build_listing_package(item, decision, parsed, job_id)
         item.listing_package = pkg
         swarma_line("demo_cache", "decision", item=item.name_guess, price=pkg.price_strategy)
 
     await asyncio.sleep(1.0)
 
-    # ── 5. Listing — spawn, replay frames, complete ──
-    listing_plan = []
-    for item in items:
-        demo_key = match_demo_item(item)
-        agent_id = f"facebook-listing-{item.item_id}"
-        cached_aid = _find_cached_agent("facebook", "listing", demo_key)
-        listing_plan.append((item, agent_id, cached_aid))
-        states[agent_id] = AgentState(
-            agent_id=agent_id, item_id=item.item_id,
-            platform="facebook", phase="listing",
-            status="running", task=f"listing facebook for {item.name_guess}",
-            started_at=time.time(),
-        )
-        emit(AgentEvent(type="agent:spawn", agent_id=agent_id, data={
-            "platform": "facebook", "phase": "listing",
-            "item_id": item.item_id, "task": states[agent_id].task,
-        }))
-        if cached_aid:
-            asyncio.ensure_future(_replay_frames(agent_id, cached_aid, fps=2.0))
-
-    async def _finish_listing(item, agent_id, cached_aid, delay):
-        await asyncio.sleep(delay)
-        result_str = cached_results.get(cached_aid, f"Listed '{item.name_guess}' on Facebook.") if cached_aid else ""
-        states[agent_id].status = "complete"
-        states[agent_id].completed_at = time.time()
-        emit(AgentEvent(type="agent:result", agent_id=agent_id, data={"final_result": result_str}))
-        emit(AgentEvent(type="agent:complete", agent_id=agent_id, data={"duration_s": delay}))
-
-    listing_tasks = []
-    for i, (item, agent_id, cached_aid) in enumerate(listing_plan):
-        delay = 25.0 + (i * 12.0)
-        listing_tasks.append(_finish_listing(item, agent_id, cached_aid, delay))
-
-    await asyncio.gather(*listing_tasks)
-
-    # Cancel any still-running frame replays
+    # Cancel research frame replays before listing starts
     for t in frame_runners:
         if not t.done():
             t.cancel()
+
+    # ── 5. Listing — REAL browser agents so items actually post to Facebook ──
+    from orchestrator import get_playbook, PLAYBOOKS, _LISTING_PLATFORMS
+    swarma_line("demo_cache", "listing_handoff_real", job_id=job_id)
+
+    listing_tasks = []
+    for item in items:
+        for platform in decision_map[item.item_id].platforms:
+            if platform in PLAYBOOKS and platform in _LISTING_PLATFORMS:
+                listing_tasks.append(orchestrator.run_agent(item, get_playbook(platform), "listing"))
+
+    if listing_tasks:
+        await asyncio.gather(*listing_tasks, return_exceptions=True)
 
     swarma_line("demo_cache", "pipeline_complete", job_id=job_id)
