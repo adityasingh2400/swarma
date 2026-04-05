@@ -194,6 +194,11 @@ class ConnectionManager:
 
     async def broadcast_event(self, job_id: str, event: dict) -> None:
         """Send a JSON event to all event WS clients for a job."""
+        # Capture for demo recording if enabled
+        from demo_capture import capture_event, CAPTURE_ENABLED
+        if CAPTURE_ENABLED:
+            capture_event(event)
+
         connections = self._events.get(job_id)
         n = len(connections) if connections else 0
         swarma_ws_out(job_id, event, client_count=n)
@@ -503,18 +508,21 @@ async def _run_pipeline(job_id: str, video_path: str):
 
         swarma_line("pipeline", "orchestrator_start_pipeline", job_id=job_id, items_n=len(items))
 
+        # Start demo capture if DEMO_CAPTURE=true
+        from demo_capture import start_capture, stop_capture, CAPTURE_ENABLED
+        if CAPTURE_ENABLED:
+            start_capture(job_id, items)
+
         # Use cached demo pipeline for known items, real pipeline otherwise
         from demo_cache import is_full_demo, run_cached_pipeline
-        if is_full_demo(items):
+        if is_full_demo(items) and not CAPTURE_ENABLED:
             swarma_line("pipeline", "using_demo_cache", job_id=job_id)
             await run_cached_pipeline(orchestrator, job_id, items)
         else:
             await orchestrator.start_pipeline(job_id, items)
 
-        # Pipeline continues via event_drain_loop and screenshot_push_loop
-        # until orchestrator signals completion. For now, we wait.
-        # In the real implementation, orchestrator.start_pipeline is blocking
-        # until all agents complete.
+        if CAPTURE_ENABLED:
+            stop_capture()
 
         job.status = JobStatus.COMPLETED
         job.touch()
