@@ -2,7 +2,7 @@
 
 PYTHON := /Library/Frameworks/Python.framework/Versions/3.12/bin/python3
 
-start: pull build
+start: build
 	@echo "\n  Starting ReRoute...\n"
 	$(PYTHON) run.py
 

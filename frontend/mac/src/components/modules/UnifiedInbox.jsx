@@ -165,7 +165,7 @@ export default function UnifiedInbox({ threads: liveThreads, onSendReply }) {
                         color: 'var(--text-secondary)',
                         marginBottom: 8,
                         cursor: 'pointer',
-                        border: '1px solid rgba(99,102,241,0.2)',
+                        border: '1px solid rgba(255, 107, 107, 0.2)',
                       }}
                       onClick={() => useSuggested(thread.thread_id, thread.suggested_reply)}
                       whileHover={{ scale: 1.01 }}

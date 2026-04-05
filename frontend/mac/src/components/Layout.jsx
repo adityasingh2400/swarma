@@ -1,11 +1,27 @@
 import { useState, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Scan, Check, Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { Scan, Check, ArrowLeft, ArrowRight } from 'lucide-react';
 import IntakePanel from './panels/IntakePanel';
 import AgentTheater from './panels/AgentTheater';
 import DecisionPanel from './panels/DecisionPanel';
+import SwarmGrid from './SwarmGrid';
+import FocusMode from './FocusMode';
+import ResearchPage from './research/ResearchPage';
+import { ACTIVE_STATUSES } from '../utils/contracts';
 
-function getGlobalStage(agents) {
+const EASE = [0.32, 0.72, 0, 1];
+
+function getGlobalStage(agents, v2Agents, pipelineStage) {
+  if (pipelineStage) return pipelineStage;
+
+  const v2Entries = Object.values(v2Agents || {});
+  if (v2Entries.length > 0) {
+    const hasActive = v2Entries.some((a) => ACTIVE_STATUSES.has(a.status));
+    const allComplete = v2Entries.every((a) => a.status === 'complete' || a.status === 'error');
+    if (allComplete) return 'concierge-done';
+    if (hasActive) return 'bidding';
+  }
+
   const s = (id) => {
     const v = agents[id]?.status;
     if (v === 'agent_started' || v === 'thinking' || v === 'agent_progress') return 'thinking';
@@ -22,208 +38,235 @@ function getGlobalStage(agents) {
   return 'idle';
 }
 
-function VideoFrame({ videoUrl, items, globalStage }) {
-  const isProcessing = globalStage === 'processing';
+function MiniPlayer({ videoUrl, items, globalStage }) {
   const hasItems = items.length > 0;
+  const isAnalyzing = !hasItems && globalStage !== 'idle' && globalStage !== 'concierge-done';
 
   return (
-    <div className="vf-container">
-      <div className="vf-frame">
-        {/* Corner brackets */}
-        <div className="vf-bracket vf-tl" />
-        <div className="vf-bracket vf-tr" />
-        <div className="vf-bracket vf-bl" />
-        <div className="vf-bracket vf-br" />
-
+    <div className="mp-wrap">
+      <motion.div
+        className="mp-frame"
+        layoutId="video-player"
+        transition={{ type: 'spring', damping: 30, stiffness: 180, mass: 1 }}
+      >
         <video src={videoUrl} muted autoPlay loop playsInline />
-
-        {/* Scan line animation */}
-        {isProcessing && !hasItems && (
-          <div className="vf-scanline" />
-        )}
-
-        {/* Bottom overlay bar */}
-        <div className="vf-overlay">
-          <div className="vf-status">
-            {hasItems ? (
-              <>
-                <Check size={14} className="vf-status-icon done" />
-                <span>{items.length} item{items.length !== 1 ? 's' : ''} found</span>
-              </>
-            ) : (
-              <>
-                <Loader2 size={14} className="vf-spinner" />
-                <span>Analyzing video...</span>
-              </>
-            )}
-          </div>
-          <div className="vf-badge">
-            <Scan size={12} />
-            <span>LIVE</span>
-          </div>
+        {isAnalyzing && <div className="mp-scanbar" />}
+        <div className="mp-overlay">
+          {hasItems && (
+            <div className="mp-status">
+              <Check size={11} className="mp-icon-done" />
+              <span>{items.length} detected</span>
+            </div>
+          )}
+          <div className="mp-badge"><Scan size={10} /><span>LIVE</span></div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
 
 export default function Layout({
-  job,
-  items,
-  bids,
-  decisions,
-  listings,
-  threads,
-  agents,
-  agentsRaw,
-  agentsByItem,
-  stage3Plan,
-  events,
-  lastEvent,
-  onUpload,
-  onExecuteItem,
-  onSendReply,
+  job, items, bids, decisions, listings, threads, agents,
+  agentsRaw, agentsByItem, stage3Plan, events, lastEvent,
+  onUpload, onExecuteItem, onSendReply,
+  v2Agents = {}, pipelineStage, postingStatus = {}, send, screenshots,
 }) {
-  const [hasVideo, setHasVideo] = useState(false);
+  const [phase, setPhase] = useState('intake');
   const [videoUrl, setVideoUrl] = useState(null);
-  const [videoSettled, setVideoSettled] = useState(false);
-  const globalStage = useMemo(() => getGlobalStage(agents), [agents]);
+  const [focusedAgentId, setFocusedAgentId] = useState(null);
+  const [researchReady, setResearchReady] = useState(false);
 
-  // Allow user to manually navigate back to pipeline from decision view
+  useEffect(() => {
+    return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
+  }, [videoUrl]);
+
+  const globalStage = useMemo(
+    () => getGlobalStage(agents, v2Agents, pipelineStage),
+    [agents, v2Agents, pipelineStage],
+  );
+  const useV2 = Object.keys(v2Agents).length > 0;
+
+  // Transition to research phase when condition_fusion is done and items exist
+  useEffect(() => {
+    const cfStatus = agents?.condition_fusion?.status;
+    const cfDone = cfStatus === 'agent_completed' || cfStatus === 'done';
+    if (cfDone && items.length > 0 && phase === 'processing' && !researchReady) {
+      const t = setTimeout(() => setResearchReady(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [agents, items, phase, researchReady]);
+
   const [viewOverride, setViewOverride] = useState(null);
   const activeView = viewOverride || globalStage;
 
   useEffect(() => {
-    if (viewOverride && viewOverride === globalStage) {
-      setViewOverride(null);
-    }
+    if (viewOverride && viewOverride === globalStage) setViewOverride(null);
   }, [globalStage, viewOverride]);
 
-  const showVideo = hasVideo && !['bidding', 'deciding', 'concierge-done', 'concierge'].includes(activeView);
-  const showCommandCenter = hasVideo && videoSettled;
   const showConciergeResults = activeView === 'concierge-done' || activeView === 'concierge';
 
-  const handleUploadWithVideo = (file, url) => {
+  const [settled, setSettled] = useState(false);
+
+  const handleUpload = (file, url) => {
     setVideoUrl(url);
-    setHasVideo(true);
-    setTimeout(() => setVideoSettled(true), 900);
+    setPhase('processing');
     onUpload(file);
   };
 
+  useEffect(() => {
+    if (phase === 'processing' && !settled) {
+      const id = setTimeout(() => setSettled(true), 6000);
+      return () => clearTimeout(id);
+    }
+  }, [phase, settled]);
+
+  const focusedAgent = focusedAgentId ? v2Agents[focusedAgentId] : null;
+  const focusedShot = focusedAgentId && screenshots
+    ? (screenshots instanceof Map ? screenshots.get(focusedAgentId) : screenshots[focusedAgentId])
+    : null;
+
   return (
-    <motion.div
-      className="layout layout-unified"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-    >
-      <AnimatePresence mode="sync">
-        {/* Full-screen intake when no video yet */}
-        {!hasVideo && (
-          <motion.div
-            key="intake-full"
-            className="intake-fullscreen"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.97 }}
-            transition={{ duration: 0.3 }}
-          >
-            <IntakePanel
-              job={job}
-              items={items}
-              onUpload={handleUploadWithVideo}
-              fullscreen
-            />
-          </motion.div>
-        )}
+    <LayoutGroup>
+      <motion.div
+        className="layout layout-unified"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, ease: EASE }}
+      >
+        <AnimatePresence mode="wait">
+          {/* ── Phase: Intake ───────────────────────────────── */}
+          {phase === 'intake' && (
+            <motion.div
+              key="intake-full"
+              className="intake-fullscreen"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{
+                opacity: 0,
+                scale: 0.97,
+                filter: 'blur(4px)',
+                transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+              }}
+              transition={{ duration: 0.3, ease: EASE }}
+            >
+              <IntakePanel
+                job={job}
+                items={items}
+                onUpload={handleUpload}
+                fullscreen
+              />
+            </motion.div>
+          )}
 
-        {/* Video starts centered, then slides to left third */}
-        {hasVideo && showVideo && (
-          <motion.div
-            key="video-panel"
-            className="video-panel"
-            initial={{ left: '50%', x: '-50%', width: '400px' }}
-            animate={{
-              left: '0%',
-              x: '0%',
-              width: '33.333%',
-            }}
-            exit={{
-              opacity: 0,
-              x: '-100%',
-              width: '0%',
-            }}
-            transition={{
-              type: 'spring',
-              stiffness: 120,
-              damping: 22,
-              delay: 0.1,
-            }}
-          >
-            <VideoFrame videoUrl={videoUrl} items={items} globalStage={globalStage} />
-          </motion.div>
-        )}
+          {/* ── Phase: Processing ───────────────────────────── */}
+          {phase === 'processing' && !showConciergeResults && !researchReady && (
+            <motion.div
+              key="processing"
+              className="proc-layout"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, filter: 'blur(4px)', transition: { duration: 0.3 } }}
+              transition={{ duration: 0.4, ease: EASE }}
+            >
+              {viewOverride && (globalStage === 'concierge-done' || globalStage === 'concierge') && (
+                <motion.button
+                  className="view-override-banner"
+                  onClick={() => setViewOverride(null)}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: EASE }}
+                >
+                  <span>Results are ready</span>
+                  <ArrowRight size={14} />
+                  <span>View Decisions</span>
+                </motion.button>
+              )}
 
-        {/* Command center slides in after video settles */}
-        {showCommandCenter && !showConciergeResults && (
-          <motion.div
-            key="command-center"
-            className={`command-center ${!showVideo ? 'command-center-full' : ''}`}
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 160, damping: 24 }}
-          >
-            {viewOverride && (globalStage === 'concierge-done' || globalStage === 'concierge') && (
-              <button className="view-override-banner" onClick={() => setViewOverride(null)}>
-                <span>Results are ready</span>
-                <ArrowRight size={14} />
-                <span>View Decisions</span>
+              <motion.div
+                className="proc-pipeline"
+                initial={{ opacity: 0, y: -16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, delay: 0.05, ease: EASE }}
+              >
+                <AgentTheater
+                  job={job} items={items} bids={bids} decisions={decisions}
+                  listings={listings} threads={threads} agents={agents}
+                  agentsRaw={agentsRaw} agentsByItem={agentsByItem}
+                  stage3Plan={stage3Plan} events={events} lastEvent={lastEvent}
+                  onExecuteItem={onExecuteItem} onSendReply={onSendReply}
+                  v2Agents={v2Agents} pipelineStage={pipelineStage} postingStatus={postingStatus} send={send}
+                  settled={settled}
+                  miniPlayer={videoUrl ? (
+                    <MiniPlayer videoUrl={videoUrl} items={items} globalStage={globalStage} />
+                  ) : null}
+                />
+              </motion.div>
+
+              {useV2 && Object.keys(v2Agents).length > 0 && (
+                <motion.div
+                  className="proc-swarm"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.4, ease: EASE }}
+                >
+                  <SwarmGrid
+                    v2Agents={v2Agents}
+                    screenshots={screenshots}
+                    onFocusAgent={setFocusedAgentId}
+                    focusedAgentId={focusedAgentId}
+                  />
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ── Phase: Research ─────────────────────────────── */}
+          {phase === 'processing' && researchReady && !showConciergeResults && (
+            <motion.div
+              key="research"
+              className="research-fullscreen"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
+              transition={{ duration: 0.5, ease: EASE }}
+            >
+              <ResearchPage
+                items={items}
+                bids={bids}
+                decisions={decisions}
+              />
+            </motion.div>
+          )}
+
+          {/* ── Phase: Concierge Results ────────────────────── */}
+          {phase === 'processing' && showConciergeResults && (
+            <motion.div
+              key="concierge-results"
+              className="concierge-fullscreen"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, transition: { duration: 0.2 } }}
+              transition={{ duration: 0.4, ease: EASE }}
+            >
+              <button className="back-to-pipeline-btn" onClick={() => setViewOverride('bidding')}>
+                <ArrowLeft size={14} />
+                <span>Back to Pipeline</span>
               </button>
-            )}
-            <AgentTheater
-              job={job}
-              items={items}
-              bids={bids}
-              decisions={decisions}
-              listings={listings}
-              threads={threads}
-              agents={agents}
-              agentsRaw={agentsRaw}
-              agentsByItem={agentsByItem}
-              stage3Plan={stage3Plan}
-              events={events}
-              lastEvent={lastEvent}
-              onExecuteItem={onExecuteItem}
-              onSendReply={onSendReply}
-            />
-          </motion.div>
-        )}
+              <DecisionPanel
+                items={items} decisions={decisions} agents={agents}
+                onExecuteItem={onExecuteItem} fullscreen
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Concierge final results */}
-        {showConciergeResults && (
-          <motion.div
-            key="concierge-results"
-            className="concierge-fullscreen"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 180, damping: 24 }}
-          >
-            <button className="back-to-pipeline-btn" onClick={() => setViewOverride('bidding')}>
-              <ArrowLeft size={14} />
-              <span>Back to Pipeline</span>
-            </button>
-            <DecisionPanel
-              items={items}
-              decisions={decisions}
-              agents={agents}
-              onExecuteItem={onExecuteItem}
-              fullscreen
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+        <FocusMode
+          agent={focusedAgent}
+          screenshotUrl={focusedShot?.url}
+          onClose={() => setFocusedAgentId(null)}
+          send={send}
+        />
+      </motion.div>
+    </LayoutGroup>
   );
 }

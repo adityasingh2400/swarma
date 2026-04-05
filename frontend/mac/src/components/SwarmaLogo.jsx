@@ -1,6 +1,6 @@
 import { useId } from 'react';
 
-export default function ReRouteLogo({ className = '', size = 28 }) {
+export default function SwarmaLogo({ className = '', size = 28 }) {
   const raw = useId();
   const uid = raw.replace(/[^a-zA-Z0-9_-]/g, '');
   const flow = `${uid}-f`;
@@ -19,13 +19,13 @@ export default function ReRouteLogo({ className = '', size = 28 }) {
     >
       <defs>
         <linearGradient id={flow} x1="88" y1="420" x2="420" y2="92" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#F5D0B0" />
-          <stop offset="50%" stopColor="#FFFFFF" />
-          <stop offset="100%" stopColor="#F5D0B0" />
+          <stop offset="0%" stopColor="#EF4444" />
+          <stop offset="50%" stopColor="#1C1917" />
+          <stop offset="100%" stopColor="#EF4444" />
         </linearGradient>
         <linearGradient id={spark} x1="256" y1="64" x2="320" y2="128" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#FFE4B5" />
-          <stop offset="100%" stopColor="#D4A574" />
+          <stop offset="0%" stopColor="#FF9F43" />
+          <stop offset="100%" stopColor="#FF6B6B" />
         </linearGradient>
       </defs>
       <circle cx="128" cy="392" r="14" fill={`url(#${flow})`} opacity="0.55" />

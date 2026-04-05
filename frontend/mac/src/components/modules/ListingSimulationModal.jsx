@@ -100,7 +100,7 @@ function EbayListing({ item, listing }) {
           <button className="sim-ebay-offer-btn">Make Offer</button>
           <div className="sim-ebay-seller">
             <Shield size={13} />
-            <span>Seller: <strong>reroute_store</strong> (100% positive)</span>
+            <span>Seller: <strong>swarma_store</strong> (100% positive)</span>
           </div>
           {Object.keys(specs).length > 0 && (
             <div className="sim-ebay-specs">
@@ -185,7 +185,7 @@ function FacebookListing({ item, listing }) {
           <div className="sim-fb-seller">
             <div className="sim-fb-seller-avatar">R</div>
             <div>
-              <strong>ReRoute Store</strong>
+              <strong>Swarma Store</strong>
               <div className="sim-fb-seller-meta">Joined 2024 · Typically responds within an hour</div>
             </div>
           </div>
@@ -250,7 +250,7 @@ function MercariListing({ item, listing }) {
           <div className="sim-mercari-seller">
             <div className="sim-mercari-seller-avatar">R</div>
             <div>
-              <strong>reroute_store</strong>
+              <strong>swarma_store</strong>
               <div className="sim-mercari-rating"><Star size={10} fill="currentColor" /> 5.0 (12 ratings)</div>
             </div>
           </div>
@@ -325,7 +325,7 @@ function LiveChat({ itemId }) {
       </div>
       <div className="sim-chat-body">
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: 32 }}>
+          <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13, padding: 32 }}>
             Waiting for buyer to message from the phone…
           </div>
         )}

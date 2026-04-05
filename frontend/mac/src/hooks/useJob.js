@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { uploadVideo, getJobState, executeItem as execItem, sendReply as replyApi } from '../utils/api';
+import {
+  EVENT_AGENT_SPAWN, EVENT_AGENT_STATUS, EVENT_AGENT_ERROR,
+  EVENT_AGENT_COMPLETE, EVENT_AGENT_RESULT, EVENT_ITEM_IDENTIFIED,
+  EVENT_STATE_SNAPSHOT, EVENT_JOB_PROGRESS, EVENT_PIPELINE_UPDATE,
+  EVENT_ITEM_POSTED,
+} from '../utils/contracts';
 
 // Priority-based aggregation mirroring backend store.py logic.
 // For each agent, we track state per item_id and expose the highest-priority
@@ -30,6 +36,10 @@ export function useJob(jobId) {
   const [threads, setThreads] = useState([]);
   // Stage 3 plan: { itemId: { name, agents[], hero_frame, condition, confidence } }
   const [stage3Plan, setStage3Plan] = useState(null);
+  const [v2Agents, setV2Agents] = useState({});
+  const [pipelineStage, setPipelineStage] = useState(null);
+  // { "item-1:ebay": { status, listing_url, timestamp }, ... }
+  const [postingStatus, setPostingStatus] = useState({});
   // Internal: per-item agent states: { agentName: { itemId: state } }
   const [agentsRaw, setAgentsRaw] = useState({});
   // Exposed: aggregated agent states (highest priority per agent)
@@ -47,16 +57,18 @@ export function useJob(jobId) {
     return result;
   }, [agentsRaw]);
 
-  const { connected, events, lastEvent, subscribe } = useWebSocket(jobId);
-  const initialized = useRef(false);
+  const { connected, events, lastEvent, subscribe, send } = useWebSocket(jobId);
+  const prevJobRef = useRef(null);
 
   useEffect(() => {
-    if (!jobId) return;
-    if (initialized.current) return;
-    initialized.current = true;
+    if (!jobId || jobId === prevJobRef.current) return;
+    prevJobRef.current = jobId;
+
+    let stale = false;
 
     getJobState(jobId)
       .then((state) => {
+        if (stale) return;
         if (state.job) setJob(state.job);
         if (state.items) setItems(state.items);
         if (state.bids) setBids(state.bids || {});
@@ -77,6 +89,8 @@ export function useJob(jobId) {
         }
       })
       .catch(() => {});
+
+    return () => { stale = true; };
   }, [jobId]);
 
   useEffect(() => {
@@ -208,15 +222,81 @@ export function useJob(jobId) {
             return { ...prev, [data.agent]: agentMap };
           });
           break;
+
+        case EVENT_AGENT_SPAWN:
+          setV2Agents((prev) => ({
+            ...prev,
+            [data.agent_id]: {
+              started_at: null, completed_at: null, error: null, result: null,
+              ...data,
+              status: data.status || 'queued',
+            },
+          }));
+          break;
+        case EVENT_AGENT_STATUS:
+          setV2Agents((prev) => {
+            const existing = prev[data.agent_id] || {};
+            if (existing.status === 'complete' || existing.status === 'error') return prev;
+            return { ...prev, [data.agent_id]: { ...existing, ...data } };
+          });
+          break;
+        case EVENT_AGENT_ERROR:
+          setV2Agents((prev) => {
+            const existing = prev[data.agent_id] || {};
+            return { ...prev, [data.agent_id]: { ...existing, ...data, status: 'error' } };
+          });
+          break;
+        case EVENT_AGENT_COMPLETE:
+          setV2Agents((prev) => {
+            const existing = prev[data.agent_id] || {};
+            return {
+              ...prev,
+              [data.agent_id]: {
+                ...existing, ...data,
+                status: 'complete',
+                completed_at: data.completed_at || Date.now() / 1000,
+              },
+            };
+          });
+          break;
+        case EVENT_AGENT_RESULT:
+          setV2Agents((prev) => {
+            const existing = prev[data.agent_id] || {};
+            return { ...prev, [data.agent_id]: { ...existing, result: data.result } };
+          });
+          break;
+        case EVENT_ITEM_IDENTIFIED:
+          setItems((prev) => {
+            const idx = prev.findIndex((i) => i.item_id === data.item_id);
+            return idx >= 0
+              ? prev.map((i, j) => (j === idx ? { ...i, ...data } : i))
+              : [...prev, data];
+          });
+          break;
+        case EVENT_STATE_SNAPSHOT:
+          if (data.agents) setV2Agents(data.agents);
+          if (data.items) setItems(data.items);
+          if (data.pipeline_stage) setPipelineStage(data.pipeline_stage);
+          break;
+        case EVENT_JOB_PROGRESS:
+          setJob((prev) => ({ ...prev, ...data }));
+          break;
+        case EVENT_PIPELINE_UPDATE:
+          setPipelineStage(data.stage || data.pipeline_stage);
+          break;
+        case EVENT_ITEM_POSTED:
+          setPostingStatus((prev) => ({
+            ...prev,
+            [`${data.item_id}:${data.platform}`]: {
+              status: data.status,
+              listing_url: data.listing_url || null,
+              timestamp: data.timestamp || Date.now() / 1000,
+            },
+          }));
+          break;
       }
     });
   }, [subscribe]);
-
-  useEffect(() => {
-    if (jobId) {
-      initialized.current = false;
-    }
-  }, [jobId]);
 
   const uploadAndStart = useCallback(async (file) => {
     try {
@@ -252,11 +332,15 @@ export function useJob(jobId) {
     agentsRaw,
     agentsByItem,
     stage3Plan,
+    v2Agents,
+    pipelineStage,
+    postingStatus,
     connected,
     events,
     lastEvent,
     uploadAndStart,
     executeItem,
     sendReply,
+    send,
   };
 }

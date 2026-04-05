@@ -93,10 +93,9 @@ export default function ConditionFusion({ items, job }) {
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{
-                  delay: index * 0.15,
-                  type: 'spring',
-                  stiffness: 200,
-                  damping: 20,
+                  delay: index * 0.05,
+                  duration: 0.4,
+                  ease: [0.32, 0.72, 0, 1],
                 }}
               >
                 <FrameGallery frames={item.hero_frame_paths} name={item.name_guess} />

@@ -104,10 +104,9 @@ export default function BestRoute({ decisions }) {
                 scale: isWinner ? 1.02 : isLoser ? 0.97 : 1,
               }}
               transition={{
-                delay: index * 0.1,
+                delay: index * 0.05,
                 duration: 0.4,
-                type: 'spring',
-                stiffness: 150,
+                ease: [0.32, 0.72, 0, 1],
               }}
             >
               <div className="br-route-icon">

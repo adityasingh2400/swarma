@@ -241,7 +241,7 @@ function renderChat() {
       h('button', { className: 'chat-back', onClick: showPicker }, '‹'),
       h('div', { className: 'chat-avatar' }, 'R'),
       h('div', { className: 'chat-seller-info' },
-        h('div', { className: 'chat-seller-name' }, 'ReRoute Store'),
+        h('div', { className: 'chat-seller-name' }, 'Swarma Store'),
         h('div', { className: 'chat-seller-status' }, 'Usually responds instantly'),
       ),
     ),
@@ -301,7 +301,7 @@ async function doSend(inputEl) {
   renderMessages(msgContainer);
 
   // Show typing indicator
-  const typing = h('div', { className: 'msg msg-typing' }, 'ReRoute Store is typing…');
+  const typing = h('div', { className: 'msg msg-typing' }, 'Swarma Store is typing…');
   msgContainer.appendChild(typing);
   msgContainer.scrollTop = msgContainer.scrollHeight;
 

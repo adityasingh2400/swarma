@@ -19,8 +19,6 @@ class Settings(BaseSettings):
     gemini_api_key_7: str = ""
     gemini_api_key_8: str = ""
     gemini_api_key_9: str = ""
-    gemini_api_key_10: str = ""
-
     # ASI:One
     asi_one_api_key: str = ""
 
@@ -35,6 +33,12 @@ class Settings(BaseSettings):
     amazon_access_key: str = ""
     amazon_secret_key: str = ""
     amazon_partner_tag: str = ""
+
+    # Deepgram
+    deepgram_api_key: str = ""
+
+    # Groq
+    groq_api_key: str = ""
 
     # Agent Seeds
     intake_agent_seed: str = "reroute-intake-agent-seed-phrase-change-me"
@@ -58,6 +62,41 @@ class Settings(BaseSettings):
 
     # Agentverse
     agentverse_api_key: str = ""
+
+    # Browser-Use
+    browser_use_api_key: str = ""
+    max_concurrent_agents: int = 12
+    context_pool_size: int = 12
+
+    # Screenshot streaming
+    screenshot_capture_fps: float = 2.0
+    screenshot_grid_quality: int = 60
+    screenshot_grid_width: int = 320
+    screenshot_grid_height: int = 240
+    screenshot_focus_quality: int = 80
+    screenshot_focus_width: int = 1280
+    screenshot_focus_height: int = 960
+    screenshot_grid_delivery_fps: float = 1.0
+    screenshot_focus_delivery_fps: float = 3.0
+
+    # Intake
+    intake_batch_size: int = 5
+    intake_ffmpeg_fps: float = 1.0
+    intake_min_frames_required: int = 3
+    gemini_image_model: str = "gemini-3.1-flash-lite-preview"
+
+    # OpenCV pre-filter
+    intake_sharpness_percentile: int = 30
+    intake_scene_change_threshold: float = 0.3
+    intake_hash_hamming_threshold: int = 8
+    intake_max_filtered_frames: int = 30
+
+    # Segment extraction
+    intake_num_segments: int = 10
+    intake_frames_per_segment: int = 1
+
+    # Arctic-Embed-XS aggregation
+    intake_similarity_threshold: float = 0.85
 
     # Feature Flags
     enable_facebook_adapter: bool = False

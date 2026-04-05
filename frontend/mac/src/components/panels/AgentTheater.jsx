@@ -4,9 +4,10 @@ import {
   Trophy, MessageSquare,
 } from 'lucide-react';
 import MissionControl from '../modules/MissionControl';
+import { ACTIVE_STATUSES } from '../../utils/contracts';
 
 const STAGE_GROUPS = [
-  { id: 'processing', label: 'Processing', icon: Cpu, agents: ['intake', 'condition_fusion'], stage: 1, concurrent: false },
+  { id: 'processing', label: 'Processing', icon: Cpu, agents: ['intake'], stage: 1, concurrent: false },
   { id: 'routes', label: 'Route Bidding', icon: Search,
     agents: ['marketplace_resale', 'trade_in', 'return', 'repair_roi'], stage: 2, concurrent: true,
     subLabels: [
@@ -16,16 +17,17 @@ const STAGE_GROUPS = [
       { id: 'repair_roi', label: 'Repair', icon: Wrench },
     ],
   },
-  { id: 'decider', label: 'Decision', icon: Trophy, agents: ['route_decider'], stage: 3, concurrent: false },
+  { id: 'posting', label: 'Posting', icon: Trophy, agents: ['route_decider'], stage: 3, concurrent: false },
   { id: 'concierge', label: 'Concierge', icon: MessageSquare, agents: ['concierge'], stage: 4, concurrent: false },
 ];
 
 function normalizeStatus(rawStatus) {
   if (!rawStatus) return 'idle';
   if (rawStatus === 'agent_started' || rawStatus === 'thinking') return 'thinking';
-  if (rawStatus === 'agent_completed' || rawStatus === 'done') return 'done';
+  if (rawStatus === 'agent_completed' || rawStatus === 'done' || rawStatus === 'complete') return 'done';
   if (rawStatus === 'agent_error' || rawStatus === 'error') return 'error';
   if (rawStatus === 'agent_progress') return 'thinking';
+  if (ACTIVE_STATUSES.has(rawStatus)) return 'thinking';
   return rawStatus;
 }
 
@@ -64,6 +66,12 @@ export default function AgentTheater({
   onExecuteItem,
   onSendReply,
   onStageClick,
+  v2Agents = {},
+  pipelineStage,
+  postingStatus = {},
+  send,
+  miniPlayer,
+  settled,
 }) {
   const currentGroupIdx = useMemo(() => getCurrentStageGroup(agents), [agents]);
   const [userSelectedGroup, setUserSelectedGroup] = useState(null);
@@ -174,6 +182,12 @@ export default function AgentTheater({
           listings={listings}
           onExecuteItem={onExecuteItem}
           overrideStageIdx={mcStageIdx}
+          v2Agents={v2Agents}
+          pipelineStage={pipelineStage}
+          postingStatus={postingStatus}
+          send={send}
+          miniPlayer={miniPlayer}
+          settled={settled}
         />
       </div>
     </div>
