@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import traceback
 
 from browser_use import Agent, Browser, BrowserProfile
 
@@ -29,7 +30,14 @@ from models.listing_package import ListingPackage
 from route_decision import route_decision
 import backend.streaming as streaming
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("swarmsell.orchestrator")
+
+try:
+    from backend.debug_trace import swarma_line
+except ImportError:
+    def swarma_line(component, event, **fields):
+        logger.info("SWARMA | %s | %s | %s", component, event,
+                     " | ".join(f"{k}={v}" for k, v in fields.items()))
 
 # ---------------------------------------------------------------------------
 # Playbook registry — Person 2 registers these at import time
@@ -57,14 +65,18 @@ def get_playbook(platform: str) -> Playbook:
 def _make_llm():
     if settings.use_chat_browser_use:
         from browser_use import ChatBrowserUse
+        swarma_line("orchestrator", "llm_init", backend="ChatBrowserUse")
         return ChatBrowserUse()
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(
+        llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             google_api_key=settings.gemini_api_key,
         )
+        swarma_line("orchestrator", "llm_init", backend="gemini-2.0-flash")
+        return llm
     except Exception as exc:
+        swarma_line("orchestrator", "llm_init_fallback", error=str(exc), fallback="ChatBrowserUse")
         logger.warning("Gemini LLM init failed, falling back to ChatBrowserUse: %s", exc)
         from browser_use import ChatBrowserUse
         return ChatBrowserUse()
@@ -80,12 +92,12 @@ class Orchestrator:
         self.sem = asyncio.Semaphore(limit)
         self.events: asyncio.Queue[AgentEvent] = asyncio.Queue()
 
-        # Exposed for Person 3
         self.agents: dict[str, Agent] = {}
         self.agent_states: dict[str, AgentState] = {}
 
-        # Auth profiles
         self.profiles: dict[str, str | None] = settings.storage_state_map
+        swarma_line("orchestrator", "init", max_concurrent=limit,
+                    profiles={k: ("loaded" if v else "missing") for k, v in self.profiles.items()})
 
     # --- Interface for Person 3 ---
 
@@ -116,23 +128,11 @@ class Orchestrator:
                 setattr(self.agent_states[agent_id], k, v)
 
     def _make_step_callback(self, agent_id: str):
-        """Creates a per-step callback that emits screenshots + agent thoughts.
-        This is how Person 3/4 see what each agent is doing visually."""
+        """Creates a per-step callback that emits screenshots + agent thoughts."""
         def callback(state, model_output, step: int):
-            # Push screenshot as event (base64 JPEG)
+            url = getattr(state, "url", "")
             screenshot = getattr(state, "screenshot", None)
-            if screenshot:
-                self._emit(AgentEvent(
-                    type="agent:screenshot",
-                    agent_id=agent_id,
-                    data={
-                        "step": step,
-                        "screenshot_b64": screenshot,  # base64 encoded
-                        "url": getattr(state, "url", ""),
-                    },
-                ))
 
-            # Push agent's current thinking as status update
             thoughts = {}
             if model_output and hasattr(model_output, "current_state"):
                 cs = model_output.current_state
@@ -141,21 +141,30 @@ class Orchestrator:
                     "next_goal": getattr(cs, "next_goal", ""),
                 }
             actions = []
+            action_names = []
             if model_output and hasattr(model_output, "action"):
-                actions = [
-                    a.model_dump(exclude_unset=True)
-                    for a in model_output.action
-                ]
+                actions = [a.model_dump(exclude_unset=True) for a in model_output.action]
+                action_names = [list(a.keys())[0] if a else "?" for a in actions]
+
+            swarma_line("agent.step", "callback",
+                        agent_id=agent_id, step=step, url=url,
+                        has_screenshot=bool(screenshot),
+                        actions=action_names,
+                        next_goal=thoughts.get("next_goal", "")[:120])
+
+            if screenshot:
+                self._emit(AgentEvent(
+                    type="agent:screenshot",
+                    agent_id=agent_id,
+                    data={"step": step, "screenshot_b64": screenshot, "url": url},
+                ))
 
             self._emit(AgentEvent(
                 type="agent:status",
                 agent_id=agent_id,
                 data={
-                    "status": "running",
-                    "step": step,
-                    "thoughts": thoughts,
-                    "actions": actions,
-                    "url": getattr(state, "url", ""),
+                    "status": "running", "step": step,
+                    "thoughts": thoughts, "actions": actions, "url": url,
                 },
             ))
 
@@ -202,7 +211,9 @@ class Orchestrator:
             agent_id = f"{playbook.platform}-{phase}-{item.item_id}"
             now = time.time()
 
-            # Register state
+            swarma_line("agent", "spawn", agent_id=agent_id, platform=playbook.platform,
+                        phase=phase, item=item.name_guess, item_id=item.item_id)
+
             self.agent_states[agent_id] = AgentState(
                 agent_id=agent_id,
                 item_id=item.item_id,
@@ -213,28 +224,26 @@ class Orchestrator:
                 started_at=now,
             )
 
-            # Emit spawn
             self._emit(AgentEvent(
                 type="agent:spawn", agent_id=agent_id,
                 data={"platform": playbook.platform, "phase": phase,
                       "item_id": item.item_id, "task": self.agent_states[agent_id].task},
             ))
 
-            # Build task string + initial_actions from playbook
             if phase == "research":
                 task_str, initial_actions = playbook.research_task(item)
             else:
                 task_str, initial_actions = playbook.listing_task(item, item.listing_package)
 
-            profile = self._make_profile(playbook.platform)
+            swarma_line("agent", "task_built", agent_id=agent_id,
+                        task_len=len(task_str),
+                        initial_actions_n=len(initial_actions) if initial_actions else 0,
+                        task_preview=task_str[:150])
 
-            # Listing phase needs vision (to see forms), research doesn't
+            profile = self._make_profile(playbook.platform)
             use_vision: bool | str = "auto" if phase == "listing" else False
 
             try:
-                # Hook: start CDP screencast on the first step (browser is ready by then).
-                # agent_box holds the agent reference so the closure can reach it
-                # after Agent() returns but before agent.run() fires the callback.
                 agent_box: list[Agent | None] = [None]
                 sc_started = [False]
 
@@ -242,8 +251,14 @@ class Orchestrator:
                     if sc_started[0]:
                         return
                     sc_started[0] = True
-                    page = await agent_box[0].browser_session.get_current_page()
-                    await streaming.start_screencast(agent_id, page)
+                    try:
+                        page = await agent_box[0].browser_session.get_current_page()
+                        await streaming.start_screencast(agent_id, page)
+                        swarma_line("agent", "screencast_started", agent_id=agent_id,
+                                    url=getattr(page, "url", "unknown"))
+                    except Exception as sc_err:
+                        swarma_line("agent", "screencast_start_failed", agent_id=agent_id,
+                                    error=str(sc_err))
 
                 agent = self._build_agent(
                     agent_id, task_str, profile,
@@ -256,16 +271,26 @@ class Orchestrator:
                 agent_box[0] = agent
                 self.agents[agent_id] = agent
 
+                swarma_line("agent", "run_start", agent_id=agent_id,
+                            max_steps=5 if phase == "research" else 30,
+                            use_vision=use_vision, flash_mode=True)
+
                 history = await agent.run()
 
-                # Emit result
                 final = history.final_result() if history.is_done() else None
+                duration = time.time() - now
+
+                swarma_line("agent", "run_complete", agent_id=agent_id,
+                            duration_s=round(duration, 1),
+                            is_done=history.is_done(),
+                            result_len=len(str(final)) if final else 0,
+                            result_preview=str(final)[:200] if final else "null")
+
                 self._emit(AgentEvent(
                     type="agent:result", agent_id=agent_id,
                     data={"final_result": final},
                 ))
 
-                duration = time.time() - now
                 self._update_state(agent_id, status="complete", completed_at=time.time())
                 self._emit(AgentEvent(
                     type="agent:complete", agent_id=agent_id,
@@ -276,7 +301,11 @@ class Orchestrator:
                 return history
 
             except Exception as first_err:
+                swarma_line("agent", "run_failed", agent_id=agent_id,
+                            error=str(first_err), error_type=type(first_err).__name__,
+                            traceback=traceback.format_exc()[-500:])
                 logger.warning("Agent %s failed: %s, retrying...", agent_id, first_err)
+
                 self._update_state(agent_id, status="retrying")
                 self._emit(AgentEvent(
                     type="agent:status", agent_id=agent_id,
@@ -287,6 +316,7 @@ class Orchestrator:
                 await asyncio.sleep(3)
 
                 try:
+                    swarma_line("agent", "retry_start", agent_id=agent_id)
                     retry_agent = self._build_agent(
                         agent_id, task_str, profile,
                         initial_actions=initial_actions,
@@ -297,6 +327,9 @@ class Orchestrator:
                     history = await retry_agent.run()
 
                     duration = time.time() - now
+                    swarma_line("agent", "retry_complete", agent_id=agent_id,
+                                duration_s=round(duration, 1))
+
                     self._update_state(agent_id, status="complete", completed_at=time.time())
                     self._emit(AgentEvent(
                         type="agent:complete", agent_id=agent_id,
@@ -306,6 +339,9 @@ class Orchestrator:
                     return history
 
                 except Exception as retry_err:
+                    swarma_line("agent", "retry_failed_blocked", agent_id=agent_id,
+                                error=str(retry_err), error_type=type(retry_err).__name__,
+                                traceback=traceback.format_exc()[-500:])
                     self._update_state(agent_id, status="blocked", error=str(retry_err))
                     self._emit(AgentEvent(
                         type="agent:error", agent_id=agent_id,
@@ -319,23 +355,29 @@ class Orchestrator:
 
             finally:
                 self.agents.pop(agent_id, None)
-                await streaming.stop_screencast(agent_id)
+                try:
+                    await streaming.stop_screencast(agent_id)
+                    swarma_line("agent", "screencast_stopped", agent_id=agent_id)
+                except Exception as sc_err:
+                    swarma_line("agent", "screencast_stop_failed", agent_id=agent_id, error=str(sc_err))
 
     # --- Pipeline ---
 
     async def start_pipeline(self, job_id: str, items: list[ItemCard]) -> None:
-        """Full pipeline: research → route decision → listing. Called by Person 3."""
+        """Full pipeline: research → route decision → listing."""
         playbooks = get_all_playbooks()
         num_playbooks = len(playbooks)
 
         if not playbooks:
+            swarma_line("pipeline", "no_playbooks", job_id=job_id)
             logger.warning("No playbooks registered. Skipping pipeline.")
             return
 
-        logger.info(
-            "Starting pipeline for job %s: %d items, %d playbooks, %d research agents",
-            job_id, len(items), num_playbooks, len(items) * num_playbooks,
-        )
+        swarma_line("pipeline", "start", job_id=job_id,
+                    items_n=len(items), playbooks_n=num_playbooks,
+                    total_research_agents=len(items) * num_playbooks,
+                    playbook_platforms=[pb.platform for pb in playbooks],
+                    item_names=[i.name_guess for i in items])
 
         # Phase 1: Research — all items, all platforms, concurrently
         research_tasks = [
@@ -343,7 +385,15 @@ class Orchestrator:
             for item in items
             for pb in playbooks
         ]
+        swarma_line("pipeline", "research_phase_start", job_id=job_id,
+                    agents_n=len(research_tasks))
+
         all_results = await asyncio.gather(*research_tasks, return_exceptions=True)
+
+        successes = sum(1 for r in all_results if not isinstance(r, BaseException))
+        failures = sum(1 for r in all_results if isinstance(r, BaseException))
+        swarma_line("pipeline", "research_phase_complete", job_id=job_id,
+                    successes=successes, failures=failures)
 
         # Phase 2: Route decision + Phase 3: Listing — per item
         for i, item in enumerate(items):
@@ -352,18 +402,32 @@ class Orchestrator:
             parsed: dict[str, dict] = {}
             for pb, result in zip(playbooks, item_results):
                 if isinstance(result, BaseException):
-                    logger.warning("Research failed for %s/%s: %s", pb.platform, item.item_id, result)
+                    swarma_line("pipeline", "research_result_error", job_id=job_id,
+                                platform=pb.platform, item=item.name_guess,
+                                error=str(result))
                     continue
                 try:
                     parsed[pb.platform] = pb.parse_research(result.final_result())
+                    swarma_line("pipeline", "research_parsed", job_id=job_id,
+                                platform=pb.platform, item=item.name_guess,
+                                result_keys=list(parsed[pb.platform].keys()))
                 except Exception as e:
-                    logger.warning("Parse failed for %s/%s: %s", pb.platform, item.item_id, e)
+                    swarma_line("pipeline", "research_parse_failed", job_id=job_id,
+                                platform=pb.platform, item=item.name_guess,
+                                error=str(e))
 
             if not parsed:
-                logger.warning("No research results for item %s, skipping listing", item.item_id)
+                swarma_line("pipeline", "no_research_results_skip_listing",
+                            job_id=job_id, item=item.name_guess)
                 continue
 
             decision: RouteDecision = route_decision(item, parsed)
+
+            swarma_line("pipeline", "route_decision", job_id=job_id,
+                        item=item.name_guess,
+                        platforms=decision.platforms,
+                        prices=decision.prices,
+                        scores=decision.scores)
 
             self._emit(AgentEvent(
                 type="decision:made",
@@ -375,10 +439,6 @@ class Orchestrator:
                     "scores": decision.scores,
                 },
             ))
-            logger.info(
-                "Route decision for %s: %s (scores: %s)",
-                item.name_guess, ", ".join(decision.platforms), decision.scores,
-            )
 
             item.listing_package = ListingPackage(
                 item_id=item.item_id,
@@ -394,4 +454,11 @@ class Orchestrator:
                 if platform in PLAYBOOKS
             ]
             if listing_tasks:
+                swarma_line("pipeline", "listing_phase_start", job_id=job_id,
+                            item=item.name_guess, agents_n=len(listing_tasks),
+                            platforms=decision.platforms)
                 await asyncio.gather(*listing_tasks, return_exceptions=True)
+                swarma_line("pipeline", "listing_phase_complete", job_id=job_id,
+                            item=item.name_guess)
+
+        swarma_line("pipeline", "complete", job_id=job_id)
