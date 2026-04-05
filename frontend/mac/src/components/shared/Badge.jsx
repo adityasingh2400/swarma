@@ -1,5 +1,6 @@
 const PLATFORM_MAP = {
   ebay: 'eBay',
+  depop: 'Depop',
   mercari: 'Mercari',
   poshmark: 'Poshmark',
   offerup: 'OfferUp',

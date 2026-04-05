@@ -93,9 +93,10 @@ function generatePlaceholderBlob(platform, phase, status) {
 }
 
 function generateFrameBlob(index, label) {
+  const W = 360, H = 640;
   const canvas = document.createElement('canvas');
-  canvas.width = 480;
-  canvas.height = 360;
+  canvas.width = W;
+  canvas.height = H;
   const ctx = canvas.getContext('2d');
 
   const palettes = [
@@ -104,16 +105,16 @@ function generateFrameBlob(index, label) {
     ['#FFECD2', '#FCB69F'], ['#E0C3FC', '#8EC5FC'],
   ];
   const [c1, c2] = palettes[index % palettes.length];
-  const grad = ctx.createLinearGradient(0, 0, 480, 360);
+  const grad = ctx.createLinearGradient(0, 0, W, H);
   grad.addColorStop(0, c1);
   grad.addColorStop(1, c2);
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 480, 360);
+  ctx.fillRect(0, 0, W, H);
 
   ctx.globalAlpha = 0.06;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 5; i++) {
     ctx.beginPath();
-    ctx.arc(80 + i * 70, 180, 40 + i * 12, 0, Math.PI * 2);
+    ctx.arc(W / 2, 160 + i * 80, 50 + i * 14, 0, Math.PI * 2);
     ctx.fillStyle = '#000';
     ctx.fill();
   }
@@ -123,28 +124,29 @@ function generateFrameBlob(index, label) {
   ctx.globalAlpha = 0.08;
   ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.arc(240, 140, 90, 0, Math.PI * 2);
+  ctx.arc(W / 2, H * 0.38, 80, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   const ts = `00:0${index}.${(index * 17) % 100}`;
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.beginPath();
-  ctx.roundRect(16, 310, 100, 32, 8);
+  ctx.roundRect(12, H - 48, 90, 30, 8);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.font = '600 13px system-ui, sans-serif';
+  ctx.font = '600 12px system-ui, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(ts, 28, 331);
+  ctx.fillText(ts, 22, H - 28);
 
+  const lbl = label || `Frame ${index + 1}`;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.beginPath();
-  ctx.roundRect(340, 16, 124, 30, 8);
+  ctx.roundRect(W - 120, 14, 106, 28, 8);
   ctx.fill();
   ctx.fillStyle = '#fff';
   ctx.font = '500 11px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(label || `Frame ${index + 1}`, 402, 35);
+  ctx.fillText(lbl, W - 67, 32);
 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
 }
@@ -167,9 +169,10 @@ const ITEM_PALETTES = {
 };
 
 function generateItemBlob(name, viewIndex = 0) {
+  const W = 400, H = 530;
   const canvas = document.createElement('canvas');
-  canvas.width = 400;
-  canvas.height = 400;
+  canvas.width = W;
+  canvas.height = H;
   const ctx = canvas.getContext('2d');
   const label = ITEM_VIEW_LABELS[viewIndex % ITEM_VIEW_LABELS.length];
 
@@ -179,17 +182,17 @@ function generateItemBlob(name, viewIndex = 0) {
   ];
   const [c1, c2] = palettes[viewIndex % palettes.length];
 
-  const bg = ctx.createRadialGradient(200, 180, 20, 200, 200, 280);
+  const bg = ctx.createRadialGradient(W / 2, H * 0.4, 20, W / 2, H * 0.4, H * 0.55);
   bg.addColorStop(0, c1);
   bg.addColorStop(1, c2);
   ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, 400, 400);
+  ctx.fillRect(0, 0, W, H);
 
   ctx.save();
   ctx.globalAlpha = 0.04;
   for (let r = 30; r < 200; r += 25) {
     ctx.beginPath();
-    ctx.arc(200, 180, r, 0, Math.PI * 2);
+    ctx.arc(W / 2, H * 0.4, r, 0, Math.PI * 2);
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 0.5;
     ctx.stroke();
@@ -204,7 +207,7 @@ function generateItemBlob(name, viewIndex = 0) {
   ctx.globalAlpha = isDark ? 0.15 : 0.06;
   ctx.fillStyle = isDark ? '#fff' : '#000';
   ctx.beginPath();
-  ctx.roundRect(110, 80, 180, 200, 24);
+  ctx.roundRect(W / 2 - 90, H * 0.18, 180, 260, 24);
   ctx.fill();
   ctx.restore();
 
@@ -212,23 +215,23 @@ function generateItemBlob(name, viewIndex = 0) {
   ctx.fillStyle = textColor;
   ctx.font = '600 16px system-ui, -apple-system, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(shortName, 200, 190);
+  ctx.fillText(shortName, W / 2, H * 0.42);
 
   const rest = name.split(' ').slice(3).join(' ');
   if (rest) {
     ctx.font = '400 12px system-ui, -apple-system, sans-serif';
-    ctx.fillText(rest, 200, 212);
+    ctx.fillText(rest, W / 2, H * 0.46);
   }
 
   ctx.fillStyle = pillBg;
   const pillW = ctx.measureText(label.toUpperCase()).width + 24;
   ctx.beginPath();
-  ctx.roundRect(200 - pillW / 2, 340, pillW, 28, 14);
+  ctx.roundRect(W / 2 - pillW / 2, H * 0.72, pillW, 28, 14);
   ctx.fill();
   ctx.fillStyle = textColor;
   ctx.font = '600 11px system-ui, -apple-system, sans-serif';
   ctx.letterSpacing = '1px';
-  ctx.fillText(label.toUpperCase(), 200, 358);
+  ctx.fillText(label.toUpperCase(), W / 2, H * 0.72 + 18);
 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
 }
@@ -338,6 +341,29 @@ function buildMockBids() {
       { route_type: 'repair_then_sell', viable: false, estimated_value: 0, confidence: 0.1 },
       { route_type: 'return', viable: false, estimated_value: 0, confidence: 0.2 },
     ],
+    'item-3': [
+      {
+        route_type: 'sell_as_is',
+        viable: true,
+        estimated_value: 620,
+        confidence: 0.9,
+        comparable_listings: [
+          { platform: 'eBay', title: 'Apple Watch Ultra 2 49mm Titanium', price: 639, image_url: null },
+          { platform: 'Mercari', title: 'Ultra 2 Titanium Excellent', price: 615, image_url: null },
+        ],
+      },
+      {
+        route_type: 'trade_in',
+        viable: true,
+        estimated_value: 425,
+        confidence: 0.88,
+        trade_in_quotes: [
+          { provider: 'Apple Trade In', payout: 425, speed: '5-7 days', effort: 'Low', confidence: 0.9 },
+        ],
+      },
+      { route_type: 'repair_then_sell', viable: false, estimated_value: 0, confidence: 0.15 },
+      { route_type: 'return', viable: false, estimated_value: 0, confidence: 0.2 },
+    ],
   };
 }
 
@@ -362,6 +388,29 @@ function buildMockDecisions() {
         { route_type: 'trade_in', viable: true, estimated_value: 90 },
       ],
     },
+    'item-3': {
+      best_route: 'sell_as_is',
+      estimated_best_value: 620,
+      route_reason: 'Ultra 2 holds value well. Minor case scuff is cosmetic; resale beats trade-in.',
+      winning_bid: { route_type: 'sell_as_is', viable: true, estimated_value: 620 },
+      alternatives: [
+        { route_type: 'trade_in', viable: true, estimated_value: 425 },
+        { route_type: 'repair_then_sell', viable: false, estimated_value: 0 },
+      ],
+    },
+  };
+}
+
+/** Sync mock for `?posting` dev shell — picsum placeholders, no pipeline run. */
+export function getPostingDevMock() {
+  return {
+    items: MOCK_ITEM_DEFS.map((def, i) => ({
+      ...def,
+      hero_frame_paths: [0, 1, 2, 3].map(
+        (v) => `https://picsum.photos/seed/swarma-${def.item_id}-v${v}/400/400`,
+      ),
+    })),
+    decisions: buildMockDecisions(),
   };
 }
 
@@ -474,8 +523,8 @@ export function useMockMode() {
       itemFrameUrls.push(urls);
     }
 
-    const S = 10000;
-    const D = 6000;
+    const STEP = 6000;
+    const afterIntake = STEP * 4;
 
     // ── STAGE 1: Processing / Intake ──
     const t0 = setTimeout(() => {
@@ -487,20 +536,20 @@ export function useMockMode() {
     const t1 = setTimeout(() => {
       setV1Agent('intake', 'agent_progress', 'Extracted 6 frames, transcribing audio...', {
         frame_paths: frameUrls,
-        elapsed_ms: 2000 + D,
+        elapsed_ms: STEP,
       });
       setJob((prev) => ({ ...prev, frame_paths: frameUrls }));
-    }, 2000 + D);
+    }, STEP);
     timersRef.current.push(t1);
 
     const t2 = setTimeout(() => {
       setV1Agent('intake', 'agent_progress', 'Transcription complete. Running item detection...', {
         frame_paths: frameUrls,
         transcript_text: MOCK_TRANSCRIPT,
-        elapsed_ms: 4500 + D,
+        elapsed_ms: STEP * 2,
       });
       setJob((prev) => ({ ...prev, frame_paths: frameUrls, transcript_text: MOCK_TRANSCRIPT }));
-    }, 4500 + D);
+    }, STEP * 2);
     timersRef.current.push(t2);
 
     const t3 = setTimeout(() => {
@@ -512,9 +561,9 @@ export function useMockMode() {
       setV1Agent('intake', 'agent_completed', `Found ${richItems.length} items`, {
         frame_paths: frameUrls,
         transcript_text: MOCK_TRANSCRIPT,
-        elapsed_ms: 6500 + D,
+        elapsed_ms: STEP * 3,
       });
-    }, 6500 + D);
+    }, STEP * 3);
     timersRef.current.push(t3);
 
     const t4 = setTimeout(() => {
@@ -556,7 +605,7 @@ export function useMockMode() {
     timersRef.current.push(t9);
 
     return mockJobId;
-  }, [isMock, started, mockJobId, cleanup, generateScreenshot, advanceAgent, setV1Agent, pushEvent]);
+  }, [isMock, started, mockJobId, cleanup, setV1Agent, pushEvent]);
 
   const send = useCallback(() => {}, []);
 

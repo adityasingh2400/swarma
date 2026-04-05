@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { Scan, Check, Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Scan, Check, ArrowLeft, ArrowRight } from 'lucide-react';
 import IntakePanel from './panels/IntakePanel';
 import AgentTheater from './panels/AgentTheater';
 import DecisionPanel from './panels/DecisionPanel';
@@ -52,13 +52,12 @@ function MiniPlayer({ videoUrl, items, globalStage }) {
         <video src={videoUrl} muted autoPlay loop playsInline />
         {isAnalyzing && <div className="mp-scanbar" />}
         <div className="mp-overlay">
-          <div className="mp-status">
-            {hasItems ? (
-              <><Check size={11} className="mp-icon-done" /><span>{items.length} detected</span></>
-            ) : (
-              <><Loader2 size={11} className="mp-spinner" /><span>Analyzing...</span></>
-            )}
-          </div>
+          {hasItems && (
+            <div className="mp-status">
+              <Check size={11} className="mp-icon-done" />
+              <span>{items.length} detected</span>
+            </div>
+          )}
           <div className="mp-badge"><Scan size={10} /><span>LIVE</span></div>
         </div>
       </motion.div>
@@ -70,7 +69,7 @@ export default function Layout({
   job, items, bids, decisions, listings, threads, agents,
   agentsRaw, agentsByItem, stage3Plan, events, lastEvent,
   onUpload, onExecuteItem, onSendReply,
-  v2Agents = {}, pipelineStage, send, screenshots,
+  v2Agents = {}, pipelineStage, postingStatus = {}, send, screenshots,
 }) {
   const [phase, setPhase] = useState('intake');
   const [videoUrl, setVideoUrl] = useState(null);
@@ -144,8 +143,9 @@ export default function Layout({
               animate={{ opacity: 1 }}
               exit={{
                 opacity: 0,
-                scale: 0.98,
-                transition: { duration: 0.3, ease: EASE },
+                scale: 0.97,
+                filter: 'blur(4px)',
+                transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
               }}
               transition={{ duration: 0.3, ease: EASE }}
             >
@@ -194,7 +194,7 @@ export default function Layout({
                   agentsRaw={agentsRaw} agentsByItem={agentsByItem}
                   stage3Plan={stage3Plan} events={events} lastEvent={lastEvent}
                   onExecuteItem={onExecuteItem} onSendReply={onSendReply}
-                  v2Agents={v2Agents} pipelineStage={pipelineStage} send={send}
+                  v2Agents={v2Agents} pipelineStage={pipelineStage} postingStatus={postingStatus} send={send}
                   settled={settled}
                   miniPlayer={videoUrl ? (
                     <MiniPlayer videoUrl={videoUrl} items={items} globalStage={globalStage} />

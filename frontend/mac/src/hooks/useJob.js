@@ -5,6 +5,7 @@ import {
   EVENT_AGENT_SPAWN, EVENT_AGENT_STATUS, EVENT_AGENT_ERROR,
   EVENT_AGENT_COMPLETE, EVENT_AGENT_RESULT, EVENT_ITEM_IDENTIFIED,
   EVENT_STATE_SNAPSHOT, EVENT_JOB_PROGRESS, EVENT_PIPELINE_UPDATE,
+  EVENT_ITEM_POSTED,
 } from '../utils/contracts';
 
 // Priority-based aggregation mirroring backend store.py logic.
@@ -37,6 +38,8 @@ export function useJob(jobId) {
   const [stage3Plan, setStage3Plan] = useState(null);
   const [v2Agents, setV2Agents] = useState({});
   const [pipelineStage, setPipelineStage] = useState(null);
+  // { "item-1:ebay": { status, listing_url, timestamp }, ... }
+  const [postingStatus, setPostingStatus] = useState({});
   // Internal: per-item agent states: { agentName: { itemId: state } }
   const [agentsRaw, setAgentsRaw] = useState({});
   // Exposed: aggregated agent states (highest priority per agent)
@@ -281,6 +284,16 @@ export function useJob(jobId) {
         case EVENT_PIPELINE_UPDATE:
           setPipelineStage(data.stage || data.pipeline_stage);
           break;
+        case EVENT_ITEM_POSTED:
+          setPostingStatus((prev) => ({
+            ...prev,
+            [`${data.item_id}:${data.platform}`]: {
+              status: data.status,
+              listing_url: data.listing_url || null,
+              timestamp: data.timestamp || Date.now() / 1000,
+            },
+          }));
+          break;
       }
     });
   }, [subscribe]);
@@ -321,6 +334,7 @@ export function useJob(jobId) {
     stage3Plan,
     v2Agents,
     pipelineStage,
+    postingStatus,
     connected,
     events,
     lastEvent,

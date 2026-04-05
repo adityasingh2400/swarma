@@ -17,7 +17,7 @@ const STAGE_GROUPS = [
       { id: 'repair_roi', label: 'Repair', icon: Wrench },
     ],
   },
-  { id: 'decider', label: 'Posting', icon: Trophy, agents: ['route_decider'], stage: 3, concurrent: false },
+  { id: 'posting', label: 'Posting', icon: Trophy, agents: ['route_decider'], stage: 3, concurrent: false },
   { id: 'concierge', label: 'Concierge', icon: MessageSquare, agents: ['concierge'], stage: 4, concurrent: false },
 ];
 
@@ -68,6 +68,7 @@ export default function AgentTheater({
   onStageClick,
   v2Agents = {},
   pipelineStage,
+  postingStatus = {},
   send,
   miniPlayer,
   settled,
@@ -183,6 +184,7 @@ export default function AgentTheater({
           overrideStageIdx={mcStageIdx}
           v2Agents={v2Agents}
           pipelineStage={pipelineStage}
+          postingStatus={postingStatus}
           send={send}
           miniPlayer={miniPlayer}
           settled={settled}

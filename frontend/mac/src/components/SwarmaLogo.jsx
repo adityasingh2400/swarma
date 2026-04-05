@@ -1,6 +1,6 @@
 import { useId } from 'react';
 
-export default function ReRouteLogo({ className = '', size = 28 }) {
+export default function SwarmaLogo({ className = '', size = 28 }) {
   const raw = useId();
   const uid = raw.replace(/[^a-zA-Z0-9_-]/g, '');
   const flow = `${uid}-f`;
