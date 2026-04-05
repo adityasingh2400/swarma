@@ -464,6 +464,9 @@ function LayoutInner({
                 items={items}
                 bids={bids}
                 decisions={decisions}
+                v2Agents={v2Agents}
+                screenshots={screenshots}
+                send={send}
               />
             </motion.div>
           )}

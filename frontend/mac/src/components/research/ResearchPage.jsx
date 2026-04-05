@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CircularCarousel from '../shared/CircularCarousel';
+import BrowserFeed from '../BrowserFeed';
+import FocusMode from '../FocusMode';
 import {
   Search, TrendingUp, Wrench,
   CheckCircle2, AlertTriangle,
@@ -8,6 +10,7 @@ import {
   MessageSquare, Eye, Timer, ChevronRight,
   Megaphone, Users, MapPin, ArrowUpRight,
 } from 'lucide-react';
+import { ACTIVE_STATUSES, STATUS_COMPLETE } from '../../utils/contracts';
 
 const EASE = [0.32, 0.72, 0, 1];
 const SPRING = { type: 'spring', damping: 25, stiffness: 200 };
@@ -16,14 +19,28 @@ const PLATFORM_META = {
   ebay:     { label: 'eBay',     color: '#FF6B6B', gradient: 'linear-gradient(135deg, #FF6B6B, #FF8E8E)' },
   mercari:  { label: 'Mercari',  color: '#A78BFA', gradient: 'linear-gradient(135deg, #A78BFA, #C4B5FD)' },
   facebook: { label: 'Facebook', color: '#FF9F43', gradient: 'linear-gradient(135deg, #FF9F43, #FFBE76)' },
+  depop:    { label: 'Depop',    color: '#FF2300', gradient: 'linear-gradient(135deg, #FF2300, #FF6347)' },
+  amazon:   { label: 'Amazon',   color: '#FF9900', gradient: 'linear-gradient(135deg, #FF9900, #FFB347)' },
 };
+
+const RESALE_PLATFORMS = ['ebay', 'mercari', 'facebook'];
+
+function getAgentScreenshot(screenshots, agentId) {
+  if (!screenshots || !agentId) return null;
+  if (screenshots instanceof Map) return screenshots.get(agentId)?.url || null;
+  return screenshots[agentId]?.url || null;
+}
+
+function getAgentState(v2Agents, agentId) {
+  if (!v2Agents || !agentId) return null;
+  return v2Agents[agentId] || null;
+}
 
 // ── Animated price counter ───────────────────────────
 function AnimatedPrice({ value, delay = 0 }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => {
-      let start = 0;
       const end = value;
       const duration = 600;
       const startTime = performance.now();
@@ -31,7 +48,7 @@ function AnimatedPrice({ value, delay = 0 }) {
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / duration, 1);
         const eased = 1 - Math.pow(1 - progress, 3);
-        setDisplay(Math.round(start + (end - start) * eased));
+        setDisplay(Math.round(end * eased));
         if (progress < 1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
@@ -85,6 +102,43 @@ function AmbientBlobs({ colors }) {
   );
 }
 
+// ── Live Agent Feed Tile ─────────────────────────────
+function AgentFeedTile({ platform, screenshotUrl, agent, onClick }) {
+  const meta = PLATFORM_META[platform] || PLATFORM_META.ebay;
+  const isActive = agent && ACTIVE_STATUSES.has(agent.status);
+  const isDone = agent?.status === STATUS_COMPLETE;
+
+  return (
+    <motion.div
+      className={`rp2-feed-tile ${isActive ? 'rp2-feed-active' : ''} ${isDone ? 'rp2-feed-done' : ''}`}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3 }}
+      onClick={onClick}
+      whileHover={{ scale: 1.03 }}
+      style={{ cursor: 'pointer' }}
+    >
+      <div className="rp2-feed-header">
+        <div className="rp2-feed-dot" style={{ background: meta.color }} />
+        <span className="rp2-feed-platform">{meta.label}</span>
+        {isActive && (
+          <motion.span
+            className="rp2-feed-live"
+            animate={{ opacity: [1, 0.4, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            LIVE
+          </motion.span>
+        )}
+        {isDone && <span className="rp2-feed-complete"><CheckCircle2 size={10} /> Done</span>}
+      </div>
+      <div className="rp2-feed-view">
+        <BrowserFeed screenshotUrl={screenshotUrl} size="thumbnail" />
+      </div>
+    </motion.div>
+  );
+}
+
 // ── Platform result row ──────────────────────────────
 function PlatResult({ platform, price, delay = 0, scanning = false }) {
   const meta = PLATFORM_META[platform] || PLATFORM_META.ebay;
@@ -113,13 +167,28 @@ function PlatResult({ platform, price, delay = 0, scanning = false }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// RESALE PANEL — The star, floating right
+// RESALE PANEL — with live agent video feeds
 // ═══════════════════════════════════════════════════════
-function ResalePanel({ bids, phase }) {
+function ResalePanel({ item, bids, phase, v2Agents, screenshots, onFocusAgent }) {
   const bid = bids?.find(b => b.route_type === 'sell_as_is');
   const listings = bid?.comparable_listings || [];
   const isScanning = phase === 'scanning';
   const isDone = phase === 'done';
+  const itemPrefix = item?.item_id?.slice(0, 6) || item?.item_id || '';
+
+  const agentFeeds = useMemo(() => {
+    return RESALE_PLATFORMS.map(platform => {
+      const agentId = `${platform}-research-${itemPrefix}`;
+      return {
+        platform,
+        agentId,
+        screenshot: getAgentScreenshot(screenshots, agentId),
+        agent: getAgentState(v2Agents, agentId),
+      };
+    });
+  }, [screenshots, v2Agents, itemPrefix]);
+
+  const hasLiveFeeds = agentFeeds.some(f => f.screenshot || f.agent);
 
   return (
     <motion.div
@@ -142,7 +211,23 @@ function ResalePanel({ bids, phase }) {
         </div>
 
         <div className="rp2-panel-content">
-          {isScanning && ['ebay', 'mercari', 'facebook'].map((p, i) => (
+          {/* Live agent video feeds */}
+          {hasLiveFeeds && (
+            <div className="rp2-feeds-row">
+              {agentFeeds.map(({ platform, agentId, screenshot, agent }) => (
+                <AgentFeedTile
+                  key={platform}
+                  platform={platform}
+                  screenshotUrl={screenshot}
+                  agent={agent}
+                  onClick={() => onFocusAgent?.(agentId)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Price results (shown alongside or fallback when no feeds) */}
+          {isScanning && !hasLiveFeeds && RESALE_PLATFORMS.map((p, i) => (
             <PlatResult key={p} platform={p} scanning delay={i * 0.15} />
           ))}
           {isDone && (
@@ -300,10 +385,8 @@ function ItemCenter({ item, index, totalItems }) {
       animate={{ scale: 1, opacity: 1 }}
       transition={{ ...SPRING, delay: 0.1 }}
     >
-      {/* Radial glow behind item */}
       <div className="rp2-item-glow" />
 
-      {/* Pulsing orbit ring */}
       <motion.div
         className="rp2-orbit-ring"
         animate={{ rotate: 360 }}
@@ -324,7 +407,7 @@ function ItemCenter({ item, index, totalItems }) {
       <h2 className="rp2-item-name">{item.name_guess}</h2>
       <div className="rp2-item-tags">
         <span className={`rp2-cond-tag ${hasDamage ? 'rp2-cond-warn' : 'rp2-cond-good'}`}>
-          {hasDamage ? 'Minor wear' : 'Excellent'}
+          {item.condition || (hasDamage ? 'Minor wear' : 'Excellent')}
         </span>
         <span className="rp2-item-count">{index + 1} of {totalItems}</span>
       </div>
@@ -333,15 +416,41 @@ function ItemCenter({ item, index, totalItems }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// ITEM UNIVERSE — One item with orbiting routes
+// ITEM UNIVERSE — One item with orbiting routes + live feeds
 // ═══════════════════════════════════════════════════════
-function ItemUniverse({ item, bids, decision, index, totalItems }) {
+function ItemUniverse({ item, bids, decision, index, totalItems, v2Agents, screenshots, onFocusAgent }) {
   const [resalePhase, setResalePhase] = useState('idle');
   const [repairPhase, setRepairPhase] = useState('idle');
   const [garbagePhase, setGarbagePhase] = useState('idle');
   const [showRec, setShowRec] = useState(false);
 
+  const itemPrefix = item?.item_id?.slice(0, 6) || item?.item_id || '';
+  const hasLiveAgents = useMemo(() => {
+    return RESALE_PLATFORMS.some(p => {
+      const id = `${p}-research-${itemPrefix}`;
+      return getAgentState(v2Agents, id) || getAgentScreenshot(screenshots, id);
+    });
+  }, [v2Agents, screenshots, itemPrefix]);
+
   useEffect(() => {
+    if (hasLiveAgents) {
+      setResalePhase('scanning');
+      setRepairPhase('evaluating');
+      setGarbagePhase('evaluating');
+
+      const allDone = RESALE_PLATFORMS.every(p => {
+        const agent = getAgentState(v2Agents, `${p}-research-${itemPrefix}`);
+        return agent?.status === STATUS_COMPLETE;
+      });
+      if (allDone) {
+        setResalePhase('done');
+        setRepairPhase('done');
+        setGarbagePhase('done');
+        setShowRec(true);
+      }
+      return;
+    }
+
     const base = index * 2500;
     const t = [
       setTimeout(() => setResalePhase('scanning'),    base + 300),
@@ -353,7 +462,7 @@ function ItemUniverse({ item, bids, decision, index, totalItems }) {
       setTimeout(() => setShowRec(true),              base + 4500),
     ];
     return () => t.forEach(clearTimeout);
-  }, [index]);
+  }, [index, hasLiveAgents, v2Agents, itemPrefix]);
 
   return (
     <motion.div
@@ -370,22 +479,26 @@ function ItemUniverse({ item, bids, decision, index, totalItems }) {
       ]} />
 
       <div className="rp2-universe-grid">
-        {/* Left: Item hub */}
         <div className="rp2-zone rp2-zone-center">
           <ItemCenter item={item} index={index} totalItems={totalItems} />
         </div>
 
-        {/* Right: All route panels */}
         <div className="rp2-routes-col">
           <div className="rp2-routes-row">
             <RepairPanel item={item} bids={bids} phase={repairPhase} />
-            <ResalePanel bids={bids} phase={resalePhase} />
+            <ResalePanel
+              item={item}
+              bids={bids}
+              phase={resalePhase}
+              v2Agents={v2Agents}
+              screenshots={screenshots}
+              onFocusAgent={onFocusAgent}
+            />
           </div>
           <GarbagePanel bids={bids} phase={garbagePhase} />
         </div>
       </div>
 
-      {/* Recommendation */}
       <AnimatePresence>
         {showRec && decision && (
           <motion.div
@@ -413,46 +526,62 @@ function ItemUniverse({ item, bids, decision, index, totalItems }) {
 // ═══════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════
-export default function ResearchPage({ items, bids, decisions }) {
+export default function ResearchPage({ items, bids, decisions, v2Agents, screenshots, send }) {
+  const [focusedAgentId, setFocusedAgentId] = useState(null);
+
   if (!items || items.length === 0) return null;
+
+  const focusedAgent = focusedAgentId ? (v2Agents || {})[focusedAgentId] : null;
+  const focusedShot = focusedAgentId && screenshots
+    ? getAgentScreenshot(screenshots, focusedAgentId)
+    : null;
 
   const useCarousel = items.length > 1;
 
-  const renderCarouselItem = useCallback((item, index, isActive, isFocused) => (
+  const renderCarouselItem = useCallback((item, index) => (
     <ItemUniverse
       item={item}
       bids={bids[item.item_id] || []}
       decision={decisions[item.item_id]}
       index={index}
       totalItems={items.length}
+      v2Agents={v2Agents}
+      screenshots={screenshots}
+      onFocusAgent={setFocusedAgentId}
     />
-  ), [bids, decisions, items.length]);
+  ), [bids, decisions, items.length, v2Agents, screenshots]);
 
-  if (useCarousel) {
-    return (
-      <div className="rp2-page">
+  return (
+    <div className="rp2-page">
+      {useCarousel ? (
         <div className="research-carousel-wrap">
           <CircularCarousel
             items={items}
             renderItem={renderCarouselItem}
           />
         </div>
-      </div>
-    );
-  }
+      ) : (
+        items.map((item, i) => (
+          <ItemUniverse
+            key={item.item_id}
+            item={item}
+            bids={bids[item.item_id] || []}
+            decision={decisions[item.item_id]}
+            index={i}
+            totalItems={items.length}
+            v2Agents={v2Agents}
+            screenshots={screenshots}
+            onFocusAgent={setFocusedAgentId}
+          />
+        ))
+      )}
 
-  return (
-    <div className="rp2-page">
-      {items.map((item, i) => (
-        <ItemUniverse
-          key={item.item_id}
-          item={item}
-          bids={bids[item.item_id] || []}
-          decision={decisions[item.item_id]}
-          index={i}
-          totalItems={items.length}
-        />
-      ))}
+      <FocusMode
+        agent={focusedAgent}
+        screenshotUrl={focusedShot}
+        onClose={() => setFocusedAgentId(null)}
+        send={send}
+      />
     </div>
   );
 }
