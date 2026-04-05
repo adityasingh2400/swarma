@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
-import { Scan, Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Scan, Check, ArrowRight } from 'lucide-react';
 import IntakePanel from './panels/IntakePanel';
 import AgentTheater from './panels/AgentTheater';
 import DecisionPanel from './panels/DecisionPanel';
 import SwarmGrid from './SwarmGrid';
 import FocusMode from './FocusMode';
 import ResearchPage from './research/ResearchPage';
+import ConciergePage from './ConciergePage';
 import { ACTIVE_STATUSES } from '../utils/contracts';
 
 /* Lazy-load preview-only modules so they don't bloat the main bundle */
@@ -32,7 +33,7 @@ const EASE = [0.32, 0.72, 0, 1];
 const DEV_PREVIEW = new URLSearchParams(window.location.search).get('preview');
 
 const PREVIEW_PAGES = [
-  'intake', 'research', 'decisions', 'market-sweep', 'best-route',
+  'intake', 'research', 'decisions', 'concierge', 'market-sweep', 'best-route',
   'quote-sweep', 'repair-sweep', 'bundle-merge', 'asset-studio',
   'posting-workspace', 'unified-inbox', 'condition-fusion', 'multi-post',
 ];
@@ -201,6 +202,9 @@ function DevPreview() {
           )}
           {page === 'decisions' && (
             <DecisionPanel items={mock.items} decisions={mock.decisions} agents={{}} onExecuteItem={noop} fullscreen />
+          )}
+          {page === 'concierge' && (
+            <ConciergePage items={mock.items} decisions={mock.decisions} listings={mock.listings} threads={mock.threads} postingStatus={{}} screenshots={new Map()} jobId="mock-preview" onUpload={noop} onSendReply={noop} send={noop} />
           )}
           {page === 'market-sweep' && (
             <MarketSweep job={mock.job} items={mock.items} bids={mock.bids} decisions={mock.decisions} />
@@ -497,13 +501,17 @@ function LayoutInner({
               exit={{ opacity: 0, transition: { duration: 0.2 } }}
               transition={{ duration: 0.4, ease: EASE }}
             >
-              <button className="back-to-pipeline-btn" onClick={() => setViewOverride('bidding')}>
-                <ArrowLeft size={14} />
-                <span>Back to Pipeline</span>
-              </button>
-              <DecisionPanel
-                items={items} decisions={decisions} agents={agents}
-                onExecuteItem={onExecuteItem} fullscreen
+              <ConciergePage
+                items={items}
+                decisions={decisions}
+                listings={listings}
+                threads={threads}
+                postingStatus={postingStatus}
+                screenshots={screenshots}
+                jobId={job?.job_id}
+                onUpload={handleUpload}
+                onSendReply={onSendReply}
+                send={send}
               />
             </motion.div>
           )}

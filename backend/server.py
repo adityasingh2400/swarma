@@ -38,6 +38,7 @@ from pydantic import BaseModel
 from backend.config import settings
 from backend.models.item_card import ItemCard
 from backend.models.job import Job, JobStatus
+from backend.models.conversation import ConversationThread
 from backend.streaming import (
     encode_binary_frame,
     get_all_agent_ids,
@@ -45,6 +46,10 @@ from backend.streaming import (
 )
 
 logger = logging.getLogger("reroute.server")
+
+# In-memory thread store for conversation endpoints.
+# Mirrors the store.py pattern but scoped to the v2 server.
+_threads: dict[str, ConversationThread] = {}
 
 
 # ── Orchestrator Stub ─────────────────────────────────────────────────────────
@@ -441,6 +446,155 @@ async def get_job_items(job_id: str):
     if items is None:
         raise HTTPException(status_code=404, detail="Job not found or no items yet")
     return [item.model_dump() for item in items]
+
+
+# ── Inbox / Conversation Endpoints ────────────────────────────────────────────
+
+
+class ReplyRequest(BaseModel):
+    text: str
+
+
+class BuyerChatRequest(BaseModel):
+    text: str
+    buyer_name: str = "Buyer"
+
+
+def _get_threads_for_item(item_id: str) -> list[ConversationThread]:
+    return [t for t in _threads.values() if t.item_id == item_id]
+
+
+@app.get("/api/jobs/{job_id}/inbox")
+async def get_inbox(job_id: str):
+    """Get all conversation threads across all items for a job, ranked by seriousness."""
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    all_threads = []
+    for item_id in (job.item_ids or []):
+        all_threads.extend(_get_threads_for_item(item_id))
+    seriousness_order = {"high": 0, "medium": 1, "low": 2, "spam": 3}
+    all_threads.sort(key=lambda t: seriousness_order.get(t.seriousness_score.value if hasattr(t.seriousness_score, 'value') else t.seriousness_score, 99))
+    return [t.model_dump(mode="json") for t in all_threads]
+
+
+@app.post("/api/jobs/{job_id}/inbox/{thread_id}/reply")
+async def reply_to_thread(job_id: str, thread_id: str, body: ReplyRequest):
+    """Seller replies to a conversation thread."""
+    if not _jobs.get(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    thread = _threads.get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    from backend.models.conversation import ChatMessage
+    from datetime import datetime
+    thread.messages.append(ChatMessage(sender="seller", text=body.text, timestamp=datetime.utcnow()))
+    return thread.model_dump(mode="json")
+
+
+@app.get("/api/jobs/{job_id}/inbox/{thread_id}/suggest")
+async def suggest_reply(job_id: str, thread_id: str):
+    """Get an AI-suggested reply for a conversation thread."""
+    if not _jobs.get(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    thread = _threads.get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    try:
+        from backend.systems.unified_inbox import UnifiedInboxSystem
+        inbox = UnifiedInboxSystem()
+        suggestion = await inbox.suggest_reply(thread)
+    except Exception as exc:
+        logger.exception("Reply suggestion failed for thread %s: %s", thread_id, exc)
+        suggestion = _mock_suggest(thread)
+    return {"thread_id": thread_id, "suggested_reply": suggestion}
+
+
+def _mock_suggest(thread: ConversationThread) -> str:
+    if thread.current_offer:
+        return f"Thanks for the offer of ${thread.current_offer:.2f}! Let me think about it and get back to you shortly."
+    return "Thanks for reaching out! Let me know if you have any questions about the item."
+
+
+@app.get("/api/buyer-chat/{item_id}/thread")
+async def buyer_chat_get_thread(item_id: str):
+    """Get or create the buyer chat thread for an item."""
+    thread_id = f"phone-buyer-{item_id}"
+    thread = _threads.get(thread_id)
+    if not thread:
+        thread = ConversationThread(
+            thread_id=thread_id,
+            item_id=item_id,
+            platform="facebook",
+            buyer_handle="Phone Buyer",
+        )
+        _threads[thread_id] = thread
+    return thread.model_dump(mode="json")
+
+
+@app.post("/api/buyer-chat/{item_id}/send")
+async def buyer_chat_send(item_id: str, body: BuyerChatRequest):
+    """Buyer sends a message; AI seller auto-replies."""
+    import re
+    from backend.models.conversation import ChatMessage
+    from datetime import datetime
+
+    thread_id = f"phone-buyer-{item_id}"
+    thread = _threads.get(thread_id)
+    if not thread:
+        thread = ConversationThread(
+            thread_id=thread_id,
+            item_id=item_id,
+            platform="facebook",
+            buyer_handle=body.buyer_name,
+        )
+        _threads[thread_id] = thread
+
+    offer_match = re.search(r'\$(\d+(?:\.\d{2})?)', body.text)
+    is_offer = offer_match is not None
+    offer_amount = float(offer_match.group(1)) if offer_match else None
+
+    thread.messages.append(ChatMessage(
+        sender="buyer", text=body.text, timestamp=datetime.utcnow(),
+        is_offer=is_offer, offer_amount=offer_amount,
+    ))
+    if is_offer and offer_amount is not None:
+        thread.current_offer = offer_amount
+
+    seller_reply = _mock_suggest(thread)
+    try:
+        from backend.systems.unified_inbox import UnifiedInboxSystem
+        inbox = UnifiedInboxSystem()
+        seller_reply = await inbox.suggest_reply(thread)
+    except Exception as exc:
+        logger.warning("Auto-reply generation failed for %s: %s", thread_id, exc)
+
+    thread.messages.append(ChatMessage(sender="seller", text=seller_reply, timestamp=datetime.utcnow()))
+    return thread.model_dump(mode="json")
+
+
+@app.get("/api/jobs/{job_id}/items/{item_id}/screenshots")
+async def get_item_screenshots(job_id: str, item_id: str):
+    """Get the latest screenshot for each listing agent associated with an item.
+
+    Returns {platform: base64_jpeg_or_null} by scanning agent IDs matching
+    the pattern "{platform}-listing-{item_id_prefix}".
+    """
+    if not _jobs.get(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    import base64
+    platforms = ["ebay", "facebook", "mercari", "depop"]
+    result = {}
+    item_prefix = item_id[:6]
+    for platform in platforms:
+        agent_id = f"{platform}-listing-{item_prefix}"
+        jpeg_bytes = get_frame_for_delivery(agent_id)
+        if jpeg_bytes:
+            result[platform] = f"data:image/jpeg;base64,{base64.b64encode(jpeg_bytes).decode()}"
+        else:
+            result[platform] = None
+    return result
 
 
 # ── WebSocket Endpoints ───────────────────────────────────────────────────────
