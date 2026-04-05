@@ -39,17 +39,21 @@ function getGlobalStage(agents, v2Agents, pipelineStage) {
 
 function MiniPlayer({ videoUrl, items, globalStage }) {
   const hasItems = items.length > 0;
-  const isProcessing = globalStage === 'processing';
+  const isAnalyzing = !hasItems && globalStage !== 'idle' && globalStage !== 'concierge-done';
 
   return (
     <div className="mp-wrap">
-      <motion.div className="mp-frame" layoutId="video-player" transition={{ duration: 0.6, ease: EASE }}>
+      <motion.div
+        className="mp-frame"
+        layoutId="video-player"
+        transition={{ type: 'spring', damping: 30, stiffness: 180, mass: 1 }}
+      >
         <video src={videoUrl} muted autoPlay loop playsInline />
-        {isProcessing && !hasItems && <div className="mp-scanline" />}
+        {isAnalyzing && <div className="mp-scanbar" />}
         <div className="mp-overlay">
           <div className="mp-status">
             {hasItems ? (
-              <><Check size={11} className="mp-icon-done" /><span>{items.length} found</span></>
+              <><Check size={11} className="mp-icon-done" /><span>{items.length} detected</span></>
             ) : (
               <><Loader2 size={11} className="mp-spinner" /><span>Analyzing...</span></>
             )}
@@ -90,11 +94,20 @@ export default function Layout({
 
   const showConciergeResults = activeView === 'concierge-done' || activeView === 'concierge';
 
+  const [settled, setSettled] = useState(false);
+
   const handleUpload = (file, url) => {
     setVideoUrl(url);
     setPhase('processing');
     onUpload(file);
   };
+
+  useEffect(() => {
+    if (phase === 'processing' && !settled) {
+      const id = setTimeout(() => setSettled(true), 6000);
+      return () => clearTimeout(id);
+    }
+  }, [phase, settled]);
 
   const focusedAgent = focusedAgentId ? v2Agents[focusedAgentId] : null;
   const focusedShot = focusedAgentId && screenshots
@@ -109,7 +122,7 @@ export default function Layout({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, ease: EASE }}
       >
-        <AnimatePresence mode="sync">
+        <AnimatePresence mode="wait">
           {/* ── Phase: Intake ───────────────────────────────── */}
           {phase === 'intake' && (
             <motion.div
@@ -119,8 +132,8 @@ export default function Layout({
               animate={{ opacity: 1 }}
               exit={{
                 opacity: 0,
-                filter: 'blur(4px)',
-                transition: { duration: 0.4, ease: EASE },
+                scale: 0.98,
+                transition: { duration: 0.3, ease: EASE },
               }}
               transition={{ duration: 0.3, ease: EASE }}
             >
@@ -140,8 +153,8 @@ export default function Layout({
               className="proc-layout"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, transition: { duration: 0.3 } }}
-              transition={{ duration: 0.35, ease: EASE }}
+              exit={{ opacity: 0, transition: { duration: 0.25 } }}
+              transition={{ duration: 0.4, ease: EASE }}
             >
               {viewOverride && (globalStage === 'concierge-done' || globalStage === 'concierge') && (
                 <motion.button
@@ -170,6 +183,7 @@ export default function Layout({
                   stage3Plan={stage3Plan} events={events} lastEvent={lastEvent}
                   onExecuteItem={onExecuteItem} onSendReply={onSendReply}
                   v2Agents={v2Agents} pipelineStage={pipelineStage} send={send}
+                  settled={settled}
                   miniPlayer={videoUrl ? (
                     <MiniPlayer videoUrl={videoUrl} items={items} globalStage={globalStage} />
                   ) : null}

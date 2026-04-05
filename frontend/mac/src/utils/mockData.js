@@ -94,64 +94,143 @@ function generatePlaceholderBlob(platform, phase, status) {
 
 function generateFrameBlob(index, label) {
   const canvas = document.createElement('canvas');
-  canvas.width = 320;
-  canvas.height = 240;
+  canvas.width = 480;
+  canvas.height = 360;
   const ctx = canvas.getContext('2d');
 
-  const hue = index * 15;
-  ctx.fillStyle = '#FFEAD9';
-  ctx.fillRect(0, 0, 320, 240);
+  const palettes = [
+    ['#FFECD2', '#FCB69F'], ['#A1C4FD', '#C2E9FB'],
+    ['#D4FC79', '#96E6A1'], ['#FAD0C4', '#FFD1FF'],
+    ['#FFECD2', '#FCB69F'], ['#E0C3FC', '#8EC5FC'],
+  ];
+  const [c1, c2] = palettes[index % palettes.length];
+  const grad = ctx.createLinearGradient(0, 0, 480, 360);
+  grad.addColorStop(0, c1);
+  grad.addColorStop(1, c2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 480, 360);
 
-  ctx.strokeStyle = `hsl(${hue}, 50%, 55%)`;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(20, 20, 280, 200);
+  ctx.globalAlpha = 0.06;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.arc(80 + i * 70, 180, 40 + i * 12, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 
-  ctx.fillStyle = `hsl(${hue}, 40%, 45%)`;
-  ctx.font = 'bold 14px system-ui';
+  ctx.save();
+  ctx.globalAlpha = 0.08;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(240, 140, 90, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  const ts = `00:0${index}.${(index * 17) % 100}`;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath();
+  ctx.roundRect(16, 310, 100, 32, 8);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '600 13px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(ts, 28, 331);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath();
+  ctx.roundRect(340, 16, 124, 30, 8);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '500 11px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(label || `Frame ${index + 1}`, 160, 125);
+  ctx.fillText(label || `Frame ${index + 1}`, 402, 35);
 
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.font = '11px system-ui';
-  ctx.fillText(`00:0${index}.00`, 160, 145);
-
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
 }
 
-function generateItemBlob(name) {
+const ITEM_VIEW_LABELS = ['Front', 'Side', 'Back', 'Detail'];
+
+const ITEM_PALETTES = {
+  'iPhone 15 Pro 256GB Natural Titanium': [
+    ['#E8E0D4', '#C4B8A8'], ['#D5CEC2', '#B8AFA1'],
+    ['#CCC3B5', '#AEA498'], ['#F0EBE3', '#D8D0C4'],
+  ],
+  'Apple AirPods Pro 2nd Gen USB-C': [
+    ['#F5F5F5', '#E8E8E8'], ['#EFEFEF', '#DEDEDE'],
+    ['#F0F0F0', '#E0E0E0'], ['#FAFAFA', '#ECECEC'],
+  ],
+  'Apple Watch Ultra 2 49mm Titanium': [
+    ['#1C1C1E', '#3A3A3C'], ['#2C2C2E', '#48484A'],
+    ['#1C1C1E', '#3A3A3C'], ['#FF9F0A', '#FF6B2C'],
+  ],
+};
+
+function generateItemBlob(name, viewIndex = 0) {
   const canvas = document.createElement('canvas');
-  canvas.width = 280;
-  canvas.height = 280;
+  canvas.width = 400;
+  canvas.height = 400;
   const ctx = canvas.getContext('2d');
+  const label = ITEM_VIEW_LABELS[viewIndex % ITEM_VIEW_LABELS.length];
 
-  ctx.fillStyle = '#FFF1E6';
-  ctx.fillRect(0, 0, 280, 280);
+  const palettes = ITEM_PALETTES[name] || [
+    ['#FFECD2', '#FCB69F'], ['#E0C3FC', '#8EC5FC'],
+    ['#D4FC79', '#96E6A1'], ['#FAD0C4', '#FFD1FF'],
+  ];
+  const [c1, c2] = palettes[viewIndex % palettes.length];
 
-  ctx.fillStyle = 'rgba(239,68,68,0.06)';
+  const bg = ctx.createRadialGradient(200, 180, 20, 200, 200, 280);
+  bg.addColorStop(0, c1);
+  bg.addColorStop(1, c2);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 400, 400);
+
+  ctx.save();
+  ctx.globalAlpha = 0.04;
+  for (let r = 30; r < 200; r += 25) {
+    ctx.beginPath();
+    ctx.arc(200, 180, r, 0, Math.PI * 2);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const isDark = c1.startsWith('#1') || c1.startsWith('#2') || c1.startsWith('#3');
+  const textColor = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.45)';
+  const pillBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)';
+
+  ctx.save();
+  ctx.globalAlpha = isDark ? 0.15 : 0.06;
+  ctx.fillStyle = isDark ? '#fff' : '#000';
   ctx.beginPath();
-  ctx.arc(140, 130, 80, 0, Math.PI * 2);
+  ctx.roundRect(110, 80, 180, 200, 24);
   ctx.fill();
+  ctx.restore();
 
-  ctx.strokeStyle = 'rgba(255,107,107,0.25)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.roundRect(60, 60, 160, 140, 12);
-  ctx.stroke();
-
-  ctx.fillStyle = '#EF4444';
-  ctx.font = 'bold 13px system-ui';
+  const shortName = name.split(' ').slice(0, 3).join(' ');
+  ctx.fillStyle = textColor;
+  ctx.font = '600 16px system-ui, -apple-system, sans-serif';
   ctx.textAlign = 'center';
-  const words = name.split(' ');
-  const line1 = words.slice(0, 3).join(' ');
-  const line2 = words.slice(3).join(' ');
-  ctx.fillText(line1, 140, 125);
-  if (line2) ctx.fillText(line2, 140, 143);
+  ctx.fillText(shortName, 200, 190);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.2)';
-  ctx.font = '10px system-ui';
-  ctx.fillText('DETECTED ITEM', 140, 240);
+  const rest = name.split(' ').slice(3).join(' ');
+  if (rest) {
+    ctx.font = '400 12px system-ui, -apple-system, sans-serif';
+    ctx.fillText(rest, 200, 212);
+  }
 
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  ctx.fillStyle = pillBg;
+  const pillW = ctx.measureText(label.toUpperCase()).width + 24;
+  ctx.beginPath();
+  ctx.roundRect(200 - pillW / 2, 340, pillW, 28, 14);
+  ctx.fill();
+  ctx.fillStyle = textColor;
+  ctx.font = '600 11px system-ui, -apple-system, sans-serif';
+  ctx.letterSpacing = '1px';
+  ctx.fillText(label.toUpperCase(), 200, 358);
+
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
 }
 
 function buildAgentId(platform, phase, index) {
@@ -194,9 +273,16 @@ const MOCK_ITEM_DEFS = [
     visible_defects: [],
     spoken_defects: [],
   },
+  {
+    item_id: 'item-3',
+    name_guess: 'Apple Watch Ultra 2 49mm Titanium',
+    confidence: 0.91,
+    visible_defects: [{ description: 'Light scuff on titanium case edge', severity: 'minor' }],
+    spoken_defects: ['Tiny mark on the side'],
+  },
 ];
 
-const MOCK_TRANSCRIPT = `"So I've got this iPhone 15 Pro here, the 256 gig Natural Titanium model. It's in pretty great shape overall — there's a small scratch on the back glass but honestly you can barely see it. Screen is perfect, no cracks. Battery health is at 94%. And then I've also got these AirPods Pro, the second gen with USB-C. These are basically brand new, used them maybe twice. Both come with original boxes."`;
+const MOCK_TRANSCRIPT = `"So I've got this iPhone 15 Pro here, the 256 gig Natural Titanium model. It's in pretty great shape overall — there's a small scratch on the back glass but honestly you can barely see it. Screen is perfect, no cracks. Battery health is at 94%. Then I've got these AirPods Pro, the second gen with USB-C — basically brand new, used them maybe twice. And lastly this Apple Watch Ultra 2, the 49mm titanium. There's a tiny scuff on the case edge but the screen is perfect. All three come with original boxes."`;
 
 const V1_AGENTS = ['intake', 'condition_fusion', 'marketplace_resale', 'trade_in', 'return', 'repair_roi', 'route_decider', 'concierge'];
 
@@ -374,17 +460,24 @@ export function useMockMode() {
       return url;
     });
 
-    // Generate item hero images
-    const itemBlobs = await Promise.all(MOCK_ITEM_DEFS.map((def) => generateItemBlob(def.name_guess)));
-    const itemImageUrls = itemBlobs.map((blob) => {
-      const url = URL.createObjectURL(blob);
-      itemUrlsRef.current.push(url);
-      return url;
-    });
+    const VIEWS_PER_ITEM = 4;
+    const itemFrameUrls = [];
+    for (const def of MOCK_ITEM_DEFS) {
+      const blobs = await Promise.all(
+        Array.from({ length: VIEWS_PER_ITEM }, (_, v) => generateItemBlob(def.name_guess, v))
+      );
+      const urls = blobs.map((blob) => {
+        const url = URL.createObjectURL(blob);
+        itemUrlsRef.current.push(url);
+        return url;
+      });
+      itemFrameUrls.push(urls);
+    }
 
-    const S = 8000; // each stage = 8 seconds
+    const S = 10000;
+    const D = 6000;
 
-    // ── STAGE 1: Processing / Intake (0s – 8s) ──
+    // ── STAGE 1: Processing / Intake ──
     const t0 = setTimeout(() => {
       setV1Agent('intake', 'agent_started', 'Extracting frames from video...');
       setPipelineStage('analysis');
@@ -394,57 +487,35 @@ export function useMockMode() {
     const t1 = setTimeout(() => {
       setV1Agent('intake', 'agent_progress', 'Extracted 6 frames, transcribing audio...', {
         frame_paths: frameUrls,
-        elapsed_ms: 2000,
+        elapsed_ms: 2000 + D,
       });
       setJob((prev) => ({ ...prev, frame_paths: frameUrls }));
-    }, 2000);
+    }, 2000 + D);
     timersRef.current.push(t1);
 
     const t2 = setTimeout(() => {
       setV1Agent('intake', 'agent_progress', 'Transcription complete. Running item detection...', {
         frame_paths: frameUrls,
         transcript_text: MOCK_TRANSCRIPT,
-        elapsed_ms: 4500,
+        elapsed_ms: 4500 + D,
       });
       setJob((prev) => ({ ...prev, frame_paths: frameUrls, transcript_text: MOCK_TRANSCRIPT }));
-    }, 4500);
+    }, 4500 + D);
     timersRef.current.push(t2);
 
     const t3 = setTimeout(() => {
       const richItems = MOCK_ITEM_DEFS.map((def, i) => ({
         ...def,
-        hero_frame_paths: [itemImageUrls[i]],
+        hero_frame_paths: itemFrameUrls[i],
       }));
       setItems(richItems);
       setV1Agent('intake', 'agent_completed', `Found ${richItems.length} items`, {
         frame_paths: frameUrls,
         transcript_text: MOCK_TRANSCRIPT,
-        elapsed_ms: 6500,
+        elapsed_ms: 6500 + D,
       });
-      setV1Agent('condition_fusion', 'agent_started', 'Analyzing condition for all items...');
-    }, 6500);
+    }, 6500 + D);
     timersRef.current.push(t3);
-
-    const t4 = setTimeout(() => {
-      setV1Agent('condition_fusion', 'agent_progress', 'Inspecting iPhone 15 Pro — checking screen, back glass, ports...', {
-        elapsed_ms: 2000,
-      });
-    }, 8500);
-    timersRef.current.push(t4);
-
-    const t5 = setTimeout(() => {
-      setV1Agent('condition_fusion', 'agent_progress', 'Inspecting AirPods Pro — verifying case, buds, charging port...', {
-        elapsed_ms: 4500,
-      });
-    }, 11000);
-    timersRef.current.push(t5);
-
-    const t6 = setTimeout(() => {
-      setV1Agent('condition_fusion', 'agent_completed', 'Condition analysis complete for 2 items', {
-        elapsed_ms: 7000,
-      });
-    }, 13500);
-    timersRef.current.push(t6);
 
     // Stage 2+ disabled — staying on processing screen for now
 

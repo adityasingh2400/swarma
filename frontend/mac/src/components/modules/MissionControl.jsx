@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import {
   Cpu, Eye, Search, RefreshCw, Package, Wrench,
   Trophy, MessageSquare, Loader2, DollarSign, XCircle,
   CheckCircle2, FileText, AlertTriangle, Image, Zap,
-  ShoppingBag, RotateCcw, Clock, TrendingUp,
+  ShoppingBag, RotateCcw, Clock, TrendingUp, X,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import Badge from '../shared/Badge';
 import AnimatedValue from '../shared/AnimatedValue';
@@ -13,8 +14,8 @@ import AnimatedValue from '../shared/AnimatedValue';
    Stages + Agents
    ──────────────────────────────────────────────────────────────── */
 const STAGES = [
-  { id: 1, label: 'Processing', desc: 'Extracting frames, transcribing, and analyzing items concurrently',
-    agents: [{ id: 'intake', name: 'Intake', icon: Cpu }, { id: 'condition_fusion', name: 'ConditionFusion', icon: Eye }] },
+  { id: 1, label: 'Processing', desc: 'Extracting frames, transcribing, and analyzing items',
+    agents: [{ id: 'intake', name: 'Intake', icon: Cpu }] },
   { id: 2, label: 'Route Bidding', desc: 'Each item has its own fleet of agents racing in parallel',
     agents: [
       { id: 'marketplace_resale', name: 'Resale', icon: Search },
@@ -22,7 +23,7 @@ const STAGES = [
       { id: 'return', name: 'Return', icon: Package },
       { id: 'repair_roi', name: 'Repair', icon: Wrench },
     ] },
-  { id: 3, label: 'Decision', desc: 'Picking the winning route for each item',
+  { id: 3, label: 'Posting', desc: 'Creating and publishing listings for each item',
     agents: [{ id: 'route_decider', name: 'RouteDecider', icon: Trophy }] },
 ];
 
@@ -375,140 +376,461 @@ function ItemPlanet({ item, itemIndex, totalItems, agentStates, itemBids, stage3
    STAGE-SPECIFIC EMBEDDED CONTENT (1, 2, 4 unchanged)
    ════════════════════════════════════════════════════════════════ */
 
-function ProcessingContent({ job, agents, items, miniPlayer }) {
-  const intakeState = agents.intake;
-  const condState = agents.condition_fusion;
-  const transcript = intakeState?.transcript_text || job?.transcript_text;
-  const framePaths = intakeState?.frame_paths || job?.frame_paths || [];
+function ItemCarousel({ frames, alt }) {
+  const [idx, setIdx] = useState(0);
+  const count = frames.length;
+  const dragX = useMotionValue(0);
 
-  const intakeActive = getStatus(intakeState) !== 'idle';
-  const condActive = getStatus(condState) !== 'idle';
-  const hasFrames = framePaths.length > 0;
-  const filmstripMode = framePaths.length <= 6 ? 'filmstrip-justify' : '';
+  const prev = () => setIdx((i) => Math.max(0, i - 1));
+  const next = () => setIdx((i) => Math.min(count - 1, i + 1));
+
+  const onDragEnd = () => {
+    const x = dragX.get();
+    if (x <= -30 && idx < count - 1) next();
+    else if (x >= 30 && idx > 0) prev();
+  };
+
+  if (count === 0) return null;
+  if (count === 1) {
+    return (
+      <div className="icr-single">
+        <img src={frames[0]} alt={alt} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="icr-wrap">
+      <div className="icr-viewport">
+        <motion.div
+          className="icr-track"
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragMomentum={false}
+          style={{ x: dragX }}
+          animate={{ translateX: `${-idx * 100}%` }}
+          onDragEnd={onDragEnd}
+          transition={{ type: 'spring', damping: 26, stiffness: 180, mass: 0.8 }}
+        >
+          {frames.map((src, i) => (
+            <div key={i} className="icr-slide">
+              <img src={src} alt={`${alt} — frame ${i + 1}`} />
+            </div>
+          ))}
+        </motion.div>
+      </div>
+
+      <motion.button
+        className="icr-nav icr-nav-prev"
+        disabled={idx === 0}
+        onClick={prev}
+        whileHover={{ scale: 1.15, backgroundColor: 'var(--bg-card)' }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <ChevronLeft size={16} />
+      </motion.button>
+      <motion.button
+        className="icr-nav icr-nav-next"
+        disabled={idx === count - 1}
+        onClick={next}
+        whileHover={{ scale: 1.15, backgroundColor: 'var(--bg-card)' }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <ChevronRight size={16} />
+      </motion.button>
+
+      <div className="icr-dots">
+        {frames.map((_, i) => (
+          <motion.button
+            key={i}
+            className={`icr-dot${i === idx ? ' icr-dot-active' : ''}`}
+            onClick={() => setIdx(i)}
+            whileHover={{ scale: 1.4 }}
+            whileTap={{ scale: 0.8 }}
+            animate={i === idx ? { scale: 1.3, opacity: 1 } : { scale: 1, opacity: 0.4 }}
+            transition={{ type: 'spring', damping: 15, stiffness: 400 }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ItemDetailModal({ item, onClose }) {
+  if (!item) return null;
+
+  const frames = item.hero_frame_paths || [];
+  const condition = item.visible_defects?.length || item.spoken_defects?.length
+    ? (item.visible_defects?.some?.((d) => d.severity === 'major') ? 'Fair' : 'Good')
+    : 'Like New';
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
 
   const E = [0.32, 0.72, 0, 1];
 
   return (
+    <>
+      <motion.div
+        className="idm-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="idm-container"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="idm-panel"
+          initial={{ scale: 0.92, y: 30, opacity: 0, filter: 'blur(8px)' }}
+          animate={{ scale: 1, y: 0, opacity: 1, filter: 'blur(0px)' }}
+          exit={{ scale: 0.95, y: 16, opacity: 0, filter: 'blur(4px)', transition: { duration: 0.2, ease: E } }}
+          transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="idm-header">
+            <motion.h3 className="idm-title"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15, duration: 0.4, ease: E }}
+            >
+              {item.name_guess}
+            </motion.h3>
+            <motion.button
+              className="idm-close"
+              onClick={onClose}
+              whileHover={{ rotate: 90, scale: 1.1, backgroundColor: 'var(--bg-elevated)' }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+            >
+              <X size={18} />
+            </motion.button>
+          </div>
+
+          {frames.length > 0 && (
+            <motion.div className="idm-carousel"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.1, duration: 0.5, ease: E }}
+            >
+              <ItemCarousel frames={frames} alt={item.name_guess} />
+            </motion.div>
+          )}
+
+          <div className="idm-details">
+            <motion.div className="idm-row"
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2, duration: 0.35, ease: E }}>
+              <span className="idm-label">Condition</span>
+              <Badge variant={condition === 'Like New' ? 'success' : 'warning'}>{condition}</Badge>
+            </motion.div>
+
+            {item.confidence != null && (
+              <motion.div className="idm-row"
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.25, duration: 0.35, ease: E }}>
+                <span className="idm-label">Confidence</span>
+                <span className="idm-value">{(item.confidence * 100).toFixed(0)}%</span>
+              </motion.div>
+            )}
+
+            {item.visible_defects?.length > 0 && (
+              <motion.div className="idm-section"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.4, ease: E }}>
+                <span className="idm-label">Visible Defects</span>
+                <div className="idm-defects-list">
+                  {item.visible_defects.map((d, i) => (
+                    <motion.div key={i} className="idm-defect"
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.35 + i * 0.06, duration: 0.3, ease: E }}>
+                      <AlertTriangle size={12} />
+                      <span>{d.description || d}</span>
+                      {d.severity && <Badge variant={d.severity === 'major' ? 'danger' : 'warning'}>{d.severity}</Badge>}
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {item.spoken_defects?.length > 0 && (
+              <motion.div className="idm-section"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35, duration: 0.4, ease: E }}>
+                <span className="idm-label">Mentioned by Seller</span>
+                <div className="idm-defects-list">
+                  {item.spoken_defects.map((d, i) => (
+                    <motion.div key={i} className="idm-defect"
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.4 + i * 0.06, duration: 0.3, ease: E }}>
+                      <MessageSquare size={12} />
+                      <span>{typeof d === 'string' ? d : d.description}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </>
+  );
+}
+
+function IntakeStrip({ state }) {
+  const status = getStatus(state);
+  const message = state?.message || '';
+  const elapsed = state?.elapsed_ms;
+  const isDone = status === 'done';
+
+  return (
+    <motion.div
+      className={`intake-strip intake-strip-${status}`}
+      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+    >
+      <div className="intake-strip-left">
+        {isDone ? (
+          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 12, stiffness: 400 }}>
+            <CheckCircle2 size={14} className="intake-strip-icon-done" />
+          </motion.div>
+        ) : status === 'thinking' ? (
+          <Loader2 size={14} className="mc-spinner" />
+        ) : (
+          <Cpu size={14} />
+        )}
+        <span className="intake-strip-msg">{message}</span>
+      </div>
+      <div className="intake-strip-right">
+        {elapsed != null && <span className="intake-strip-time">{(elapsed / 1000).toFixed(1)}s</span>}
+      </div>
+      {status === 'thinking' && (
+        <div className="intake-strip-progress">
+          <motion.div className="intake-strip-bar"
+            initial={{ width: '0%' }}
+            animate={{ width: isDone ? '100%' : '60%' }}
+            transition={{ duration: 3, ease: [0.32, 0.72, 0, 1] }}
+          />
+        </div>
+      )}
+      {status === 'thinking' && <div className="intake-strip-shimmer" />}
+    </motion.div>
+  );
+}
+
+function SkeletonPulse({ width = '100%', height = 12, radius = 6, style }) {
+  return (
+    <div className="skeleton-pulse" style={{ width, height, borderRadius: radius, ...style }} />
+  );
+}
+
+function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
+  const intakeState = agents.intake;
+  const transcript = intakeState?.transcript_text || job?.transcript_text;
+  const framePaths = intakeState?.frame_paths || job?.frame_paths || [];
+
+  const intakeActive = getStatus(intakeState) !== 'idle';
+  const hasFrames = settled && framePaths.length > 0;
+  const hasItems = settled && items && items.length > 0;
+  const hasTranscript = settled && !!transcript;
+  const isWaiting = settled && !hasFrames && !hasItems && !hasTranscript;
+
+  const [selectedItem, setSelectedItem] = useState(null);
+  const closeModal = useCallback(() => setSelectedItem(null), []);
+  const [hoveredTile, setHoveredTile] = useState(null);
+
+  const E = [0.32, 0.72, 0, 1];
+  const spring = { type: 'spring', damping: 24, stiffness: 200 };
+
+  return (
     <div className="mc-embedded pc-flow">
-      {/* ── Row 1: Mini-player + Agent cards side by side ── */}
-      <div className="pc-hero-row">
+      <AnimatePresence>
+        {intakeActive && (
+          <motion.div className="pc-strip-row"
+            key="intake-strip"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.35, delay: 0.05, ease: E }}
+          >
+            <IntakeStrip state={intakeState} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="pc-left">
         {miniPlayer && (
           <motion.div className="pc-player"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.45, delay: 0.1, ease: E }}
+            initial={{ opacity: 0, scale: 0.94, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1, ease: E }}
           >
             {miniPlayer}
           </motion.div>
         )}
+      </div>
 
-        <div className="pc-agents-col">
+      <div className="pc-right">
+        <motion.div className="pc-right-inner" layout transition={{ duration: 0.5, ease: E }}>
+
+          {isWaiting && (
+            <motion.div className="pc-section pc-skeleton-group"
+              key="skeleton"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <SkeletonPulse width="40%" height={10} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 12 }}>
+                <SkeletonPulse height={120} radius={12} />
+                <SkeletonPulse height={120} radius={12} />
+                <SkeletonPulse height={120} radius={12} />
+              </div>
+              <SkeletonPulse width="60%" height={10} style={{ marginTop: 20 }} />
+              <SkeletonPulse width="100%" height={60} radius={12} style={{ marginTop: 8 }} />
+            </motion.div>
+          )}
+
           <AnimatePresence>
-            {intakeActive && (
-              <motion.div key="intake-card"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.4, delay: 0.15, ease: E }}
+            {hasItems && (
+              <motion.div className="pc-section"
+                key="items"
+                layout
+                initial={{ opacity: 0, y: -16, filter: 'blur(8px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.6, ease: E }}
               >
-                <AgentCard
-                  agent={{ id: 'intake', name: 'Intake', icon: Cpu }}
-                  state={intakeState} perItem={null} items={items} index={0}
-                />
-              </motion.div>
-            )}
-            {condActive && (
-              <motion.div key="cond-card"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.4, delay: 0.3, ease: E }}
-              >
-                <AgentCard
-                  agent={{ id: 'condition_fusion', name: 'ConditionFusion', icon: Eye }}
-                  state={condState} perItem={null} items={items} index={1}
-                />
+                <motion.div className="pc-section-label"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1, duration: 0.4, ease: E }}
+                >
+                  <ShoppingBag size={12} /> Items Detected
+                  <motion.span className="pc-section-count"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.3, type: 'spring', damping: 12, stiffness: 400 }}
+                  >
+                    {items.length}
+                  </motion.span>
+                </motion.div>
+                <div className="mc-items-row" style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 3)}, 1fr)` }}>
+                  {items.map((item, i) => {
+                    const condition = item.visible_defects?.length || item.spoken_defects?.length
+                      ? (item.visible_defects?.some?.((d) => d.severity === 'major') ? 'Fair' : 'Good')
+                      : 'Like New';
+                    const isHovered = hoveredTile === item.item_id;
+                    return (
+                      <motion.div key={item.item_id} className={`mc-item-tile ${isHovered ? 'mc-tile-hovered' : ''}`}
+                        initial={{ opacity: 0, y: 20, scale: 0.92 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        whileHover={{ y: -4, scale: 1.02, transition: { duration: 0.25, ease: E } }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ delay: i * 0.12 + 0.15, ...spring }}
+                        onClick={() => setSelectedItem(item)}
+                        onHoverStart={() => setHoveredTile(item.item_id)}
+                        onHoverEnd={() => setHoveredTile(null)}
+                        style={{ cursor: 'pointer' }}>
+                        {item.hero_frame_paths?.[0] && (
+                          <motion.div className="mc-tile-img"
+                            whileHover={{ scale: 1.03 }}
+                            transition={{ duration: 0.3, ease: E }}>
+                            <img src={item.hero_frame_paths[0]} alt={item.name_guess} />
+                            <div className="mc-tile-img-overlay">
+                              <Eye size={16} />
+                              <span>View Details</span>
+                            </div>
+                          </motion.div>
+                        )}
+                        <div className="mc-tile-header">
+                          <span className="mc-tile-name">{item.name_guess}</span>
+                          <Badge variant={condition === 'Like New' ? 'success' : 'warning'}>{condition}</Badge>
+                        </div>
+                        {item.visible_defects?.length > 0 && (
+                          <div className="mc-tile-defects">
+                            <AlertTriangle size={10} /> {item.visible_defects.map((d) => d.description || d).join(', ')}
+                          </div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+
+          <AnimatePresence>
+            {hasTranscript && (
+              <motion.div className="pc-section"
+                key="transcript"
+                layout
+                initial={{ opacity: 0, y: -16, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.5, ease: E }}
+              >
+                <div className="ext-transcript">
+                  <div className="ext-transcript-label"><FileText size={12} /> Transcript</div>
+                  <p className="ext-transcript-text">{transcript}</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {hasFrames && (
+              <motion.div className="pc-section"
+                key="filmstrip"
+                layout
+                initial={{ opacity: 0, y: -16, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.5, ease: E }}
+              >
+                <div className="ext-filmstrip">
+                  <div className="ext-filmstrip-label"><Image size={12} /> {framePaths.length} frames extracted</div>
+                  <div className="ext-filmstrip-rail filmstrip-grid" style={{ gridTemplateColumns: `repeat(${Math.min(framePaths.length, 4)}, 1fr)` }}>
+                    {framePaths.map((fp, i) => (
+                      <motion.div key={i} className="ext-frame"
+                        initial={{ opacity: 0, scale: 0.85, y: 8 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        whileHover={{ scale: 1.05, y: -2, transition: { duration: 0.2 } }}
+                        transition={{ delay: i * 0.06 + 0.1, duration: 0.35, ease: E }}>
+                        <img src={fp} alt={`Frame ${i + 1}`} />
+                        <span className="ext-frame-num">{i + 1}</span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </motion.div>
       </div>
 
-      {/* ── Row 2: Filmstrip ── */}
       <AnimatePresence>
-        {hasFrames && (
-          <motion.div className="ext-filmstrip"
-            key="filmstrip"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.35, ease: E }}
-          >
-            <div className="ext-filmstrip-label"><Image size={12} /> {framePaths.length} frames</div>
-            <div className={`ext-filmstrip-rail ${filmstripMode}`}>
-              {framePaths.map((fp, i) => (
-                <motion.div key={i} className="ext-frame"
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.45 + i * 0.04, duration: 0.3, ease: E }}>
-                  <img src={fp} alt={`Frame ${i + 1}`} />
-                  <span className="ext-frame-num">{i + 1}</span>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Row 3: Transcript ── */}
-      <AnimatePresence>
-        {transcript && (
-          <motion.div className="ext-transcript"
-            key="transcript"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.5, ease: E }}
-          >
-            <div className="ext-transcript-label"><FileText size={12} /> Transcript</div>
-            <p className="ext-transcript-text">{transcript}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Row 4: Detected items ── */}
-      <AnimatePresence>
-        {items && items.length > 0 && (
-          <motion.div className="mc-items-grid"
-            key="items"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.65, ease: E }}
-          >
-            {items.map((item, i) => {
-              const condition = item.visible_defects?.length || item.spoken_defects?.length
-                ? (item.visible_defects?.some?.((d) => d.severity === 'major') ? 'Fair' : 'Good')
-                : 'Like New';
-              return (
-                <motion.div key={item.item_id} className="mc-item-card"
-                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.75 + i * 0.06, duration: 0.3, ease: E }}>
-                  {item.hero_frame_paths?.[0] && (
-                    <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="mc-item-thumb" />
-                  )}
-                  <div className="mc-item-info">
-                    <div className="mc-item-title">{item.name_guess}</div>
-                    <div className="mc-item-tags">
-                      <Badge variant={condition === 'Like New' ? 'success' : 'warning'}>{condition}</Badge>
-                    </div>
-                    {item.visible_defects?.length > 0 && (
-                      <div className="mc-item-defects">
-                        <AlertTriangle size={10} /> {item.visible_defects.map((d) => d.description || d).join(', ')}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </motion.div>
+        {selectedItem && (
+          <ItemDetailModal item={selectedItem} onClose={closeModal} />
         )}
       </AnimatePresence>
     </div>
@@ -682,7 +1004,7 @@ export default function MissionControl({
   agents = {}, agentsRaw = {}, agentsByItem = {},
   stage3Plan, items = [], decisions = {}, bids = {},
   job = null, listings = {}, onExecuteItem, overrideStageIdx,
-  miniPlayer,
+  miniPlayer, settled,
 }) {
   const autoIdx = getActiveStageIndex(agents);
   const activeIdx = overrideStageIdx != null ? Math.min(overrideStageIdx, STAGES.length - 1) : autoIdx;
@@ -755,7 +1077,7 @@ export default function MissionControl({
               </div>
             )}
 
-            {stage.id === 1 && <ProcessingContent job={job} agents={agents} items={items} miniPlayer={miniPlayer} />}
+            {stage.id === 1 && <ProcessingContent job={job} agents={agents} items={items} miniPlayer={miniPlayer} settled={settled} />}
             {stage.id === 3 && <DecisionContent decisions={decisions} items={items} onExecuteItem={onExecuteItem} />}
           </motion.div>
         </AnimatePresence>
