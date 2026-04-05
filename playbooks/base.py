@@ -78,27 +78,42 @@ class BasePlaybook(Playbook):
     def _safe_parse_json(self, result: str) -> dict | None:
         """Extract JSON from agent output. Handles:
         1. Clean JSON string
-        2. JSON wrapped in markdown fences
-        3. JSON embedded in prose
+        2. Escaped-quote JSON (e.g. {\"key\": \"val\"} from some LLM outputs)
+        3. JSON wrapped in markdown fences
+        4. JSON embedded in prose
         Returns None if no JSON found."""
         if result is None:
             return None
-        try:
-            return json.loads(result)
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
-        fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", result, re.DOTALL)
-        if fence_match:
+
+        candidates = [result]
+        # Handle escaped-quote output from some agents (live test finding):
+        # agents return {\"key\": \"val\"} with literal backslash-quote pairs.
+        if r'\"' in result:
+            candidates.append(result.replace(r'\"', '"'))
+
+        for candidate in candidates:
             try:
-                return json.loads(fence_match.group(1))
-            except (json.JSONDecodeError, ValueError):
+                return json.loads(candidate)
+            except (json.JSONDecodeError, ValueError, TypeError):
                 pass
-        brace_match = re.search(r"\{[^{}]*\}", result)
-        if brace_match:
-            try:
-                return json.loads(brace_match.group(0))
-            except (json.JSONDecodeError, ValueError):
-                pass
+
+        for candidate in candidates:
+            fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", candidate, re.DOTALL)
+            if fence_match:
+                try:
+                    return json.loads(fence_match.group(1))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+        for candidate in candidates:
+            # Match outermost braces, allowing nested objects/arrays.
+            brace_match = re.search(r"\{.*\}", candidate, re.DOTALL)
+            if brace_match:
+                try:
+                    return json.loads(brace_match.group(0))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
         return None
 
     def _make_research_result(

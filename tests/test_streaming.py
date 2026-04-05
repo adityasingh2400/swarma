@@ -1,13 +1,17 @@
 """Tests for backend/streaming.py — binary frame encoding, JPEG encoding, frame store."""
 from __future__ import annotations
 
+import asyncio
+import base64
 import struct
 import time
 from io import BytesIO
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 from PIL import Image
 
+from backend.config import settings
 from backend.streaming import (
     FrameData,
     _encode_frame,
@@ -15,6 +19,7 @@ from backend.streaming import (
     frame_store,
     get_all_agent_ids,
     get_frame_for_delivery,
+    start_screencast,
     stop_screencast,
 )
 import backend.streaming as streaming_mod
@@ -138,6 +143,37 @@ class TestFrameStore:
         assert result == (b"NEW", False)
 
 
+# ── Frame Store (extended) ───────────────────────────────────────────────────
+
+
+class TestFrameStoreExtended:
+    def setup_method(self):
+        frame_store.clear()
+        streaming_mod.focused_agent_id = None
+
+    def test_non_focused_agent_returns_grid_when_other_is_focused(self):
+        frame_store["agent-1"] = FrameData(grid=b"G1", focus=b"F1", ts=1.0)
+        frame_store["agent-2"] = FrameData(grid=b"G2", focus=b"F2", ts=1.0)
+        streaming_mod.focused_agent_id = "agent-1"
+        assert get_frame_for_delivery("agent-2") == (b"G2", False)
+
+    def test_focus_mode_switch(self):
+        frame_store["agent-1"] = FrameData(grid=b"G", focus=b"F", ts=1.0)
+        streaming_mod.focused_agent_id = "agent-1"
+        assert get_frame_for_delivery("agent-1") == (b"F", True)
+        streaming_mod.focused_agent_id = None
+        assert get_frame_for_delivery("agent-1") == (b"G", False)
+
+    def test_get_all_agent_ids_empty(self):
+        assert get_all_agent_ids() == []
+
+    def test_get_all_agent_ids_order_stable(self):
+        for key in ("z", "a", "m"):
+            frame_store[key] = FrameData(grid=b"", focus=b"", ts=1.0)
+        ids = get_all_agent_ids()
+        assert set(ids) == {"z", "a", "m"}
+
+
 # ── stop_screencast ───────────────────────────────────────────────────────────
 
 
@@ -155,3 +191,184 @@ class TestStopScreencast:
     @pytest.mark.anyio
     async def test_noop_for_unknown_agent(self):
         await stop_screencast("nonexistent")  # should not raise
+
+    @pytest.mark.anyio
+    async def test_sends_stop_screencast_command(self):
+        mock_cdp = AsyncMock()
+        streaming_mod._cdp_sessions["agent-1"] = mock_cdp
+        await stop_screencast("agent-1")
+        mock_cdp.send.assert_called_once_with("Page.stopScreencast")
+
+    @pytest.mark.anyio
+    async def test_detaches_cdp_session(self):
+        mock_cdp = AsyncMock()
+        streaming_mod._cdp_sessions["agent-1"] = mock_cdp
+        await stop_screencast("agent-1")
+        mock_cdp.detach.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_removes_cdp_session_from_registry(self):
+        mock_cdp = AsyncMock()
+        streaming_mod._cdp_sessions["agent-1"] = mock_cdp
+        await stop_screencast("agent-1")
+        assert "agent-1" not in streaming_mod._cdp_sessions
+
+    @pytest.mark.anyio
+    async def test_cdp_send_exception_is_swallowed(self):
+        """CDP errors during teardown should not propagate (browser may already be gone)."""
+        mock_cdp = AsyncMock()
+        mock_cdp.send.side_effect = Exception("CDP session closed")
+        streaming_mod._cdp_sessions["agent-1"] = mock_cdp
+        frame_store["agent-1"] = FrameData(grid=b"G", focus=b"F", ts=1.0)
+        await stop_screencast("agent-1")  # must not raise
+        assert "agent-1" not in frame_store
+
+    @pytest.mark.anyio
+    async def test_cdp_detach_exception_is_swallowed(self):
+        mock_cdp = AsyncMock()
+        mock_cdp.detach.side_effect = Exception("already detached")
+        streaming_mod._cdp_sessions["agent-1"] = mock_cdp
+        await stop_screencast("agent-1")  # must not raise
+
+
+# ── start_screencast ──────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def mock_cdp():
+    cdp = AsyncMock()
+    cdp.on = MagicMock()
+    return cdp
+
+
+@pytest.fixture
+def mock_page(mock_cdp):
+    page = AsyncMock()
+    page.context.new_cdp_session = AsyncMock(return_value=mock_cdp)
+    return page
+
+
+class TestStartScreencast:
+    def setup_method(self):
+        frame_store.clear()
+        streaming_mod._cdp_sessions.clear()
+        streaming_mod.focused_agent_id = None
+
+    @pytest.mark.anyio
+    async def test_registers_agent_in_cdp_sessions(self, mock_page, mock_cdp):
+        await start_screencast("agent-1", mock_page)
+        assert "agent-1" in streaming_mod._cdp_sessions
+
+    @pytest.mark.anyio
+    async def test_sends_start_screencast_command(self, mock_page, mock_cdp):
+        await start_screencast("agent-1", mock_page)
+        first_call = mock_cdp.send.call_args_list[0]
+        assert first_call[0][0] == "Page.startScreencast"
+
+    @pytest.mark.anyio
+    async def test_screencast_format_is_jpeg(self, mock_page, mock_cdp):
+        await start_screencast("agent-1", mock_page)
+        params = mock_cdp.send.call_args_list[0][0][1]
+        assert params["format"] == "jpeg"
+
+    @pytest.mark.anyio
+    async def test_screencast_quality_from_settings(self, mock_page, mock_cdp):
+        await start_screencast("agent-1", mock_page)
+        params = mock_cdp.send.call_args_list[0][0][1]
+        assert params["quality"] == settings.screenshot_focus_quality
+
+    @pytest.mark.anyio
+    async def test_screencast_dimensions_from_settings(self, mock_page, mock_cdp):
+        await start_screencast("agent-1", mock_page)
+        params = mock_cdp.send.call_args_list[0][0][1]
+        assert params["maxWidth"] == settings.screenshot_focus_width
+        assert params["maxHeight"] == settings.screenshot_focus_height
+
+    @pytest.mark.anyio
+    async def test_every_n_frame_calculation(self, mock_page, mock_cdp):
+        # Default fps=2.0 → everyNthFrame=30 (60 Hz / 2)
+        await start_screencast("agent-1", mock_page)
+        params = mock_cdp.send.call_args_list[0][0][1]
+        expected = max(1, round(60 / settings.screenshot_capture_fps))
+        assert params["everyNthFrame"] == expected
+
+    @pytest.mark.anyio
+    async def test_registers_screencast_frame_handler(self, mock_page, mock_cdp):
+        await start_screencast("agent-1", mock_page)
+        mock_cdp.on.assert_called_once_with("Page.screencastFrame", ANY)
+
+    @pytest.mark.anyio
+    async def test_duplicate_start_stops_old_session(self, mock_page, mock_cdp):
+        await start_screencast("agent-1", mock_page)
+        await start_screencast("agent-1", mock_page)
+        stop_calls = [
+            c for c in mock_cdp.send.call_args_list if c[0][0] == "Page.stopScreencast"
+        ]
+        assert len(stop_calls) >= 1
+
+    @pytest.mark.anyio
+    async def test_frame_handler_populates_frame_store(self, mock_page, mock_cdp, sample_jpeg_bytes):
+        """Frame event → decode JPEG → store grid+focus variants."""
+        captured: dict = {}
+        mock_cdp.on.side_effect = lambda event, fn: captured.update({event: fn})
+
+        await start_screencast("agent-1", mock_page)
+        handler = captured["Page.screencastFrame"]
+
+        await handler({
+            "sessionId": 42,
+            "data": base64.b64encode(sample_jpeg_bytes).decode(),
+        })
+
+        assert "agent-1" in frame_store
+        assert len(frame_store["agent-1"].grid) > 0
+        assert len(frame_store["agent-1"].focus) > 0
+
+    @pytest.mark.anyio
+    async def test_frame_handler_acks_session(self, mock_page, mock_cdp, sample_jpeg_bytes):
+        """Handler must ACK every frame so the browser continues pushing."""
+        captured: dict = {}
+        mock_cdp.on.side_effect = lambda event, fn: captured.update({event: fn})
+
+        await start_screencast("agent-1", mock_page)
+        handler = captured["Page.screencastFrame"]
+        await handler({
+            "sessionId": 99,
+            "data": base64.b64encode(sample_jpeg_bytes).decode(),
+        })
+
+        ack_calls = [
+            c for c in mock_cdp.send.call_args_list
+            if c[0][0] == "Page.screencastFrameAck"
+        ]
+        assert len(ack_calls) == 1
+        assert ack_calls[0][0][1] == {"sessionId": 99}
+
+    @pytest.mark.anyio
+    async def test_frame_handler_bad_jpeg_does_not_crash(self, mock_page, mock_cdp):
+        """Corrupt JPEG must be logged and dropped — handler must not raise."""
+        captured: dict = {}
+        mock_cdp.on.side_effect = lambda event, fn: captured.update({event: fn})
+
+        await start_screencast("agent-1", mock_page)
+        handler = captured["Page.screencastFrame"]
+        bad_data = base64.b64encode(b"not a jpeg at all").decode()
+        await handler({"sessionId": 1, "data": bad_data})  # must not raise
+        assert "agent-1" not in frame_store
+
+    @pytest.mark.anyio
+    async def test_frame_handler_updates_timestamp(self, mock_page, mock_cdp, sample_jpeg_bytes):
+        captured: dict = {}
+        mock_cdp.on.side_effect = lambda event, fn: captured.update({event: fn})
+
+        before = time.time()
+        await start_screencast("agent-1", mock_page)
+        handler = captured["Page.screencastFrame"]
+        await handler({
+            "sessionId": 1,
+            "data": base64.b64encode(sample_jpeg_bytes).decode(),
+        })
+        after = time.time()
+
+        assert "agent-1" in frame_store
+        assert before <= frame_store["agent-1"].ts <= after

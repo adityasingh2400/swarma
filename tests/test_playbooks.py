@@ -140,6 +140,34 @@ class TestBaseHelpers:
         bp = EbayPlaybook()
         assert bp._safe_parse_json(None) is None
 
+    def test_safe_parse_json_escaped_quotes(self):
+        # Live test finding: eBay/Facebook/Mercari agents return JSON with
+        # escaped quotes e.g. {\"sold_prices\": [500, 600], \"listings_found\": 2}
+        # This is the raw string the agent emits — backslash-quote pairs.
+        bp = EbayPlaybook()
+        escaped = r'{"sold_prices": [500, 600], "listings_found": 2}'.replace('"', r'\"')
+        # escaped = {\"sold_prices\": [500, 600], \"listings_found\": 2}
+        result = bp._safe_parse_json(escaped)
+        assert result is not None
+        assert result["sold_prices"] == [500, 600]
+        assert result["listings_found"] == 2
+
+    def test_safe_parse_json_escaped_quotes_in_prose(self):
+        bp = EbayPlaybook()
+        raw = r'Here are the results: {\"avg\": 450, \"count\": 10}'
+        result = bp._safe_parse_json(raw)
+        assert result is not None
+        assert result["avg"] == 450
+
+    def test_safe_parse_json_nested_objects(self):
+        bp = EbayPlaybook()
+        result = bp._safe_parse_json(
+            '{"parts": [{"part_name": "Screen", "part_price": 49.99}]}'
+        )
+        assert result is not None
+        assert isinstance(result["parts"], list)
+        assert result["parts"][0]["part_name"] == "Screen"
+
     def test_make_research_result(self):
         bp = EbayPlaybook()
         result = bp._make_research_result(500.0, 10, price_type="sold")
