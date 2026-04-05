@@ -330,7 +330,6 @@ function LayoutInner({
   const [videoUrl, setVideoUrl] = useState(null);
   const [focusedAgentId, setFocusedAgentId] = useState(null);
   const [researchReady, setResearchReady] = useState(false);
-  const processingHardStop = true; // hard stop at processing
 
   useEffect(() => {
     return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
@@ -341,7 +340,6 @@ function LayoutInner({
     [agents, v2Agents, pipelineStage],
   );
   useEffect(() => {
-    if (processingHardStop) return;
     if (researchReady || phase !== 'processing' || items.length === 0) return;
     const intakeStatus = agents?.intake?.status;
     const intakeDone = intakeStatus === 'agent_completed' || intakeStatus === 'done';
@@ -350,7 +348,7 @@ function LayoutInner({
       const t = setTimeout(() => setResearchReady(true), 800);
       return () => clearTimeout(t);
     }
-  }, [agents, items, phase, researchReady, pipelineStage, processingHardStop]);
+  }, [agents, items, phase, researchReady, pipelineStage]);
 
   const [viewOverride, setViewOverride] = useState(null);
   const activeView = viewOverride || globalStage;
@@ -359,9 +357,8 @@ function LayoutInner({
     if (viewOverride && viewOverride === globalStage) setViewOverride(null);
   }, [globalStage, viewOverride]);
 
-  const showConciergeResults = !processingHardStop
-    && (activeView === 'concierge-done' || activeView === 'concierge');
-  const researchGateOpen = !processingHardStop && researchReady;
+  const showConciergeResults = activeView === 'concierge-done' || activeView === 'concierge';
+  const researchGateOpen = researchReady;
 
   const handleUpload = (file, url) => {
     setVideoUrl(url);
