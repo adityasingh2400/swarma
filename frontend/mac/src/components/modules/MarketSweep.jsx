@@ -35,9 +35,8 @@ const LANE_CONFIG = {
 };
 
 const PLATFORM_COLORS = {
-  ebay: '#FF6B6B', mercari: '#FF6B6B', swappa: '#FF6B6B',
-  amazon: '#FF6B6B', facebook: '#FF6B6B', offerup: '#FF6B6B',
-  poshmark: '#FF6B6B', craigslist: '#FF6B6B', other: '#FF6B6B',
+  facebook: '#FF6B6B', depop: '#FF6B6B',
+  amazon: '#FF6B6B', other: '#FF6B6B',
 };
 
 const ROUTE_LABELS = {

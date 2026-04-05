@@ -573,7 +573,6 @@ body {
 }
 
 .badge-ebay { background: var(--primary-dim); color: var(--primary); }
-.badge-mercari { background: var(--primary-dim); color: var(--primary); }
 .badge-poshmark { background: var(--primary-dim); color: var(--primary); }
 .badge-offerup { background: var(--primary-dim); color: var(--primary); }
 .badge-facebook { background: var(--primary-dim); color: var(--primary); }
@@ -5208,7 +5207,6 @@ body {
   background: var(--text-tertiary);
 }
 .plat-ebay { background: var(--primary); }
-.plat-mercari { background: var(--primary); }
 .plat-swappa { background: var(--primary); }
 .plat-facebook { background: var(--primary); }
 .plat-offerup { background: var(--primary); }
@@ -7214,59 +7212,6 @@ body {
 }
 .sim-fb-seller-meta { font-size: 11px; color: #65676b; }
 
-/* ── Mercari ──────────────────────────────────────────────────── */
-.sim-mercari { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-.sim-mercari-topbar {
-  padding: 10px 16px; background: #fff; border-bottom: 1px solid #e5e5e5;
-}
-.sim-mercari-logo { font-size: 20px; font-weight: 700; color: #4dc9f6; }
-.sim-mercari-body { padding: 16px; }
-.sim-mercari-gallery {
-  width: 100%; max-width: 340px; aspect-ratio: 1; margin: 0 auto 16px;
-  background: #f7f7f7; border-radius: 10px; overflow: hidden; position: relative;
-  display: flex; align-items: center; justify-content: center;
-}
-.sim-mercari-gallery img { width: 100%; height: 100%; object-fit: cover; }
-.sim-mercari-placeholder { font-size: 64px; opacity: 0.3; }
-.sim-mercari-likes {
-  position: absolute; bottom: 8px; right: 8px;
-  background: rgba(0,0,0,0.6); color: #fff; padding: 4px 10px;
-  border-radius: 14px; font-size: 11px; display: flex; align-items: center; gap: 4px;
-}
-.sim-mercari-gallery-dots {
-  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 5px;
-}
-.sim-mercari-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.5);
-  cursor: pointer; transition: all 0.2s;
-}
-.sim-mercari-dot.active { background: #fff; transform: scale(1.2); }
-.sim-mercari-info { max-width: 500px; margin: 0 auto; }
-.sim-mercari-title { font-size: 16px; font-weight: 600; color: #333; margin: 0 0 4px; }
-.sim-mercari-price { font-size: 22px; font-weight: 700; color: #333; margin-bottom: 4px; }
-.sim-mercari-shipping { font-size: 12px; color: #888; display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
-.sim-mercari-condition { font-size: 13px; color: #555; margin-bottom: 14px; }
-.sim-mercari-action-row { display: flex; gap: 8px; margin-bottom: 16px; }
-.sim-mercari-buy-btn {
-  flex: 1; padding: 10px; border: none; border-radius: 6px;
-  background: #ff5252; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer;
-}
-.sim-mercari-offer-btn {
-  flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px;
-  background: #fff; color: #333; font-weight: 600; font-size: 14px; cursor: pointer;
-}
-.sim-mercari-desc { margin-bottom: 14px; }
-.sim-mercari-desc h4 { font-size: 14px; margin: 0 0 4px; color: #333; }
-.sim-mercari-desc p { font-size: 13px; color: #666; line-height: 1.5; margin: 0; }
-.sim-mercari-seller { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid #eee; }
-.sim-mercari-seller-avatar {
-  width: 36px; height: 36px; border-radius: 50%; background: #4dc9f6;
-  color: #fff; display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 14px;
-}
-.sim-mercari-rating { font-size: 11px; color: #f59e0b; display: flex; align-items: center; gap: 2px; }
-
 /* ── Chat simulation ──────────────────────────────────────────── */
 .sim-chat { display: flex; flex-direction: column; min-height: 400px; }
 .sim-chat-header {
@@ -7815,6 +7760,25 @@ body {
   flex: 1;
   display: flex;
   overflow: hidden;
+}
+
+.posting-fullscreen {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+.posting-feed-wrap {
+  cursor: pointer;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  background: var(--bg-card);
+}
+.posting-feed-active {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25), 0 4px 20px rgba(99, 102, 241, 0.1);
+}
+.posting-feed-done {
+  border-color: var(--success) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -9066,6 +9030,105 @@ body {
   border: 1px solid var(--glass-card-border);
 }
 
+/* ── Concierge Polling Status ─────────────────────────────────────────── */
+
+.conc-polling-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  border-radius: var(--radius-lg, 12px);
+  background: rgba(24, 119, 242, 0.08);
+  border: 1px solid rgba(24, 119, 242, 0.2);
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.conc-polling-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: #1877f2;
+}
+
+.conc-polling-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1877f2;
+}
+
+.conc-polling-dot.pulse {
+  animation: conc-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes conc-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(24, 119, 242, 0.5); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(24, 119, 242, 0); }
+}
+
+.conc-polling-timer {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.conc-timer-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.conc-timer-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+}
+
+.conc-polling-agents {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* ── Concierge Activity Feed ──────────────────────────────────────────── */
+
+.conc-activity-feed {
+  max-height: 180px;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 500px;
+  margin: 8px auto 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-card-border);
+  font-size: 12px;
+}
+
+.conc-activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.conc-activity-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #1877f2;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
 .conc-action-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
@@ -9123,7 +9186,192 @@ body {
   transform: translateX(-2px);
 }
 
-/* ── Exploding Nodes Grid ─────────────────────────────────── */
+/* ── Concierge Carousel ──────────────────────────────────── */
+
+.cc-carousel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cc-carousel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.cc-carousel-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.cc-stage {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.cc-stage-slide {
+  width: 100%;
+}
+
+.cc-slide {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  height: 100%;
+  min-height: 420px;
+}
+
+.cc-slide-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cc-slide-right {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cc-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.cc-item-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+}
+
+.cc-item-img {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cc-item-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cc-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cc-item-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-item-price {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--success);
+  font-family: var(--font-mono);
+}
+
+.cc-item-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.cc-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: cc-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes cc-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0); }
+}
+
+.cc-browser {
+  flex: 1;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  min-height: 200px;
+}
+
+.cc-browser .pw-browser-mock {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-browser .pw-browser-body {
+  flex: 1;
+}
+
+.cc-header-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  margin-left: auto;
+}
+
+/* Make LiveConversation fill the right panel */
+.cc-slide-right .conc-conversations {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.cc-slide-right .conc-chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Exploding Nodes Grid (legacy) ───────────────────────── */
 
 .conc-nodes-grid {
   display: flex;

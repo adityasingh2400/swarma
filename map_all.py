@@ -7,10 +7,6 @@ async def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     route_order = [
-        "ebay_listing",      # most important — failed before due to login
-        "ebay_research",
-        "mercari_listing",
-        "mercari_research",
         "facebook_listing",
         "facebook_research",
         "depop_listing",

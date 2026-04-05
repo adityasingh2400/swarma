@@ -182,6 +182,15 @@ export default function App() {
     if (hasListingFrame) setTopbarStepIdx(2);
   }, [topbarStepIdx, v2Agents, screenshots]);
 
+  // Auto-advance to Concierge when all listing agents finish
+  useEffect(() => {
+    if (topbarStepIdx !== 2) return;
+    const listingAgents = Object.values(v2Agents || {}).filter(a => a.phase === 'listing');
+    if (listingAgents.length === 0) return;
+    const allDone = listingAgents.every(a => a.status === 'complete' || a.status === 'error' || a.status === 'blocked');
+    if (allDone) setTopbarStepIdx(3);
+  }, [topbarStepIdx, v2Agents]);
+
   const handleTopbarStep = useCallback((groupIdx) => {
     setTopbarStepIdx(groupIdx);
     setTheaterNavRequest({ groupIdx, id: Date.now() });
@@ -226,7 +235,7 @@ export default function App() {
         <header className="topbar posting-dev-topbar">
           <div className="topbar-brand">
             <SwarmaLogo size={28} />
-            <span className="topbar-title">Swarma</span>
+            <span className="topbar-title">SwarmSell</span>
             <span className="topbar-subtitle posting-dev-badge">Posting only · mock data</span>
           </div>
           <p className="posting-dev-hint">
@@ -253,7 +262,7 @@ export default function App() {
           >
             <div className="topbar-brand" onClick={() => { window.location.href = window.location.pathname; }} style={{ cursor: 'pointer' }}>
               <SwarmaLogo size={28} />
-              <span className="topbar-title">Swarma</span>
+              <span className="topbar-title">SwarmSell</span>
               {mock.isMock && <span className="topbar-subtitle">MOCK MODE</span>}
             </div>
             <TopbarSteps

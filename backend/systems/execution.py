@@ -50,21 +50,16 @@ class ExecutionSystem:
                 logger.info("Skipping %s — already live", platform)
                 return existing
 
-            if platform == "ebay":
-                return await self._execute_ebay(package)
-            elif platform == "mercari":
-                return await self._execute_mercari(package)
-            else:
-                adapter = self._adapters.get(platform)
-                if adapter is None:
-                    logger.warning("No adapter registered for platform=%s", platform)
-                    return PlatformListing(
-                        platform=platform,
-                        status=PlatformStatus.SKIPPED,
-                        error=f"No adapter for {platform}",
-                    )
-                draft = await adapter.create_draft(package)
-                return await adapter.publish(draft)
+            adapter = self._adapters.get(platform)
+            if adapter is None:
+                logger.warning("No adapter registered for platform=%s", platform)
+                return PlatformListing(
+                    platform=platform,
+                    status=PlatformStatus.SKIPPED,
+                    error=f"No adapter for {platform}",
+                )
+            draft = await adapter.create_draft(package)
+            return await adapter.publish(draft)
 
         results = await asyncio.gather(
             *[_execute_single(p) for p in platforms],
@@ -86,48 +81,3 @@ class ExecutionSystem:
         await store.set_listing(package)
         return package
 
-    async def _execute_ebay(self, package: ListingPackage) -> PlatformListing:
-        adapter = self._adapters.get("ebay")
-        if adapter is None:
-            from backend.adapters.ebay import EbayAdapter
-            adapter = EbayAdapter()
-            self._adapters["ebay"] = adapter
-
-        try:
-            draft = await adapter.create_draft(package)
-            published = await adapter.publish(draft)
-            logger.info(
-                "eBay listing live: listing_id=%s for item=%s",
-                published.platform_listing_id,
-                package.item_id,
-            )
-            return published
-        except Exception:
-            logger.exception("eBay execution failed for item=%s", package.item_id)
-            return PlatformListing(
-                platform="ebay",
-                status=PlatformStatus.FAILED,
-                error="eBay listing creation failed",
-            )
-
-    async def _execute_mercari(self, package: ListingPackage) -> PlatformListing:
-        adapter = self._adapters.get("mercari")
-        if adapter is None:
-            from backend.adapters.mercari import MercariImportAdapter
-            adapter = MercariImportAdapter()
-            self._adapters["mercari"] = adapter
-
-        try:
-            draft = await adapter.create_draft(package)
-            logger.info(
-                "Mercari import CSV prepared for item=%s",
-                package.item_id,
-            )
-            return draft
-        except Exception:
-            logger.exception("Mercari execution failed for item=%s", package.item_id)
-            return PlatformListing(
-                platform="mercari",
-                status=PlatformStatus.FAILED,
-                error="Mercari CSV generation failed",
-            )

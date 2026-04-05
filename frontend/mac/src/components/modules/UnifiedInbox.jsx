@@ -7,8 +7,8 @@ const DEMO_THREADS = [
   {
     thread_id: 't1',
     item_id: 'demo-1',
-    platform: 'ebay',
-    buyer_handle: 'tech_deals_23',
+    platform: 'facebook',
+    buyer_handle: 'Sarah M.',
     seriousness_score: 0.9,
     current_offer: 750,
     suggested_reply: "I appreciate the offer! The lowest I can go is $770 since it includes all accessories. Let me know!",
@@ -23,7 +23,7 @@ const DEMO_THREADS = [
   {
     thread_id: 't2',
     item_id: 'demo-1',
-    platform: 'mercari',
+    platform: 'facebook',
     buyer_handle: 'sarah_m_shop',
     seriousness_score: 0.5,
     current_offer: 680,

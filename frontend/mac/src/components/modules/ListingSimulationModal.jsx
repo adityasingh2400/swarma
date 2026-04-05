@@ -3,31 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, MessageSquare, Send, Star, MapPin, Heart, Share2, ShoppingCart, Tag, Truck, Shield, Clock, User, ThumbsUp, Eye } from 'lucide-react';
 
 const PLATFORMS = [
-  { id: 'ebay', label: 'eBay', color: '#e53238', accent: '#0064d2' },
   { id: 'facebook', label: 'Facebook Marketplace', color: '#1877f2', accent: '#1877f2' },
-  { id: 'mercari', label: 'Mercari', color: '#4dc9f6', accent: '#4dc9f6' },
 ];
 
 const CHAT_SCENARIOS = {
-  ebay: [
-    { delay: 800, sender: 'buyer', name: 'tech_deals_23', text: "Hi! Is this still available?" },
-    { delay: 2200, sender: 'seller', text: "Yes, it's still available! Let me know if you have any questions." },
-    { delay: 3800, sender: 'buyer', name: 'tech_deals_23', text: "What's the lowest you'd go?" },
-    { delay: 5500, sender: 'seller', text: "I can do $5 off for a quick sale. The condition is exactly as described." },
-    { delay: 7200, sender: 'buyer', name: 'tech_deals_23', text: "Deal! I'll buy it now. Thanks!" },
-  ],
   facebook: [
     { delay: 1000, sender: 'buyer', name: 'Sarah M.', text: "Is this available?" },
     { delay: 2500, sender: 'seller', text: "Yes it is! Are you in the area for pickup?" },
     { delay: 4000, sender: 'buyer', name: 'Sarah M.', text: "I'm about 15 min away. Can I come today?" },
     { delay: 5800, sender: 'seller', text: "Sure! I'm free after 3pm. I'll send you the address." },
     { delay: 7500, sender: 'buyer', name: 'Sarah M.', text: "Perfect, see you then! 🙂" },
-  ],
-  mercari: [
-    { delay: 900, sender: 'buyer', name: 'vintage_finds', text: "Love this! Would you accept $10 less?" },
-    { delay: 2800, sender: 'seller', text: "I can meet you halfway — how about $5 off?" },
-    { delay: 4500, sender: 'buyer', name: 'vintage_finds', text: "Sounds good! Buying now." },
-    { delay: 6000, sender: 'system', text: "vintage_finds purchased this item for the agreed price." },
   ],
 };
 
@@ -185,73 +170,8 @@ function FacebookListing({ item, listing }) {
           <div className="sim-fb-seller">
             <div className="sim-fb-seller-avatar">R</div>
             <div>
-              <strong>Swarma Store</strong>
+              <strong>SwarmSell Store</strong>
               <div className="sim-fb-seller-meta">Joined 2024 · Typically responds within an hour</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Mercari listing UI ──────────────────────────────────────── */
-function MercariListing({ item, listing }) {
-  const price = listing?.price_strategy || 0;
-  const title = listing?.title || item?.name_guess || 'Item';
-  const desc = listing?.description || '';
-  const condition = listing?.condition_summary || item?.condition_label || 'Used';
-  const allImages = item?.hero_frame_paths || [];
-  const [activeImgIdx, setActiveImgIdx] = useState(0);
-  const heroImg = allImages[activeImgIdx] || allImages[0];
-
-  return (
-    <div className="sim-mercari">
-      <div className="sim-mercari-topbar">
-        <span className="sim-mercari-logo">mercari</span>
-      </div>
-      <div className="sim-mercari-body">
-        <div className="sim-mercari-gallery">
-          {heroImg
-            ? <img src={heroImg} alt={title} />
-            : <div className="sim-mercari-placeholder">📷</div>
-          }
-          <div className="sim-mercari-likes">
-            <Heart size={12} /> 3
-          </div>
-          {allImages.length > 1 && (
-            <div className="sim-mercari-gallery-dots">
-              {allImages.map((_, i) => (
-                <span key={i}
-                  className={`sim-mercari-dot ${i === activeImgIdx ? 'active' : ''}`}
-                  onClick={() => setActiveImgIdx(i)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="sim-mercari-info">
-          <h2 className="sim-mercari-title">{title}</h2>
-          <div className="sim-mercari-price">${formatPrice(price)}</div>
-          <div className="sim-mercari-shipping">
-            <Truck size={12} /> Free shipping
-          </div>
-          <div className="sim-mercari-condition">
-            Condition: <strong>{condition}</strong>
-          </div>
-          <div className="sim-mercari-action-row">
-            <button className="sim-mercari-buy-btn">Buy now</button>
-            <button className="sim-mercari-offer-btn">Make offer</button>
-          </div>
-          <div className="sim-mercari-desc">
-            <h4>Description</h4>
-            <p>{desc || 'No description provided.'}</p>
-          </div>
-          <div className="sim-mercari-seller">
-            <div className="sim-mercari-seller-avatar">R</div>
-            <div>
-              <strong>swarma_store</strong>
-              <div className="sim-mercari-rating"><Star size={10} fill="currentColor" /> 5.0 (12 ratings)</div>
             </div>
           </div>
         </div>
@@ -357,12 +277,12 @@ function LiveChat({ itemId }) {
   );
 }
 
-/* ─── Simulated chat (eBay / Mercari — automated) ─────────────── */
+/* ─── Simulated chat (eBay — automated) ────────────────────────── */
 function ChatSimulation({ platformId }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const chatEndRef = useRef(null);
-  const scenario = CHAT_SCENARIOS[platformId] || CHAT_SCENARIOS.ebay;
+  const scenario = CHAT_SCENARIOS[platformId] || CHAT_SCENARIOS.facebook;
 
   useEffect(() => {
     setMessages([]);
@@ -477,9 +397,7 @@ export default function ListingSimulationModal({ item, listing, onClose }) {
           <AnimatePresence mode="wait">
             {tab === 'listing' ? (
               <motion.div key={`listing-${platform.id}`} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.2 }}>
-                {platform.id === 'ebay' && <EbayListing item={item} listing={listing} />}
                 {platform.id === 'facebook' && <FacebookListing item={item} listing={listing} />}
-                {platform.id === 'mercari' && <MercariListing item={item} listing={listing} />}
               </motion.div>
             ) : (
               <motion.div key={`chat-${platform.id}`} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.2 }}>

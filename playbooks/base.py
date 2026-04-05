@@ -143,7 +143,7 @@ class BasePlaybook(Playbook):
         if data is None:
             return self._make_research_result(0.0, 0, price_type=price_type, error="invalid json")
         # Handle both key formats, filter non-numeric values (agents sometimes return "339.99 to 409.99")
-        raw_prices = data.get("sold_prices") or data.get("prices") or []
+        raw_prices = data.get("sold_prices") if "sold_prices" in data else data.get("prices", [])
         prices = []
         for p in raw_prices:
             if isinstance(p, (int, float)):
@@ -157,7 +157,7 @@ class BasePlaybook(Playbook):
                         prices.append(float(match.group()))
                     except ValueError:
                         pass
-        raw_count = data.get("listings_found") or data.get("count")
+        raw_count = data.get("listings_found") if "listings_found" in data else data.get("count")
         if raw_count is None:
             count = len(prices)
         elif isinstance(raw_count, str):

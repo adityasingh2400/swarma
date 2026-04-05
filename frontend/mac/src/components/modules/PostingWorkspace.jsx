@@ -14,10 +14,7 @@ import { ACTIVE_STATUSES, STATUS_COMPLETE, STATUS_ERROR, STATUS_BLOCKED } from '
 const E = [0.22, 1, 0.36, 1];
 
 const PLATFORMS = [
-  { id: 'ebay', domain: 'ebay.com/sell', seed: 'pw-ebay' },
   { id: 'facebook', domain: 'facebook.com/marketplace', seed: 'pw-fb' },
-  { id: 'depop', domain: 'depop.com/create', seed: 'pw-depop' },
-  { id: 'mercari', domain: 'mercari.com/sell', seed: 'pw-merc' },
 ];
 
 const CORNER_CLASSES = ['pw-corner-tl', 'pw-corner-tr', 'pw-corner-bl', 'pw-corner-br'];

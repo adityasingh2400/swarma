@@ -91,7 +91,7 @@ class _OrchestratorStub:
         self._agents: dict[str, dict] = {}
 
     async def start_pipeline(self, job_id: str, items: list[ItemCard]) -> None:
-        platforms = ["ebay", "facebook", "amazon"]
+        platforms = ["facebook", "depop", "amazon"]
         for item in items:
             for platform in platforms:
                 agent_id = f"{platform}-research-{item.item_id}"
@@ -114,8 +114,32 @@ class _OrchestratorStub:
     def get_agent_states(self, job_id: str) -> dict[str, dict]:
         return dict(self._agents)
 
+    def release_research(self):
+        pass
+
 
 orchestrator = _create_orchestrator()
+
+
+# ── Facebook Inbox Poller (Concierge) ─────────────────────────────────────────
+# Lazy-loaded to avoid import errors if fb_inbox_poller deps are missing.
+
+_fb_poller = None  # type: ignore
+
+
+def _get_fb_poller():
+    global _fb_poller
+    if _fb_poller is None:
+        try:
+            import sys as _sys2
+            _sys2.path.insert(0, str(Path(__file__).resolve().parent.parent))
+            from fb_inbox_poller import FBInboxPoller
+            _fb_poller = FBInboxPoller(broadcast_fn=ws_manager.broadcast_event)
+            swarma_line("server", "fb_poller_created")
+        except Exception as exc:
+            logger.warning("FB poller unavailable: %s", exc)
+            swarma_line("server", "fb_poller_unavailable", error=str(exc))
+    return _fb_poller
 
 
 # ── In-Memory Job Store ───────────────────────────────────────────────────────
@@ -278,17 +302,25 @@ async def _screenshot_push_loop(job_id: str):
                 continue
 
             now = time.time()
-            for agent_id in get_all_agent_ids():
+            active_ids = get_all_agent_ids()
+            for agent_id in active_ids:
                 if now - last_sent.get(agent_id, 0) < interval:
                     continue
+                try:
+                    jpeg_bytes = get_frame_for_delivery(agent_id)
+                    if jpeg_bytes is None:
+                        continue
 
-                jpeg_bytes = get_frame_for_delivery(agent_id)
-                if jpeg_bytes is None:
-                    continue
+                    binary_frame = encode_binary_frame(agent_id, jpeg_bytes)
+                    await ws_manager.broadcast_screenshot(job_id, binary_frame)
+                    last_sent[agent_id] = now
+                except Exception:
+                    pass  # skip this agent's frame, don't kill the loop
 
-                binary_frame = encode_binary_frame(agent_id, jpeg_bytes)
-                await ws_manager.broadcast_screenshot(job_id, binary_frame)
-                last_sent[agent_id] = now
+            # Prune last_sent entries for agents no longer streaming
+            stale_keys = [k for k in last_sent if k not in active_ids]
+            for k in stale_keys:
+                del last_sent[k]
 
             await asyncio.sleep(interval)
 
@@ -479,6 +511,10 @@ async def _run_pipeline(job_id: str, video_path: str):
 
         job.status = JobStatus.COMPLETED
         job.touch()
+        await ws_manager.broadcast_event(job_id, {
+            "type": "job_updated",
+            "data": {"status": JobStatus.COMPLETED.value},
+        })
         swarma_line("pipeline", "run_pipeline_completed", job_id=job_id)
 
     except Exception as exc:
@@ -506,6 +542,12 @@ async def _run_pipeline(job_id: str, video_path: str):
                 await task
             except asyncio.CancelledError:
                 pass
+
+        # Free intake frames from memory — they're already saved to disk
+        freed = _intake_frame_store.pop(job_id, None)
+        if freed:
+            swarma_line("pipeline", "intake_frames_freed",
+                        job_id=job_id, frames_freed=len(freed))
 
 
 # ── App Lifecycle ─────────────────────────────────────────────────────────────
@@ -946,7 +988,7 @@ async def get_item_screenshots(job_id: str, item_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
     import base64
-    platforms = ["ebay", "facebook", "depop"]
+    platforms = ["facebook", "depop", "amazon"]
     result = {}
     item_prefix = item_id[:6]
     for platform in platforms:
@@ -957,6 +999,111 @@ async def get_item_screenshots(job_id: str, item_id: str):
         else:
             result[platform] = None
     return result
+
+
+# ── Concierge Polling Endpoints ───────────────────────────────────────────────
+
+
+@app.post("/api/jobs/{job_id}/start-concierge")
+async def start_concierge(job_id: str):
+    """Start FB Marketplace inbox polling agents for all items in this job.
+
+    Called when the Concierge page mounts. Launches one browser agent per item
+    that polls the FB Marketplace selling inbox every ~3s for new buyer messages,
+    auto-generates replies via Gemini, and types them back into FB Messenger.
+    Agents auto-stop after 90 seconds.
+    """
+    job = _jobs.get(job_id)
+    if not job:
+        swarma_line("http", "start_concierge", job_id=job_id, error="job_not_found")
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    poller = _get_fb_poller()
+    if poller is None:
+        swarma_line("http", "start_concierge", job_id=job_id, error="poller_unavailable")
+        raise HTTPException(status_code=503, detail="FB poller not available")
+
+    if poller.is_running():
+        swarma_line("http", "start_concierge", job_id=job_id, status="already_running")
+        return {"status": "already_running", "remaining_s": poller._time_remaining()}
+
+    items = _job_items.get(job_id, [])
+    if not items:
+        swarma_line("http", "start_concierge", job_id=job_id, error="no_items")
+        raise HTTPException(status_code=400, detail="No items in this job")
+
+    item_dicts = []
+    for item in items:
+        price = 0.0
+        try:
+            from backend.storage.store import store
+            decision = store.get_decision(item.item_id)
+            if decision:
+                price = getattr(decision, "estimated_best_value", 0) or 0
+        except Exception:
+            pass
+        if not price and hasattr(item, "listing_package") and item.listing_package:
+            price = item.listing_package.price_strategy or 0
+        item_dicts.append({
+            "item_id": item.item_id,
+            "name": item.name_guess,
+            "price": price,
+        })
+
+    # Launch polling in background
+    asyncio.create_task(_run_concierge(poller, job_id, item_dicts))
+    swarma_line("http", "start_concierge", job_id=job_id, items_n=len(item_dicts))
+    return {"status": "started", "items": len(item_dicts), "remaining_s": 90}
+
+
+async def _run_concierge(poller, job_id: str, items: list[dict]):
+    """Background task: run poller, auto-stop after 90s."""
+    try:
+        await poller.start(job_id, items)
+        # Wait until stopped or timeout
+        while poller.is_running() and poller._time_remaining() > 0:
+            await asyncio.sleep(1)
+        await poller.stop()
+        swarma_line("concierge", "auto_stopped", job_id=job_id)
+    except Exception as exc:
+        swarma_line("concierge", "error", job_id=job_id, error=str(exc))
+        try:
+            await poller.stop()
+        except Exception:
+            pass
+
+
+@app.post("/api/jobs/{job_id}/stop-concierge")
+async def stop_concierge(job_id: str):
+    """Stop FB Marketplace inbox polling agents.
+
+    Called when the Concierge page unmounts or user navigates away.
+    """
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    poller = _get_fb_poller()
+    if poller and poller.is_running():
+        asyncio.create_task(poller.stop())
+        swarma_line("http", "stop_concierge", job_id=job_id, status="stopping")
+        return {"status": "stopping"}
+
+    swarma_line("http", "stop_concierge", job_id=job_id, status="not_running")
+    return {"status": "not_running"}
+
+
+@app.get("/api/jobs/{job_id}/concierge-status")
+async def concierge_status(job_id: str):
+    """Check if concierge polling is active and how much time is left."""
+    poller = _get_fb_poller()
+    if poller and poller.is_running():
+        return {
+            "running": True,
+            "remaining_s": round(poller._time_remaining(), 1),
+            "agents": len(poller._tasks),
+        }
+    return {"running": False, "remaining_s": 0, "agents": 0}
 
 
 # ── WebSocket Endpoints ───────────────────────────────────────────────────────

@@ -48,4 +48,4 @@ export const PHASE_RESEARCH = 'research';
 export const PHASE_LISTING = 'listing';
 
 // ── Platform IDs ───────────────────────────────────────────────────
-export const PLATFORMS = ['ebay', 'facebook', 'mercari', 'depop'];
+export const PLATFORMS = ['facebook', 'depop', 'amazon'];

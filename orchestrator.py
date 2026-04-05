@@ -601,12 +601,33 @@ class Orchestrator:
 
                 try:
                     swarma_line("agent", "retry_start", agent_id=agent_id)
+
+                    retry_box: list[Agent | None] = [None]
+                    retry_sc_started = [False]
+
+                    async def _retry_screencast_hook(state, model_output, step):
+                        """Start screencast on the first step of the retry agent."""
+                        if retry_sc_started[0]:
+                            return
+                        retry_sc_started[0] = True
+                        try:
+                            if retry_box[0] and retry_box[0].browser_session:
+                                page = await retry_box[0].browser_session.get_current_page()
+                                await streaming.start_screencast(agent_id, page)
+                                swarma_line("agent", "retry_screencast_started", agent_id=agent_id)
+                        except Exception:
+                            pass
+
                     retry_agent = self._build_agent(
                         agent_id, task_str, profile,
                         initial_actions=initial_actions,
                         use_vision=use_vision,
+                        platform=playbook.platform,
+                        phase=phase,
                         file_paths=file_paths,
+                        step_prehook=_retry_screencast_hook,
                     )
+                    retry_box[0] = retry_agent
                     self.agents[agent_id] = retry_agent
 
                     history = await retry_agent.run()
@@ -711,6 +732,7 @@ class Orchestrator:
 
         async def _preload_one(item: ItemCard, pb: Playbook, agent_id: str):
             """Launch one browser, navigate to target URL, start screencast."""
+            session = None
             try:
                 profile = self._make_profile(pb.platform)
                 session = BrowserSession(browser_profile=profile)
@@ -734,6 +756,18 @@ class Orchestrator:
                 if page:
                     await streaming.start_screencast(agent_id, page)
 
+                    # Run extraction JS during preload so agent starts with data
+                    extract_js = get_extraction_js(pb.platform)
+                    if extract_js:
+                        try:
+                            await asyncio.sleep(2)  # let DOM settle after navigation
+                            await page.evaluate(extract_js)
+                            swarma_line("preload", "extraction_done",
+                                        agent_id=agent_id, platform=pb.platform)
+                        except Exception as js_err:
+                            swarma_line("preload", "extraction_failed",
+                                        agent_id=agent_id, error=str(js_err))
+
                 preloaded_sessions[agent_id] = session
                 self._update_state(agent_id, status="preloaded")
                 self._emit(AgentEvent(
@@ -743,6 +777,16 @@ class Orchestrator:
                 swarma_line("preload", "done", agent_id=agent_id, url=nav_url or "none")
             except Exception as exc:
                 swarma_line("preload", "failed", agent_id=agent_id, error=str(exc))
+                self._update_state(agent_id, status="preload_failed")
+                self._emit(AgentEvent(
+                    type="agent:error", agent_id=agent_id,
+                    data={"error": f"Preload failed: {exc}", "status": "preload_failed"},
+                ))
+                if session:
+                    try:
+                        await session.close()
+                    except Exception:
+                        pass
 
         preload_tasks = [
             _preload_one(item, pb, aid) for item, pb, aid in agent_plan
@@ -784,6 +828,15 @@ class Orchestrator:
                 if not parsed:
                     swarma_line("pipeline", "no_research_results_skip_listing",
                                 job_id=job_id, item=item.name_guess)
+                    self._emit(AgentEvent(
+                        type="agent:error",
+                        agent_id=f"research-{item.item_id}",
+                        data={
+                            "item_id": item.item_id,
+                            "error": "All research agents failed — no pricing data available",
+                            "status": "blocked",
+                        },
+                    ))
                     return
 
                 decision: RouteDecision = route_decision(item, parsed)
@@ -817,6 +870,21 @@ class Orchestrator:
                             price=listing_pkg.price_strategy,
                             condition=listing_pkg.condition_summary)
 
+                if listing_pkg.price_strategy <= 0:
+                    swarma_line("pipeline", "skip_listing_zero_price",
+                                job_id=job_id, item=item.name_guess,
+                                reason="price_strategy is 0 — all research failed or returned no prices")
+                    self._emit(AgentEvent(
+                        type="agent:error",
+                        agent_id=f"listing-{item.item_id}",
+                        data={
+                            "item_id": item.item_id,
+                            "error": "Cannot list: no valid price from research",
+                            "status": "blocked",
+                        },
+                    ))
+                    return
+
                 listing_tasks = [
                     self.run_agent(item, get_playbook(platform), "listing")
                     for platform in decision.platforms
@@ -842,4 +910,12 @@ class Orchestrator:
             swarma_line("pipeline", "complete", job_id=job_id)
 
         finally:
+            # Clean up any preloaded sessions that were never consumed by agents
+            for aid, sess in list(self._preloaded_sessions.items()):
+                try:
+                    await sess.close()
+                    swarma_line("pipeline", "cleanup_preloaded", agent_id=aid)
+                except Exception:
+                    pass
+            self._preloaded_sessions.clear()
             await _stop_focus_guard()

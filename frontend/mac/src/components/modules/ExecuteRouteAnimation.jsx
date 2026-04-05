@@ -12,34 +12,15 @@ const MAROON = {
 };
 
 const BRANCHES = [
-  { id: 'ebay', label: 'eBay', xPct: 18, yPct: 24, delay: 0.35 },
-  { id: 'facebook', label: 'Marketplace', xPct: 50, yPct: 15, delay: 0.5 },
-  { id: 'mercari', label: 'Mercari', xPct: 82, yPct: 24, delay: 0.65 },
+  { id: 'facebook', label: 'Marketplace', xPct: 50, yPct: 24, delay: 0.35 },
 ];
 
 function PlatformLogo({ id, x, y }) {
-  if (id === 'ebay') {
-    return (
-      <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="central"
-        fontSize="16" fontWeight="700" letterSpacing="-0.5"
-        fontFamily="'Helvetica Neue', Helvetica, Arial, sans-serif" fill="#fff">
-        <tspan fill="#e53238">e</tspan><tspan fill="#0064d2">b</tspan><tspan fill="#f5af02">a</tspan><tspan fill="#86b817">y</tspan>
-      </text>
-    );
-  }
   if (id === 'facebook') {
     return (
       <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="central"
         fontSize="22" fontWeight="300" fontFamily="'Helvetica Neue', Helvetica, Arial, sans-serif" fill="#fff">
         f
-      </text>
-    );
-  }
-  if (id === 'mercari') {
-    return (
-      <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="central"
-        fontSize="18" fontWeight="800" fontFamily="'Helvetica Neue', Helvetica, Arial, sans-serif" fill="#fff">
-        m
       </text>
     );
   }

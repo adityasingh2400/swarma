@@ -163,7 +163,7 @@ function ItemDetailExpanded({ item, decision, onClose, onExecuteItem }) {
           <button
             className="ide-execute"
             onClick={() => {
-              onExecuteItem(item.item_id, ['ebay', 'mercari']);
+              onExecuteItem(item.item_id, ['facebook']);
               onClose();
             }}
           >
@@ -236,7 +236,7 @@ function DecisionCard({ item, decision, onExecuteItem, onExpand }) {
         className="decision-fs-execute"
         onClick={(e) => {
           e.stopPropagation();
-          onExecuteItem(item.item_id, ['ebay', 'mercari']);
+          onExecuteItem(item.item_id, ['facebook']);
         }}
       >
         <Zap size={14} />
@@ -372,7 +372,7 @@ export default function DecisionPanel({ items, decisions, agents = {}, onExecute
                       className="decision-fs-execute"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onExecuteItem(item.item_id, ['ebay', 'mercari']);
+                        onExecuteItem(item.item_id, ['facebook']);
                       }}
                     >
                       <Zap size={14} />

@@ -87,7 +87,7 @@ export default function IntakePanel({ onUpload, fullscreen }) {
         transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
       >
         <SwarmaLogo size={38} />
-        <span className="intake-brand-name">Swarma</span>
+        <span className="intake-brand-name">SwarmSell</span>
       </motion.div>
 
       <div className="intake-fs-content">

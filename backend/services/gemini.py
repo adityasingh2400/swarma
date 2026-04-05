@@ -532,9 +532,9 @@ class GeminiService:
         # ── Phase 3: Marketplace searches (parallel, all 9 keys) ──
         t2 = _t.time()
         platform_groups = [
-            ["Mercari", "Swappa"],
-            ["Facebook Marketplace", "OfferUp"],
-            ["Poshmark", "Amazon", "Craigslist"],
+            ["Swappa", "OfferUp"],
+            ["Facebook Marketplace", "Poshmark"],
+            ["Amazon", "Craigslist"],
         ]
         search_tasks = []
         for item in items:
@@ -1123,7 +1123,7 @@ class GeminiService:
             t0 = _time.time()
             prompt = (
                 'Search for "' + item_name + '"' + condition_hint + " currently listed for RESALE (used/pre-owned) online. "
-                "Find 6-10 real active listings from RESALE marketplaces like eBay, Mercari, Swappa, "
+                "Find 6-10 real active listings from RESALE marketplaces like eBay, Swappa, "
                 "Facebook Marketplace, OfferUp, Poshmark, Craigslist.\n\n"
                 "CRITICAL RULES:\n"
                 "- Only include USED, PRE-OWNED, or OPEN BOX listings from individual sellers\n"
@@ -1133,7 +1133,7 @@ class GeminiService:
                 "- match_score must reflect how closely the listing matches the EXACT product "
                 "(same brand, model, size, color). Penalize heavily for wrong model/version.\n\n"
                 "For each listing, return a JSON array of objects with these exact fields:\n"
-                "- platform: marketplace name lowercase (ebay, mercari, swappa, facebook, offerup, poshmark, craigslist, other)\n"
+                "- platform: marketplace name lowercase (ebay, swappa, facebook, offerup, poshmark, craigslist, other)\n"
                 "- title: the exact listing title as shown\n"
                 "- price: the listed price as a float in USD (0 if not shown)\n"
                 "- condition: condition as listed (e.g. Used - Good, Like New, For Parts, etc.)\n"
@@ -1268,7 +1268,6 @@ class GeminiService:
     def _mock_comps(query: str) -> list[ComparableListing]:
         return [
             ComparableListing(platform="ebay", title=f"{query} - Excellent Condition", price=89.99, shipping="FREE", condition="Like New", url="", match_score=94),
-            ComparableListing(platform="mercari", title=f"{query} - Gently Used", price=75.00, shipping="$5.99", condition="Good", url="", match_score=90),
             ComparableListing(platform="swappa", title=f"{query} - Good Condition", price=82.50, shipping="FREE", condition="Good", url="", match_score=87),
             ComparableListing(platform="facebook", title=f"{query} - Used", price=65.00, shipping="Local pickup", condition="Good", url="", match_score=82),
             ComparableListing(platform="offerup", title=f"{query} - Great Deal", price=70.00, shipping="$7.99", condition="Good", url="", match_score=78),

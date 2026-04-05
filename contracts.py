@@ -24,7 +24,7 @@ class AgentEvent(BaseModel):
 class AgentState(BaseModel):
     agent_id: str
     item_id: str
-    platform: str  # "ebay" | "facebook" | "mercari" | "depop"
+    platform: str  # "facebook" | "depop" | "amazon"
     phase: str  # "research" | "listing"
     status: str  # "queued" | "running" | "retrying" | "complete" | "error" | "blocked"
     task: str  # human-readable description
@@ -40,7 +40,7 @@ class AgentState(BaseModel):
 
 class RouteDecision(BaseModel):
     item_id: str
-    platforms: list[str]  # ["ebay", "facebook", "mercari"] — top 3-4 by score
+    platforms: list[str]  # ["ebay", "facebook"] — top 3-4 by score
     prices: dict[str, float]  # {"ebay": 799.0, "facebook": 750.0, ...}
     scores: dict[str, float] = Field(default_factory=dict)  # raw scores per platform
 
@@ -50,7 +50,7 @@ class RouteDecision(BaseModel):
 # ---------------------------------------------------------------------------
 
 class Playbook(ABC):
-    platform: str  # "ebay" | "facebook" | "mercari" | "depop"
+    platform: str  # "facebook" | "depop" | "amazon"
 
     @abstractmethod
     def research_task(self, item: ItemCard) -> tuple[str, list[dict]]:

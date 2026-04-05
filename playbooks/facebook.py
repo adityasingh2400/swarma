@@ -7,6 +7,20 @@ from models.listing_package import ListingPackage
 from playbooks.base import BasePlaybook
 
 
+_CATEGORY_LABELS = {
+    "electronics": "Electronics",
+    "clothing": "Clothing & Accessories",
+    "accessories": "Clothing & Accessories",
+    "home": "Home & Garden",
+    "sports": "Sporting Goods",
+    "toys": "Toys & Games",
+    "books": "Books, Movies & Music",
+    "tools": "Tools & Hardware",
+    "automotive": "Auto Parts & Accessories",
+    "other": "Miscellaneous",
+}
+
+
 class FacebookPlaybook(BasePlaybook):
     platform = "facebook"
     CONDITION_MAP = {"Like New": "Like New", "Good": "Good", "Fair": "Fair"}
@@ -35,40 +49,35 @@ Return as JSON: {"sold_prices": [N, N, N, ...], "listings_found": N}
         images_str = self._format_image_paths(images)
         condition = self._map_condition(item.condition_label)
         price = int(round(package.price_strategy))
+        category_label = _CATEGORY_LABELS.get(item.category.value, "Miscellaneous")
 
-        task = f"""
-If you see a 'Marketplace Terms' or 'Get started' dialog, accept/dismiss it first.
+        task = f"""If you see a 'Marketplace Terms' or 'Get started' dialog, accept/dismiss it first.
 
-1. For Photos: click the photo upload area. Upload these files in order:
+STEP 1 — PHOTOS: Upload these files using the file input (upload_file action on the file input element):
 {images_str}
-   The first photo becomes the listing thumbnail. Wait for uploads to complete.
+Wait briefly for uploads to finish.
 
-2. For Title: type exactly: {title}
+STEP 2 — TITLE: Type exactly: {title}
 
-3. For Price: enter {price}
+STEP 3 — PRICE: Enter: {price}
 
-4. For Category: select the most relevant category for '{item.name_guess}'.
+STEP 4 — CATEGORY: Use this JavaScript to set category automatically:
+evaluate: (function(){{ const inp = document.querySelector('input[aria-label="Category"]'); if(inp) {{ inp.focus(); inp.value = ""; const nativeSet = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set; nativeSet.call(inp, "{category_label}"); inp.dispatchEvent(new Event("input", {{bubbles:true}})); inp.dispatchEvent(new Event("change", {{bubbles:true}})); }} return "typed {category_label}"; }})()
+Then wait 2 seconds and click the first suggestion that appears in the dropdown.
+If no dropdown appears, just proceed — category is optional on Facebook.
 
-5. For Condition: select '{condition}'.
+STEP 5 — CONDITION: Click the Condition dropdown and select '{condition}'.
 
-6. For Description: paste this text exactly:
+STEP 6 — DESCRIPTION: Type this text:
 {package.description}
 
-Location auto-fills from your profile. No shipping needed for local listings.
+STEP 7 — PUBLISH: Use JavaScript to click through Next/Publish:
+evaluate: document.querySelectorAll('div[role="button"]').forEach(b => {{ const t = b.innerText.trim().toLowerCase(); if(t === 'next' || t === 'publish') b.click() }})
+Run this JS 3 times with a 2-second wait between each to advance through all steps.
 
-7. To advance through 'Next' and 'Publish' buttons:
-   IMPORTANT — Facebook's dynamic DOM often invalidates element indices after page transitions.
-   If clicking a 'Next' or 'Publish' button fails or the index is unavailable, immediately
-   use JavaScript instead:
-   evaluate: document.querySelectorAll('div[role="button"]').forEach(b => {{ if(b.innerText.trim() === 'Next' || b.innerText.trim() === 'Publish') b.click() }})
+After publishing, return the listing URL or confirm success.
+Do NOT spend more than 2 attempts on any single action. Use JS evaluate as fallback for any stuck button."""
 
-   Click 'Next' through each step until you reach 'Publish'. Click 'Publish' to post.
-
-8. After publishing, you should be redirected to the Selling dashboard.
-   Return the listing URL. If you see 'Boost your listing', close the dialog first.
-
-CRITICAL: Do not spend more than 2 attempts on any single button click. Use JS evaluate as fallback.
-"""
         return (task.strip(), [{"navigate": {"url": "https://facebook.com/marketplace/create/item"}}])
 
     def parse_research(self, result: str) -> dict:

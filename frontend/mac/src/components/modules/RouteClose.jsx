@@ -5,15 +5,12 @@ import AnimatedValue from '../shared/AnimatedValue';
 import Badge from '../shared/Badge';
 
 const DEMO_WINNER = {
-  platform: 'ebay',
-  buyer: 'tech_deals_23',
+  platform: 'facebook',
+  buyer: 'Sarah M.',
   amount: 770,
 };
 
 const DEMO_LOSERS = [
-  { platform: 'mercari', reason: 'Lower offer' },
-  { platform: 'facebook', reason: 'No response' },
-  { platform: 'offerup', reason: 'Timed out' },
 ];
 
 const DEMO_TOTAL = 770;

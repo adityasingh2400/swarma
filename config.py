@@ -27,9 +27,7 @@ class Settings(BaseSettings):
     gemini_api_key_10: str = ""
 
     # Auth — storage_state JSON files per platform
-    ebay_cookies: str = "./auth/ebay-cookies.json"
     facebook_cookies: str = "./auth/facebook-cookies.json"
-    mercari_cookies: str = "./auth/mercari-cookies.json"
     depop_cookies: str = "./auth/depop-cookies.json"
 
     # Screencast
@@ -48,9 +46,7 @@ class Settings(BaseSettings):
     def storage_state_map(self) -> dict[str, str | None]:
         """Map platform name to cookie file path, or None if file doesn't exist."""
         mapping = {
-            "ebay": self.ebay_cookies,
             "facebook": self.facebook_cookies,
-            "mercari": self.mercari_cookies,
             "depop": self.depop_cookies,
         }
         return {

@@ -19,10 +19,6 @@ const MOCK_TASKS = {
     research: 'Scouting Facebook Marketplace for comparable prices',
     listing: 'Creating Facebook Marketplace listing — uploading photos',
   },
-  mercari: {
-    research: 'Checking Mercari pricing trends and demand signals',
-    listing: 'Posting to Mercari — filling category, description, photos',
-  },
   depop: {
     research: 'Browsing Depop for similar items in this category',
     listing: 'Creating Depop listing — setting price and shipping',
@@ -30,10 +26,9 @@ const MOCK_TASKS = {
 };
 
 const PLATFORM_COLORS = {
-  ebay: '#FF6B6B',
   facebook: '#FF9F43',
-  mercari: '#34D399',
   depop: '#FBBF24',
+  amazon: '#FF9900',
 };
 
 function generatePlaceholderBlob(platform, phase, status) {
@@ -42,7 +37,7 @@ function generatePlaceholderBlob(platform, phase, status) {
   canvas.height = 400;
   const ctx = canvas.getContext('2d');
 
-  const bg = { ebay: '#FFF1E6', facebook: '#FFF7F0', mercari: '#FFF3EA', depop: '#FFFAF4' };
+  const bg = { ebay: '#FFF1E6', facebook: '#FFF7F0', depop: '#FFFAF4' };
   ctx.fillStyle = bg[platform] || '#FFF1E6';
   ctx.fillRect(0, 0, 640, 400);
 
@@ -300,7 +295,6 @@ function buildMockBids() {
         comparable_listings: [
           { platform: 'eBay', title: 'iPhone 15 Pro 256GB Natural Titanium Unlocked', price: 869, image_url: null },
           { platform: 'eBay', title: 'Apple iPhone 15 Pro 256GB - Excellent Condition', price: 839, image_url: null },
-          { platform: 'Mercari', title: 'iPhone 15 Pro 256GB Titanium Mint', price: 845, image_url: null },
           { platform: 'Facebook', title: 'iPhone 15 Pro 256gb Natural Titanium', price: 825, image_url: null },
         ],
       },
@@ -326,7 +320,6 @@ function buildMockBids() {
         confidence: 0.91,
         comparable_listings: [
           { platform: 'eBay', title: 'AirPods Pro 2nd Gen USB-C BNIB', price: 195, image_url: null },
-          { platform: 'Mercari', title: 'Apple AirPods Pro 2 USB-C New', price: 180, image_url: null },
         ],
       },
       {
@@ -349,7 +342,6 @@ function buildMockBids() {
         confidence: 0.9,
         comparable_listings: [
           { platform: 'eBay', title: 'Apple Watch Ultra 2 49mm Titanium', price: 639, image_url: null },
-          { platform: 'Mercari', title: 'Ultra 2 Titanium Excellent', price: 615, image_url: null },
         ],
       },
       {

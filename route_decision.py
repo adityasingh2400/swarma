@@ -11,16 +11,14 @@ _SPEED_SCORES = {"instant": 1.0, "days": 0.9, "week": 0.7, "weeks": 0.45, "month
 
 # Default assumptions per platform when research doesn't provide these
 _PLATFORM_EFFORT = {
-    "ebay": "moderate",
     "facebook": "low",
-    "mercari": "moderate",
     "depop": "moderate",
+    "amazon": "moderate",
 }
 _PLATFORM_SPEED = {
-    "ebay": "week",
     "facebook": "days",
-    "mercari": "week",
     "depop": "weeks",
+    "amazon": "week",
 }
 
 

@@ -196,9 +196,21 @@ export function useJob(jobId) {
           break;
 
         case 'decision_made':
-        case 'decision:made':
-          setDecisions((prev) => ({ ...prev, [data.item_id]: data }));
+        case 'decision:made': {
+          const prices = data.prices || {};
+          const bestPlatform = Object.entries(prices).sort((a, b) => b[1] - a[1])[0];
+          const bestValue = bestPlatform ? Math.round(bestPlatform[1]) : 0;
+          setDecisions((prev) => ({
+            ...prev,
+            [data.item_id]: {
+              ...data,
+              best_route: 'sell_as_is',
+              estimated_best_value: bestValue,
+              route_reason: bestPlatform ? `Best return via ${bestPlatform[0]}` : '',
+            },
+          }));
           break;
+        }
 
         case 'listing_updated':
           setListings((prev) => ({ ...prev, [data.item_id]: data }));
@@ -362,6 +374,15 @@ export function useJob(jobId) {
               listing_url: data.listing_url || null,
               timestamp: data.timestamp || Date.now() / 1000,
             },
+          }));
+          break;
+
+        case 'concierge:started':
+        case 'concierge:stopped':
+        case 'concierge:message_received':
+        case 'concierge:reply_sent':
+          window.dispatchEvent(new CustomEvent('ws-event', {
+            detail: { type, data },
           }));
           break;
       }

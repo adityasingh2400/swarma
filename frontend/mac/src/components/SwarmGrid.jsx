@@ -7,7 +7,7 @@ import {
   STATUS_COMPLETE, PHASE_RESEARCH, PHASE_LISTING,
 } from '../utils/contracts';
 
-const PLATFORM_ICONS = { ebay: Globe, facebook: Globe, mercari: Globe, depop: Globe };
+const PLATFORM_ICONS = { facebook: Globe, depop: Globe, amazon: Globe };
 const PHASE_ICON = { [PHASE_RESEARCH]: Search, [PHASE_LISTING]: FileEdit };
 
 function statusLabel(status) {

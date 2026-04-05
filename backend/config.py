@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     frames_dir: str = "./data/frames"
     optimized_dir: str = "./data/optimized"
     jobs_dir: str = "./data/jobs"
+    listing_images_dir: str = "./data/listing-images"
 
     # Agentverse
     agentverse_api_key: str = ""
@@ -114,7 +115,7 @@ class Settings(BaseSettings):
         return f"{self.ebay_base_url}/sell/inventory/v1"
 
     def ensure_dirs(self) -> None:
-        for d in (self.upload_dir, self.frames_dir, self.optimized_dir, self.jobs_dir):
+        for d in (self.upload_dir, self.frames_dir, self.optimized_dir, self.jobs_dir, self.listing_images_dir):
             Path(d).mkdir(parents=True, exist_ok=True)
 
 

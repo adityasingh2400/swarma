@@ -8,59 +8,29 @@ from __future__ import annotations
 from browser_use import Tools, ActionResult, BrowserSession
 
 # JavaScript snippets per marketplace that extract prices from the DOM
-EBAY_SOLD_JS = """
-(() => {
-    const items = document.querySelectorAll('.s-item');
-    const prices = [];
-    for (let i = 0; i < Math.min(items.length, 10); i++) {
-        const el = items[i];
-        const priceEl = el.querySelector('.s-item__price .POSITIVE, .s-item__price span');
-        if (priceEl) {
-            const text = priceEl.textContent.replace(/[^0-9.]/g, '');
-            const price = parseFloat(text);
-            if (price > 0) prices.push(price);
-        }
-    }
-    const totalEl = document.querySelector('.srp-controls__count-heading span, h1.srp-controls__count-heading');
-    let total = 0;
-    if (totalEl) {
-        const m = totalEl.textContent.replace(/,/g, '').match(/([0-9]+)/);
-        if (m) total = parseInt(m[1]);
-    }
-    const avg = prices.length > 0 ? prices.reduce((a,b) => a+b, 0) / prices.length : 0;
-    return JSON.stringify({prices, avg: Math.round(avg * 100) / 100, count: prices.length, total_listings: total});
-})()
-"""
-
-MERCARI_JS = """
-(() => {
-    const items = document.querySelectorAll('[data-testid="ItemCell"], [class*="ItemCell"]');
-    const prices = [];
-    // Try multiple selectors for price elements
-    const allPriceEls = document.querySelectorAll('[data-testid="ItemPrice"], [class*="price"], [class*="Price"]');
-    for (const el of allPriceEls) {
-        const text = el.textContent.replace(/[^0-9.]/g, '');
-        const price = parseFloat(text);
-        if (price > 10 && price < 10000 && prices.length < 10) prices.push(price);
-    }
-    // Deduplicate (some elements may have both original and discounted price)
-    const unique = [...new Set(prices)].slice(0, 10);
-    const avg = unique.length > 0 ? unique.reduce((a,b) => a+b, 0) / unique.length : 0;
-    return JSON.stringify({prices: unique, avg: Math.round(avg * 100) / 100, count: unique.length, total_listings: 0});
-})()
-"""
 
 FACEBOOK_JS = """
 (() => {
-    const items = document.querySelectorAll('[class*="x1lliihq"]');
     const prices = [];
-    // FB Marketplace uses spans with price text like "$400"
-    const spans = document.querySelectorAll('span');
-    for (const span of spans) {
-        const text = span.textContent.trim();
-        if (/^\\$[0-9,]+(\\.\\d{2})?$/.test(text) && prices.length < 10) {
-            const price = parseFloat(text.replace(/[$,]/g, ''));
-            if (price > 10 && price < 10000) prices.push(price);
+    // Scope to listing card links to avoid nav/ad price noise
+    const listingLinks = document.querySelectorAll('a[href*="/marketplace/item/"]');
+    for (const link of listingLinks) {
+        for (const span of link.querySelectorAll('span')) {
+            const text = span.textContent.trim();
+            if (/^\\$[0-9,]+(\\.\\d{2})?$/.test(text)) {
+                const price = parseFloat(text.replace(/[$,]/g, ''));
+                if (price > 10 && price < 10000) { prices.push(price); break; }
+            }
+        }
+    }
+    // Fallback: if no listing links matched, scan all spans
+    if (prices.length === 0) {
+        for (const span of document.querySelectorAll('span')) {
+            const text = span.textContent.trim();
+            if (/^\\$[0-9,]+(\\.\\d{2})?$/.test(text) && prices.length < 15) {
+                const price = parseFloat(text.replace(/[$,]/g, ''));
+                if (price > 10 && price < 10000) prices.push(price);
+            }
         }
     }
     const unique = [...new Set(prices)].slice(0, 10);
@@ -87,16 +57,14 @@ DEPOP_JS = """
 """
 
 PLATFORM_JS = {
-    "ebay": EBAY_SOLD_JS,
-    "mercari": MERCARI_JS,
     "facebook": FACEBOOK_JS,
     "depop": DEPOP_JS,
 }
 
 
-def get_extraction_js(platform: str) -> str:
-    """Return the JavaScript extraction code for a platform."""
-    return PLATFORM_JS.get(platform, FACEBOOK_JS)
+def get_extraction_js(platform: str) -> str | None:
+    """Return the JavaScript extraction code for a platform, or None if unsupported."""
+    return PLATFORM_JS.get(platform)
 
 
 def make_initial_actions(platform: str, search_url: str) -> list[dict]:

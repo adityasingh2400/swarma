@@ -36,17 +36,6 @@ DEMOS = [
         ),
     },
     {
-        "name": "mercari",
-        "url": "https://www.mercari.com/sell/",
-        "task": (
-            "You are logged into Mercari's sell page. Do these steps:\n"
-            "1. If there are any popups or modals, dismiss them\n"
-            "2. Find the field for the item name/title and type: 'iPhone 15 Pro 256GB Unlocked'\n"
-            "3. STOP here. Do NOT click 'List' or submit. Do NOT fill other fields.\n"
-            "4. Call done and confirm you filled the title."
-        ),
-    },
-    {
         "name": "depop",
         "url": "https://www.depop.com/products/create/",
         "task": (

@@ -17,14 +17,12 @@ const EASE = [0.32, 0.72, 0, 1];
 const SPRING = { type: 'spring', damping: 25, stiffness: 200 };
 
 const PLATFORM_META = {
-  ebay:     { label: 'eBay',     color: '#FF6B6B', gradient: 'linear-gradient(135deg, #FF6B6B, #FF8E8E)' },
-  mercari:  { label: 'Mercari',  color: '#A78BFA', gradient: 'linear-gradient(135deg, #A78BFA, #C4B5FD)' },
   facebook: { label: 'Facebook', color: '#FF9F43', gradient: 'linear-gradient(135deg, #FF9F43, #FFBE76)' },
   depop:    { label: 'Depop',    color: '#FF2300', gradient: 'linear-gradient(135deg, #FF2300, #FF6347)' },
   amazon:   { label: 'Amazon',   color: '#FF9900', gradient: 'linear-gradient(135deg, #FF9900, #FFB347)' },
 };
 
-const RESALE_PLATFORMS = ['ebay', 'mercari', 'facebook', 'depop', 'amazon'];
+const RESALE_PLATFORMS = ['facebook', 'depop', 'amazon'];
 
 function getAgentScreenshot(screenshots, agentId) {
   if (!screenshots || !agentId) return null;
@@ -105,7 +103,7 @@ function AmbientBlobs({ colors }) {
 
 // ── Live Agent Feed Tile ─────────────────────────────
 function AgentFeedTile({ platform, screenshotUrl, agent, onClick }) {
-  const meta = PLATFORM_META[platform] || PLATFORM_META.ebay;
+  const meta = PLATFORM_META[platform] || PLATFORM_META.facebook;
   const isActive = agent && ACTIVE_STATUSES.has(agent.status);
   const isDone = agent?.status === STATUS_COMPLETE;
 
@@ -142,7 +140,7 @@ function AgentFeedTile({ platform, screenshotUrl, agent, onClick }) {
 
 // ── Platform result row ──────────────────────────────
 function PlatResult({ platform, price, delay = 0, scanning = false }) {
-  const meta = PLATFORM_META[platform] || PLATFORM_META.ebay;
+  const meta = PLATFORM_META[platform] || PLATFORM_META.facebook;
   return (
     <motion.div
       className="rp2-plat"
@@ -307,7 +305,7 @@ function RepairPanel({ item, bids, phase }) {
             <>
               <div className="rp2-damage-row">
                 <AlertTriangle size={12} />
-                {item.visible_defects.map((d, i) => <span key={i}>{d.description}</span>)}
+                {(item.visible_defects || []).map((d, i) => <span key={i}>{d.description}</span>)}
               </div>
               {isViable && (
                 <div className="rp2-repair-compare">

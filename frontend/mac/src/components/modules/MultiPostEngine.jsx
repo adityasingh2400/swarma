@@ -6,11 +6,7 @@ import Badge from '../shared/Badge';
 const STAGES = ['preparing', 'drafting', 'publishing', 'live'];
 
 const DEMO_PLATFORMS = [
-  { id: 'l1', platform: 'ebay', status: 'live', link: '#' },
-  { id: 'l2', platform: 'mercari', status: 'publishing', link: null },
   { id: 'l3', platform: 'facebook', status: 'drafting', link: null },
-  { id: 'l4', platform: 'offerup', status: 'preparing', link: null },
-  { id: 'l5', platform: 'poshmark', status: 'preparing', link: null },
 ];
 
 function StatusPill({ status }) {

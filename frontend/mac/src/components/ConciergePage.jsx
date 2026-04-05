@@ -3,16 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye, Package, X, ChevronLeft, ChevronRight,
   MessageSquare, Send, Star, Check, ExternalLink,
-  Tag, Truck,
+  Tag, Truck, Globe, Monitor, Loader2,
 } from 'lucide-react';
 import SwarmaLogo from './SwarmaLogo';
+import BrowserFeed from './BrowserFeed';
+import ItemDetailModal from './shared/ItemDetailModal';
 
 const EASE = [0.32, 0.72, 0, 1];
 
 const PLATFORM_META = {
-  ebay: { label: 'eBay', color: '#e53238', accent: '#0064d2' },
   facebook: { label: 'Facebook', color: '#1877f2', accent: '#1877f2' },
-  mercari: { label: 'Mercari', color: '#4dc9f6', accent: '#4dc9f6' },
   depop: { label: 'Depop', color: '#ff2300', accent: '#ff2300' },
 };
 
@@ -25,7 +25,7 @@ function formatPrice(price) {
 function LiveConversation({ itemId, jobId, platform }) {
   const [threads, setThreads] = useState([]);
   const [replyText, setReplyText] = useState({});
-  const chatEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   const fetchThreads = useCallback(async () => {
     if (!jobId) return;
@@ -34,12 +34,28 @@ function LiveConversation({ itemId, jobId, platform }) {
       const r = await fetch(`${BASE}/api/jobs/${jobId}/inbox`);
       if (!r.ok) return;
       const all = await r.json();
-      const filtered = all.filter(t => t.item_id === itemId && (!platform || t.platform === platform));
-      setThreads(filtered);
+      // Show all threads — FB inbox polling can't reliably map
+      // conversations to specific items, so surface everything.
+      const filtered = all;
+
+      const enriched = await Promise.all(filtered.map(async (t) => {
+        const lastMsg = t.messages?.[t.messages.length - 1];
+        if (lastMsg?.sender === 'buyer' && !t.suggested_reply) {
+          try {
+            const sr = await fetch(`${BASE}/api/jobs/${jobId}/inbox/${t.thread_id}/suggest`);
+            if (sr.ok) {
+              const { suggested_reply } = await sr.json();
+              return { ...t, suggested_reply };
+            }
+          } catch { /* ignore */ }
+        }
+        return t;
+      }));
+      setThreads(enriched);
     } catch (err) {
       console.error('Failed to fetch inbox:', err);
     }
-  }, [jobId, itemId, platform]);
+  }, [jobId, itemId]);
 
   useEffect(() => {
     fetchThreads();
@@ -48,7 +64,7 @@ function LiveConversation({ itemId, jobId, platform }) {
   }, [fetchThreads]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
   }, [threads]);
 
   const handleSend = useCallback(async (threadId) => {
@@ -68,7 +84,7 @@ function LiveConversation({ itemId, jobId, platform }) {
     }
   }, [replyText, jobId, fetchThreads]);
 
-  const meta = PLATFORM_META[platform] || PLATFORM_META.ebay;
+  const meta = PLATFORM_META[platform] || PLATFORM_META.facebook;
 
   if (threads.length === 0) {
     return (
@@ -81,9 +97,8 @@ function LiveConversation({ itemId, jobId, platform }) {
   }
 
   return (
-    <div className="conc-conversations" style={{ '--platform-color': meta.color }}>
+    <div className="conc-conversations" ref={scrollContainerRef} style={{ '--platform-color': meta.color }}>
       {threads.map(thread => {
-        const lastMsg = thread.messages?.[thread.messages.length - 1];
         return (
           <div key={thread.thread_id} className="conc-thread glass-card">
             <div className="conc-thread-header">
@@ -99,7 +114,6 @@ function LiveConversation({ itemId, jobId, platform }) {
                   <span>{msg.text}</span>
                 </div>
               ))}
-              <div ref={chatEndRef} />
             </div>
             {thread.suggested_reply && (
               <div
@@ -126,224 +140,165 @@ function LiveConversation({ itemId, jobId, platform }) {
   );
 }
 
-// ── Platform Screenshot / Listing Preview ────────────────────────────────────
+// ── Concierge Slide (one per item in carousel) ─────────────────────────────
 
-function PlatformPreview({ item, platform, screenshot, listing }) {
-  if (screenshot) {
-    return (
-      <div className="conc-screenshot-wrap">
-        <img src={screenshot} alt={`${platform} listing`} className="conc-screenshot-img" />
-        <div className="conc-screenshot-badge">
-          <Check size={10} />
-          <span>Live on {PLATFORM_META[platform]?.label || platform}</span>
-        </div>
-      </div>
-    );
-  }
-
-  const price = listing?.price_strategy || item?.estimated_value || 0;
-  const title = listing?.title || item?.name_guess || 'Item';
+function ConciergeSlide({ item, decision, screenshots, listings, jobId }) {
+  const itemId = item?.item_id;
+  const title = item?.name_guess || 'Item';
   const heroImg = item?.hero_frame_paths?.[0];
+  const price = decision?.estimated_best_value || listings?.[itemId]?.price_strategy || 0;
+
+  // Concierge agent screencast key
+  const agentId = `fb-concierge-${(itemId || '').slice(0, 8)}`;
+  const shot = screenshots instanceof Map ? screenshots.get(agentId) : screenshots?.[agentId];
+  const screenshotUrl = shot?.url || null;
 
   return (
-    <div className="conc-listing-preview">
-      <div className="conc-listing-hero">
-        {heroImg ? <img src={heroImg} alt={title} /> : <div className="conc-listing-placeholder">No image</div>}
-      </div>
-      <div className="conc-listing-info">
-        <h3>{title}</h3>
-        <div className="conc-listing-price">${formatPrice(price)}</div>
-        <div className="conc-listing-meta">
-          <Tag size={12} /> {item?.condition || 'Used'}
-          <Truck size={12} style={{ marginLeft: 12 }} /> Free shipping
+    <div className="cc-slide">
+      <div className="cc-slide-left">
+        {/* Item card */}
+        <div className="cc-item-card glass-card">
+          <div className="cc-item-img">
+            {heroImg
+              ? <img src={heroImg} alt={title} />
+              : <Package size={32} strokeWidth={1.2} style={{ opacity: 0.3 }} />
+            }
+          </div>
+          <div className="cc-item-info">
+            <h3 className="cc-item-name">{title}</h3>
+            {price > 0 && <span className="cc-item-price">${formatPrice(price)}</span>}
+            <div className="cc-item-status">
+              <span className="cc-live-dot" />
+              <span>Live on Facebook</span>
+            </div>
+          </div>
         </div>
+
+        {/* Browser feed */}
+        <div className="cc-browser glass-card">
+          <div className="pw-browser-mock">
+            <div className="pw-browser-chrome">
+              <div className="pw-browser-dots"><span /><span /><span /></div>
+              <div className="pw-browser-url">
+                <Globe size={9} className="pw-browser-url-icon" />
+                <span>facebook.com/marketplace</span>
+              </div>
+              <motion.span
+                className="pw-browser-live-badge"
+                animate={{ opacity: [1, 0.4, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                style={{ fontSize: 9, fontWeight: 700, color: '#4ade80', marginLeft: 'auto', marginRight: 6 }}
+              >LIVE</motion.span>
+            </div>
+            <div className="pw-browser-body">
+              {screenshotUrl ? (
+                <BrowserFeed screenshotUrl={screenshotUrl} size="thumbnail" />
+              ) : (
+                <div className="pw-browser-fallback pw-browser-fallback-visible">
+                  <Monitor size={20} strokeWidth={1.25} />
+                  <span>Agent monitoring inbox...</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right: Live chat */}
+      <div className="cc-slide-right glass-card">
+        <div className="cc-chat-header">
+          <MessageSquare size={14} />
+          <span>Buyer Messages</span>
+        </div>
+        <LiveConversation itemId={itemId} jobId={jobId} platform="facebook" />
       </div>
     </div>
   );
 }
 
-// ── Item Detail Modal ────────────────────────────────────────────────────────
+// ── Concierge Carousel (PostingWorkspace-style) ─────────────────────────────
 
-function ItemDetailModal({ item, decisions, screenshots, listings, postingStatus, jobId, onClose, onSendReply }) {
-  const postedPlatforms = useMemo(() => {
-    if (!postingStatus || !item) return Object.keys(PLATFORM_META);
-    const posted = [];
-    for (const key of Object.keys(postingStatus)) {
-      const [iid, plat] = key.split(':');
-      if (iid === item.item_id) posted.push(plat);
-    }
-    return posted.length > 0 ? posted : Object.keys(PLATFORM_META);
-  }, [item, postingStatus]);
+const slideVariants = {
+  enter: (dir) => ({ x: dir > 0 ? 300 : -300, opacity: 0, scale: 0.95 }),
+  center: { x: 0, opacity: 1, scale: 1 },
+  exit: (dir) => ({ x: dir > 0 ? -300 : 300, opacity: 0, scale: 0.95 }),
+};
 
-  const [platformIdx, setPlatformIdx] = useState(0);
-  const [tab, setTab] = useState('listing');
-  const platform = postedPlatforms[platformIdx] || 'ebay';
-  const meta = PLATFORM_META[platform] || PLATFORM_META.ebay;
+function ConciergeCarousel({ items, decisions, screenshots, listings, jobId }) {
+  const [idx, setIdx] = useState(0);
+  const [dir, setDir] = useState(1);
 
-  const prev = useCallback(() => setPlatformIdx(i => (i - 1 + postedPlatforms.length) % postedPlatforms.length), [postedPlatforms]);
-  const next = useCallback(() => setPlatformIdx(i => (i + 1) % postedPlatforms.length), [postedPlatforms]);
-
-  useEffect(() => { setTab('listing'); }, [platformIdx]);
+  const goPrev = useCallback(() => { setDir(-1); setIdx(i => Math.max(0, i - 1)); }, []);
+  const goNext = useCallback(() => { setDir(1); setIdx(i => Math.min(items.length - 1, i + 1)); }, [items.length]);
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight') next();
-      if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'ArrowRight') goNext();
+      if (e.key === 'ArrowLeft') goPrev();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, next, prev]);
+  }, [goNext, goPrev]);
 
-  const screenshotUrl = screenshots instanceof Map
-    ? screenshots.get(`${platform}-listing-${item?.item_id?.slice(0, 6)}`)?.url
-    : screenshots?.[`${platform}-listing-${item?.item_id?.slice(0, 6)}`]?.url;
-
-  const decision = decisions?.[item?.item_id];
+  const item = items[idx];
+  if (!item) return null;
 
   return (
-    <motion.div
-      className="sim-overlay"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <motion.div
-        className="conc-detail-modal glass-enhanced"
-        style={{ '--platform-color': meta.color, '--platform-accent': meta.accent }}
-        initial={{ scale: 0.92, opacity: 0, y: 30 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.92, opacity: 0, y: 30 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      >
-        <div className="conc-modal-header">
-          <button className="sim-nav-btn" onClick={prev}><ChevronLeft size={18} /></button>
-          <div className="conc-platform-tabs">
-            {postedPlatforms.map((p, i) => (
+    <div className="cc-carousel">
+      <div className="cc-carousel-header">
+        <span className="cc-carousel-count">
+          {items.length} item{items.length !== 1 ? 's' : ''} live
+        </span>
+        {items.length > 1 && (
+          <div className="pw-carousel-dots">
+            {items.map((_, i) => (
               <button
-                key={p}
-                className={`sim-platform-tab ${i === platformIdx ? 'active' : ''}`}
-                style={i === platformIdx ? { borderColor: PLATFORM_META[p]?.color, color: PLATFORM_META[p]?.color } : {}}
-                onClick={() => setPlatformIdx(i)}
-              >
-                {PLATFORM_META[p]?.label || p}
-              </button>
+                key={i}
+                className={`pw-dot ${i === idx ? 'pw-dot-active' : ''}`}
+                onClick={() => { setDir(i > idx ? 1 : -1); setIdx(i); }}
+              />
             ))}
           </div>
-          <button className="sim-nav-btn" onClick={next}><ChevronRight size={18} /></button>
-          <button className="sim-close-btn" onClick={onClose}><X size={16} /></button>
-        </div>
-
-        <div className="sim-tab-bar">
-          <button className={`sim-tab ${tab === 'listing' ? 'active' : ''}`} onClick={() => setTab('listing')}>
-            <Eye size={13} /> Listing
-          </button>
-          <button className={`sim-tab ${tab === 'chat' ? 'active' : ''}`} onClick={() => setTab('chat')}>
-            <MessageSquare size={13} /> Conversations
-          </button>
-        </div>
-
-        <div className="conc-modal-body">
-          <AnimatePresence mode="wait">
-            {tab === 'listing' ? (
-              <motion.div key={`listing-${platform}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                <PlatformPreview item={item} platform={platform} screenshot={screenshotUrl} listing={listings?.[item?.item_id]} />
-              </motion.div>
-            ) : (
-              <motion.div key={`chat-${platform}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                <LiveConversation itemId={item?.item_id} jobId={jobId} platform={platform} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="conc-modal-footer">
-          <div className="conc-modal-status">
-            <span className="conc-status-dot" style={{ background: meta.color }} />
-            <span>Live on {meta.label}</span>
-          </div>
-          {decision && (
-            <span className="conc-modal-value">
-              Est. ${decision.estimated_best_value || decision.winning_bid?.estimated_value || 0}
-            </span>
-          )}
-          <span className="conc-modal-counter">{platformIdx + 1} / {postedPlatforms.length}</span>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ── Exploding Nodes (View Listings) ──────────────────────────────────────────
-
-function ExplodingNodes({ items, decisions, screenshots, listings, postingStatus, jobId, onSendReply }) {
-  const [selectedItem, setSelectedItem] = useState(null);
-
-  return (
-    <>
-      <motion.div
-        className="conc-nodes-grid"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4 }}
-      >
-        {items.map((item, i) => {
-          const decision = decisions?.[item.item_id];
-          const heroImg = item.hero_frame_paths?.[0];
-          const platformCount = Object.keys(postingStatus || {}).filter(k => k.startsWith(item.item_id)).length || PLATFORM_IDS.length;
-
-          return (
-            <motion.div
-              key={item.item_id}
-              className="conc-node ide-bubble"
-              initial={{ opacity: 0, scale: 0.3, y: 60 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{
-                delay: i * 0.1,
-                type: 'spring',
-                damping: 20,
-                stiffness: 200,
-              }}
-              whileHover={{ scale: 1.05, y: -4 }}
-              onClick={() => setSelectedItem(item)}
-            >
-              <div className="conc-node-img">
-                {heroImg
-                  ? <img src={heroImg} alt={item.name_guess} />
-                  : <Package size={28} style={{ opacity: 0.3 }} />
-                }
-              </div>
-              <div className="conc-node-info">
-                <span className="conc-node-name">{item.name_guess}</span>
-                <span className="conc-node-meta">
-                  {platformCount} platform{platformCount !== 1 ? 's' : ''}
-                  {decision && ` · $${decision.estimated_best_value || ''}`}
-                </span>
-              </div>
-              <div className="conc-node-badge">
-                <Check size={10} />
-              </div>
-            </motion.div>
-          );
-        })}
-      </motion.div>
-
-      <AnimatePresence>
-        {selectedItem && (
-          <ItemDetailModal
-            item={selectedItem}
-            decisions={decisions}
-            screenshots={screenshots}
-            listings={listings}
-            postingStatus={postingStatus}
-            jobId={jobId}
-            onClose={() => setSelectedItem(null)}
-            onSendReply={onSendReply}
-          />
         )}
-      </AnimatePresence>
-    </>
+      </div>
+
+      <div className="cc-stage">
+        {items.length > 1 && idx > 0 && (
+          <motion.button className="pw-carousel-arrow pw-arrow-left" onClick={goPrev}
+            whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <ChevronLeft size={20} />
+          </motion.button>
+        )}
+
+        <AnimatePresence mode="wait" custom={dir}>
+          <motion.div
+            key={item.item_id}
+            className="cc-stage-slide"
+            custom={dir}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.4, ease: EASE }}
+          >
+            <ConciergeSlide
+              item={item}
+              decision={decisions?.[item.item_id]}
+              screenshots={screenshots}
+              listings={listings}
+              jobId={jobId}
+            />
+          </motion.div>
+        </AnimatePresence>
+
+        {items.length > 1 && idx < items.length - 1 && (
+          <motion.button className="pw-carousel-arrow pw-arrow-right" onClick={goNext}
+            whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+            <ChevronRight size={20} />
+          </motion.button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -413,12 +368,135 @@ function ItemsReadyList({ items, decisions, postingStatus, onItemClick }) {
 
 // ── Main Concierge Page ──────────────────────────────────────────────────────
 
+// ── Concierge Polling Hook ────────────────────────────────────────────────────
+
+function useConciergePolling(jobId) {
+  const [polling, setPolling] = useState(false);
+  const [remaining, setRemaining] = useState(90);
+  const [agentCount, setAgentCount] = useState(0);
+  const [activity, setActivity] = useState([]);
+  const startedRef = useRef(false);
+  const intervalRef = useRef(null);
+
+  const start = useCallback(async () => {
+    if (!jobId || startedRef.current) return;
+    startedRef.current = true;
+    try {
+      const BASE = window.location.origin || '';
+      const r = await fetch(`${BASE}/api/jobs/${jobId}/start-concierge`, { method: 'POST' });
+      if (r.ok) {
+        const data = await r.json();
+        setPolling(true);
+        setRemaining(data.remaining_s || 90);
+        setAgentCount(data.items || 0);
+      }
+    } catch (err) {
+      console.error('Failed to start concierge polling:', err);
+    }
+  }, [jobId]);
+
+  const stop = useCallback(async () => {
+    if (!jobId) return;
+    startedRef.current = false;
+    setPolling(false);
+    try {
+      const BASE = window.location.origin || '';
+      await fetch(`${BASE}/api/jobs/${jobId}/stop-concierge`, { method: 'POST' });
+    } catch { /* best-effort */ }
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }, [jobId]);
+
+  // Poll status every second for countdown
+  useEffect(() => {
+    if (!polling || !jobId) return;
+    intervalRef.current = setInterval(async () => {
+      try {
+        const BASE = window.location.origin || '';
+        const r = await fetch(`${BASE}/api/jobs/${jobId}/concierge-status`);
+        if (r.ok) {
+          const data = await r.json();
+          setRemaining(Math.round(data.remaining_s));
+          setAgentCount(data.agents || 0);
+          if (!data.running) {
+            setPolling(false);
+            startedRef.current = false;
+          }
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [polling, jobId]);
+
+  const addActivity = useCallback((msg) => {
+    setActivity(prev => [...prev.slice(-19), { text: msg, ts: Date.now() }]);
+  }, []);
+
+  return { polling, remaining, agentCount, activity, addActivity, start, stop };
+}
+
+// ── Live Activity Feed ───────────────────────────────────────────────────────
+
+function ActivityFeed({ activity }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: 'smooth' });
+  }, [activity]);
+
+  if (!activity.length) return null;
+
+  return (
+    <div className="conc-activity-feed" ref={ref}>
+      {activity.map((a, i) => (
+        <motion.div
+          key={`${a.ts}-${i}`}
+          className="conc-activity-item"
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <span className="conc-activity-dot" />
+          <span>{a.text}</span>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+// ── Main Concierge Page ──────────────────────────────────────────────────────
+
 export default function ConciergePage({
   items, decisions, listings, threads, postingStatus,
   screenshots, jobId, onSendReply, send,
 }) {
   const [view, setView] = useState('hero');
   const [selectedItem, setSelectedItem] = useState(null);
+  const concierge = useConciergePolling(jobId);
+
+  // Auto-start polling when concierge page mounts
+  useEffect(() => {
+    concierge.start();
+    return () => { concierge.stop(); };
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for concierge events from the WebSocket
+  useEffect(() => {
+    const handler = (e) => {
+      try {
+        const msg = e.detail || {};
+        if (msg.type === 'concierge:message_received') {
+          concierge.addActivity(`New message from buyer: "${msg.data?.buyer_message?.slice(0, 60)}..."`);
+        } else if (msg.type === 'concierge:reply_sent') {
+          concierge.addActivity(`Auto-replied: "${msg.data?.reply?.slice(0, 60)}..."`);
+        } else if (msg.type === 'concierge:started') {
+          concierge.addActivity(`FB inbox monitoring started for ${msg.data?.items || 0} items`);
+        } else if (msg.type === 'concierge:stopped') {
+          concierge.addActivity('Inbox monitoring stopped');
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    window.addEventListener('ws-event', handler);
+    return () => window.removeEventListener('ws-event', handler);
+  }, [concierge]);
 
   const totalValue = useMemo(() => {
     return (items || []).reduce((sum, item) => {
@@ -482,8 +560,30 @@ export default function ConciergePage({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.35, ease: EASE }}
             >
-              Swarma agents posted your items across {platformCount} marketplace{platformCount !== 1 ? 's' : ''}
+              SwarmSell agents posted your items across {platformCount} marketplace{platformCount !== 1 ? 's' : ''}
             </motion.p>
+
+            {/* ── Concierge Polling Status Bar ── */}
+            {concierge.polling && (
+              <motion.div
+                className="conc-polling-bar"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.4 }}
+              >
+                <div className="conc-polling-indicator">
+                  <span className="conc-polling-dot pulse" />
+                  <span>Monitoring FB Marketplace inbox</span>
+                </div>
+                <div className="conc-polling-timer">
+                  <span className="conc-timer-value">{concierge.remaining}s</span>
+                  <span className="conc-timer-label">remaining</span>
+                </div>
+                <div className="conc-polling-agents">
+                  <span>{concierge.agentCount} agent{concierge.agentCount !== 1 ? 's' : ''} watching</span>
+                </div>
+              </motion.div>
+            )}
 
             <motion.div
               className="conc-stats"
@@ -524,6 +624,9 @@ export default function ConciergePage({
                 <span>Items Ready</span>
               </button>
             </motion.div>
+
+            {/* ── Live Activity Feed ── */}
+            <ActivityFeed activity={concierge.activity} />
           </motion.div>
         )}
 
@@ -540,15 +643,19 @@ export default function ConciergePage({
                 <ChevronLeft size={14} /> Back
               </button>
               <h2>Your Listings</h2>
+              {concierge.polling && (
+                <div className="cc-header-status">
+                  <span className="cc-live-dot" />
+                  <span>{concierge.remaining}s</span>
+                </div>
+              )}
             </div>
-            <ExplodingNodes
+            <ConciergeCarousel
               items={items || []}
               decisions={decisions}
               screenshots={screenshots}
               listings={listings}
-              postingStatus={postingStatus}
               jobId={jobId}
-              onSendReply={onSendReply}
             />
           </motion.div>
         )}
@@ -577,13 +684,7 @@ export default function ConciergePage({
               {selectedItem && (
                 <ItemDetailModal
                   item={selectedItem}
-                  decisions={decisions}
-                  screenshots={screenshots}
-                  listings={listings}
-                  postingStatus={postingStatus}
-                  jobId={jobId}
                   onClose={() => setSelectedItem(null)}
-                  onSendReply={onSendReply}
                 />
               )}
             </AnimatePresence>

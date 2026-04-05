@@ -1,14 +1,7 @@
 const PLATFORM_MAP = {
-  ebay: 'eBay',
-  depop: 'Depop',
-  mercari: 'Mercari',
-  poshmark: 'Poshmark',
-  offerup: 'OfferUp',
   facebook: 'FB Marketplace',
+  depop: 'Depop',
   amazon: 'Amazon',
-  swappa: 'Swappa',
-  decluttr: 'Decluttr',
-  backmarket: 'Back Market',
 };
 
 export default function Badge({ variant = 'neutral', platform, children, className = '' }) {

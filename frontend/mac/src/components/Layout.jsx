@@ -6,7 +6,8 @@ import AgentTheater from './panels/AgentTheater';
 import DecisionPanel from './panels/DecisionPanel';
 import FocusMode from './FocusMode';
 import ResearchPage from './research/ResearchPage';
-import SwarmGrid from './SwarmGrid';
+import BrowserFeed from './BrowserFeed';
+import ItemDetailModal from './shared/ItemDetailModal';
 import ConciergePage from './ConciergePage';
 import { ACTIVE_STATUSES } from '../utils/contracts';
 
@@ -71,15 +72,14 @@ function makeMockBids(items) {
       {
         route_type: 'sell_as_is', estimated_value: Math.round(base), confidence: 0.7 + Math.random() * 0.25, viable: true,
         comparable_listings: [
-          { platform: 'eBay', price: Math.round(base + 20 + Math.random() * 60), title: `${item.name_guess} - Great condition`, condition: 'Used - Like New', image_url: `https://picsum.photos/seed/eb${item.item_id}/200/200`, url: '#', match_score: 85 + Math.random() * 15 },
-          { platform: 'Mercari', price: Math.round(base - 10 + Math.random() * 40), title: `${item.name_guess} - Like new`, condition: 'Good', image_url: `https://picsum.photos/seed/mc${item.item_id}/200/200`, url: '#', match_score: 78 + Math.random() * 15 },
-          { platform: 'Facebook', price: Math.round(base - 30 + Math.random() * 50), title: `${item.name_guess} - Barely used`, condition: 'Used', image_url: `https://picsum.photos/seed/fb${item.item_id}/200/200`, url: '#', match_score: 70 + Math.random() * 15 },
+          { platform: 'Facebook', price: Math.round(base + 20 + Math.random() * 60), title: `${item.name_guess} - Great condition`, condition: 'Used - Like New', image_url: `https://picsum.photos/seed/fb${item.item_id}/200/200`, url: '#', match_score: 85 + Math.random() * 15 },
+          { platform: 'Depop', price: Math.round(base - 30 + Math.random() * 50), title: `${item.name_guess} - Barely used`, condition: 'Used', image_url: `https://picsum.photos/seed/dp${item.item_id}/200/200`, url: '#', match_score: 70 + Math.random() * 15 },
         ],
       },
       { route_type: 'trade_in', estimated_value: Math.round(base * 0.65), confidence: 0.88, viable: true, provider: 'Apple Trade In', speed: 'days', effort: 'Low', payout: Math.round(base * 0.65) },
       { route_type: 'repair_then_sell', estimated_value: Math.round(base * 1.3), confidence: 0.6, viable: item.visible_defects?.length > 0, repair_parts: [
         { part_name: 'Screen Assembly', part_price: 45, source: 'Amazon', part_image_url: `https://picsum.photos/seed/part0/200/200` },
-        { part_name: 'Battery Kit', part_price: 25, source: 'eBay', part_image_url: `https://picsum.photos/seed/part1/200/200` },
+        { part_name: 'Battery Kit', part_price: 25, source: 'Amazon', part_image_url: `https://picsum.photos/seed/part1/200/200` },
       ]},
     ];
   });
@@ -105,11 +105,11 @@ function makeMockDecisions(items, bids) {
 }
 
 function makeMockListings(items) {
-  const platforms = ['ebay', 'mercari', 'facebook'];
+  const platforms = ['facebook'];
   return items.reduce((acc, item, i) => {
-    acc[item.item_id] = platforms.slice(0, 2 + (i % 2)).map((p) => ({
+    acc[item.item_id] = platforms.map((p) => ({
       platform: p,
-      title: `${item.name_guess} - ${p === 'ebay' ? 'Free Shipping!' : 'Great Deal'}`,
+      title: `${item.name_guess} - Great Deal`,
       price: 180 + Math.round(Math.random() * 200),
       status: i === 0 ? 'live' : 'draft',
       url: '#',
@@ -122,7 +122,7 @@ function makeMockListings(items) {
 function makeMockThreads(items) {
   return items.slice(0, 2).map((item, i) => ({
     thread_id: `thread-${i}`,
-    platform: i === 0 ? 'ebay' : 'mercari',
+    platform: 'facebook',
     buyer: { handle: i === 0 ? 'techbuyer92' : 'dealfinder_x', rating: 4.8 },
     item_id: item.item_id,
     item_name: item.name_guess,
@@ -331,6 +331,7 @@ function LayoutInner({
   const [phase, setPhase] = useState('intake');
   const [videoUrl, setVideoUrl] = useState(null);
   const [focusedAgentId, setFocusedAgentId] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
 
   useEffect(() => {
     return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
@@ -442,24 +443,94 @@ function LayoutInner({
           {phase === 'processing' && topbarStepIdx === 2 && !showConcierge && (
             <motion.div
               key="posting"
-              className="research-fullscreen"
+              className="posting-fullscreen"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
               transition={{ duration: 0.5, ease: EASE }}
             >
-              <div style={{ padding: '24px 32px' }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: 'var(--text-primary)' }}>
-                  Live Listing Agents
-                </h2>
-                <SwarmGrid
-                  v2Agents={v2Agents}
-                  screenshots={screenshots}
-                  onFocusAgent={setFocusedAgentId}
-                  focusedAgentId={focusedAgentId}
-                  filterPhase="listing"
-                />
+              <div className="posting-grid" style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${Math.min(items.length || 1, 3)}, 1fr)`,
+                gap: 20,
+                padding: '24px 28px',
+                height: '100%',
+                alignContent: 'stretch',
+              }}>
+                {items.map((item, i) => {
+                  const condition = item.visible_defects?.length || item.spoken_defects?.length
+                    ? (item.visible_defects?.some?.((d) => d.severity === 'major') ? 'Fair' : 'Good')
+                    : 'Like New';
+                  const listingAgentId = `facebook-listing-${item.item_id}`;
+                  const shot = screenshots instanceof Map
+                    ? screenshots.get(listingAgentId)
+                    : screenshots?.[listingAgentId];
+                  const agent = v2Agents[listingAgentId];
+                  const isActive = agent && ACTIVE_STATUSES.has(agent.status);
+                  const isDone = agent?.status === 'complete';
+
+                  return (
+                    <motion.div
+                      key={item.item_id}
+                      className="posting-col"
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.1, duration: 0.5, ease: EASE }}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}
+                    >
+                      {/* Item card — click opens bubble modal like processing page */}
+                      <motion.div
+                        className="mc-item-tile"
+                        whileHover={{ y: -3, scale: 1.015 }}
+                        whileTap={{ scale: 0.98 }}
+                        style={{ cursor: 'pointer', flexShrink: 0 }}
+                        onClick={() => setSelectedItem(item)}
+                      >
+                        {item.hero_frame_paths?.[0] && (
+                          <div className="mc-tile-img">
+                            <img src={item.hero_frame_paths[0]} alt={item.name_guess} />
+                            <div className="mc-tile-img-overlay">
+                              <span>View Details</span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="mc-tile-header">
+                          <span className="mc-tile-name">{item.name_guess}</span>
+                          <span className={`mc-cond-pill ${condition === 'Like New' ? 'mc-cond-mint' : condition === 'Fair' ? 'mc-cond-fair' : 'mc-cond-good'}`}>
+                            {condition}
+                          </span>
+                        </div>
+                      </motion.div>
+
+                      {/* Facebook live browser feed */}
+                      <div
+                        className={`posting-feed-wrap ${isActive ? 'posting-feed-active' : ''} ${isDone ? 'posting-feed-done' : ''}`}
+                        style={{ flex: 1, minHeight: 0, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}
+                        onClick={() => setFocusedAgentId(listingAgentId)}
+                      >
+                        <div style={{ position: 'absolute', top: 8, left: 10, zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                            background: isDone ? 'var(--success)' : isActive ? 'var(--primary)' : 'var(--bg-card)',
+                            color: isDone || isActive ? '#fff' : 'var(--text-secondary)',
+                            letterSpacing: '0.05em', textTransform: 'uppercase',
+                          }}>
+                            {isDone ? 'Posted' : isActive ? 'Posting...' : 'Queued'}
+                          </span>
+                          <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>Facebook</span>
+                        </div>
+                        <BrowserFeed screenshotUrl={shot?.url} size="full" />
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
+              <AnimatePresence>
+                {selectedItem && (
+                  <ItemDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 

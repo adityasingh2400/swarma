@@ -5,10 +5,10 @@
  */
 
 const SLOT_PLATFORMS = {
-  marketplace_resale: ['ebay', 'mercari'],
-  trade_in: ['apple'],
+  marketplace_resale: ['facebook', 'depop'],
+  trade_in: [],
   return: ['amazon'],
-  repair_roi: ['facebook'],
+  repair_roi: [],
 };
 
 const ACTIVE_V2 = new Set(['queued', 'running', 'navigating', 'filling']);

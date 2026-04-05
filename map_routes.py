@@ -20,73 +20,6 @@ OUTPUT_DIR = "/tmp/swarma-routes"
 # The agent documents what it sees, does NOT fill anything in.
 
 ROUTES = {
-    "ebay_research": {
-        "description": "eBay sold listings search results",
-        "start_url": "https://www.ebay.com/sch/i.html?_nkw=iPhone+15+Pro+256GB&LH_Complete=1&LH_Sold=1",
-        "task": (
-            "You are on an eBay search results page showing sold listings. "
-            "Your job is to DOCUMENT this page — do NOT click or modify anything. "
-            "Describe in detail:\n"
-            "1. Where is the total result count displayed? What text surrounds it?\n"
-            "2. How are individual listings structured? What info does each listing show?\n"
-            "3. Where exactly are the SOLD PRICES displayed for each listing? "
-            "What HTML-visible text format are they in (e.g., '$499.99')?\n"
-            "4. List the first 5 listings with their exact titles and prices as shown.\n"
-            "5. Are there any filters, sorting options, or navigation elements visible?\n"
-            "6. Any popups, banners, or overlays blocking content?\n"
-            "Use the extract tool to get this information from the page content."
-        ),
-    },
-    "ebay_listing": {
-        "description": "eBay listing creation flow",
-        "start_url": "https://www.ebay.com/sell/create",
-        "task": (
-            "You are on eBay's listing creation page. "
-            "Your job is to DOCUMENT every field and button on this page — do NOT fill anything in. "
-            "Describe in detail:\n"
-            "1. What is the URL you're on?\n"
-            "2. List EVERY input field, dropdown, button, and interactive element visible.\n"
-            "3. For each field: what is its visible LABEL text? Is it required?\n"
-            "4. What is the order of fields from top to bottom?\n"
-            "5. Are there sections/groups? What are they called?\n"
-            "6. What does the submit/publish button say?\n"
-            "7. Any popups, login prompts, or blockers?\n"
-            "8. Any dropdowns — what options are visible?\n"
-            "Use the extract tool to capture all field labels and structure from the page."
-        ),
-    },
-    "mercari_research": {
-        "description": "Mercari search results",
-        "start_url": "https://www.mercari.com/search/?keyword=iPhone+15+Pro+256GB",
-        "task": (
-            "You are on Mercari search results. "
-            "DOCUMENT this page — do NOT click or modify anything.\n"
-            "1. Where is the total result count?\n"
-            "2. How are listings structured? What does each listing card show?\n"
-            "3. Where are prices displayed? What text format?\n"
-            "4. List the first 5 listings with exact titles and prices.\n"
-            "5. Any filters, sorting, or navigation?\n"
-            "6. Any popups or overlays?\n"
-            "Use extract to capture this."
-        ),
-    },
-    "mercari_listing": {
-        "description": "Mercari listing creation flow",
-        "start_url": "https://www.mercari.com/sell/",
-        "task": (
-            "You are on Mercari's listing creation page. "
-            "DOCUMENT every field and button — do NOT fill anything in.\n"
-            "1. What URL are you on?\n"
-            "2. List EVERY input field, dropdown, button, and interactive element.\n"
-            "3. For each field: visible LABEL text, required or optional?\n"
-            "4. Order of fields top to bottom.\n"
-            "5. Sections/groups and their names.\n"
-            "6. Submit button text.\n"
-            "7. Any login prompts, popups, blockers?\n"
-            "8. Photo upload area — how does it work?\n"
-            "Use extract to capture all structure."
-        ),
-    },
     "facebook_research": {
         "description": "Facebook Marketplace search results",
         "start_url": "https://www.facebook.com/marketplace/search/?query=iPhone%2015%20Pro%20256GB",
@@ -258,10 +191,6 @@ async def main():
 
     # Run routes ONE AT A TIME, sequentially
     route_order = [
-        "ebay_research",
-        "ebay_listing",
-        "mercari_research",
-        "mercari_listing",
         "facebook_research",
         "facebook_listing",
         "depop_research",
