@@ -28,6 +28,7 @@ from extraction import make_research_tools
 from models.item_card import ItemCard
 from models.listing_package import ListingPackage
 from route_decision import route_decision
+import backend.streaming as streaming
 
 logger = logging.getLogger(__name__)
 
@@ -164,10 +165,19 @@ class Orchestrator:
                      initial_actions: list[dict] | None = None,
                      use_vision: bool | str = False,
                      platform: str = "",
-                     phase: str = "") -> Agent:
+                     phase: str = "",
+                     step_prehook=None) -> Agent:
         """Build an Agent with all speed + visual optimizations."""
-        # Research agents get custom JS extraction tools (replaces slow LLM extract)
         tools = make_research_tools(platform) if phase == "research" else None
+        base_cb = self._make_step_callback(agent_id)
+
+        if step_prehook is not None:
+            async def _combined_cb(state, model_output, step):
+                await step_prehook(state, model_output, step)
+                base_cb(state, model_output, step)
+            cb = _combined_cb
+        else:
+            cb = base_cb
 
         agent = Agent(
             task=task_str,
@@ -179,7 +189,7 @@ class Orchestrator:
             use_vision=use_vision,
             initial_actions=initial_actions,
             tools=tools,
-            register_new_step_callback=self._make_step_callback(agent_id),
+            register_new_step_callback=cb,
         )
         return agent
 
@@ -222,13 +232,28 @@ class Orchestrator:
             use_vision: bool | str = "auto" if phase == "listing" else False
 
             try:
+                # Hook: start CDP screencast on the first step (browser is ready by then).
+                # agent_box holds the agent reference so the closure can reach it
+                # after Agent() returns but before agent.run() fires the callback.
+                agent_box: list[Agent | None] = [None]
+                sc_started = [False]
+
+                async def _screencast_on_first_step(state, model_output, step):
+                    if sc_started[0]:
+                        return
+                    sc_started[0] = True
+                    page = await agent_box[0].browser_session.get_current_page()
+                    await streaming.start_screencast(agent_id, page)
+
                 agent = self._build_agent(
                     agent_id, task_str, profile,
                     initial_actions=initial_actions,
                     use_vision=use_vision,
                     platform=playbook.platform,
                     phase=phase,
+                    step_prehook=_screencast_on_first_step,
                 )
+                agent_box[0] = agent
                 self.agents[agent_id] = agent
 
                 history = await agent.run()
@@ -294,6 +319,7 @@ class Orchestrator:
 
             finally:
                 self.agents.pop(agent_id, None)
+                await streaming.stop_screencast(agent_id)
 
     # --- Pipeline ---
 

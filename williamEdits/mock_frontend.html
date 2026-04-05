@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReRoute v2 — Live Swarm</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #080810;
+      color: #c0c0d0;
+      font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+      font-size: 12px;
+      padding: 16px;
+    }
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 13px;
+      letter-spacing: 3px;
+      color: #6688ff;
+      font-weight: 600;
+    }
+    #status {
+      font-size: 11px;
+      color: #555;
+    }
+    #status.connected { color: #44cc88; }
+    #status.disconnected { color: #cc4444; }
+    #grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .tile {
+      background: #0e0e1a;
+      border: 1px solid #222;
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .tile canvas {
+      display: block;
+      /* CDP outputs at the configured grid size (default 320×240) */
+      width: 320px;
+      height: 240px;
+    }
+    .tile-label {
+      padding: 4px 8px;
+      font-size: 10px;
+      color: #888;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-top: 1px solid #1a1a2e;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>REROUTE V2 — LIVE SWARM</h1>
+    <span id="status">connecting...</span>
+  </header>
+  <div id="grid"></div>
+
+  <script>
+    const params  = new URLSearchParams(location.search);
+    const JOB_ID  = params.get('job') || 'demo';
+    const HOST    = location.hostname || 'localhost';
+    const WS_URL  = `ws://${HOST}:8080/ws/${JOB_ID}/screenshots`;
+
+    const statusEl = document.getElementById('status');
+    const gridEl   = document.getElementById('grid');
+
+    // agentId → canvas 2D context
+    const agents = {};
+
+    const ws = new WebSocket(WS_URL);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      statusEl.textContent = `connected — job: ${JOB_ID}`;
+      statusEl.className = 'connected';
+    };
+
+    ws.onclose = () => {
+      statusEl.textContent = 'disconnected';
+      statusEl.className = 'disconnected';
+    };
+
+    ws.onerror = (e) => {
+      statusEl.textContent = `error — is the server running? (${WS_URL})`;
+      statusEl.className = 'disconnected';
+    };
+
+    ws.onmessage = async (e) => {
+      const buf = new Uint8Array(e.data);
+
+      // Binary frame format: [0x01][32B agentId][4B uint32 BE ts][JPEG...]
+      if (buf[0] !== 0x01 || buf.byteLength < 37) return;
+
+      const agentId = new TextDecoder('utf-8')
+        .decode(buf.slice(1, 33))
+        .replace(/\0+$/, '');
+
+      // bytes 33-36 = timestamp (uint32 BE) — not needed for rendering
+      const jpegBytes = buf.slice(37).buffer;
+
+      let ctx = agents[agentId];
+      if (!ctx) {
+        ctx = makeTile(agentId);
+        agents[agentId] = ctx;
+      }
+
+      // createImageBitmap decodes JPEG off the main thread — no blob URL needed
+      const bitmap = await createImageBitmap(
+        new Blob([jpegBytes], { type: 'image/jpeg' })
+      );
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+    };
+
+    function makeTile(agentId) {
+      const tile   = document.createElement('div');
+      tile.className = 'tile';
+      tile.id = `tile-${agentId}`;
+
+      const canvas = document.createElement('canvas');
+      // Match CDP output dimensions (configured in settings)
+      canvas.width  = 320;
+      canvas.height = 240;
+
+      const label = document.createElement('div');
+      label.className   = 'tile-label';
+      label.textContent = agentId;
+      label.title       = agentId;
+
+      tile.appendChild(canvas);
+      tile.appendChild(label);
+      gridEl.appendChild(tile);
+
+      return canvas.getContext('2d');
+    }
+  </script>
+</body>
+</html>

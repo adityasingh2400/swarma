@@ -20,6 +20,7 @@ from backend.server import (
 )
 from backend.models.job import Job, JobStatus
 from backend.models.item_card import ItemCard
+from backend.streaming import FrameData
 import backend.streaming as streaming_mod
 
 
@@ -342,11 +343,7 @@ class TestScreenshotPushLoop:
 
     @pytest.mark.anyio
     async def test_sends_binary_frame_to_screenshot_clients(self):
-        from backend.streaming import FrameData
-
-        streaming_mod.frame_store["agent-1"] = FrameData(
-            grid=b"GRID", focus=b"FOCUS", ts=0.0
-        )
+        streaming_mod.frame_store["agent-1"] = FrameData(jpeg=b"FAKEJPEG", ts=0.0)
 
         mgr = ConnectionManager()
         ws = AsyncMock()
