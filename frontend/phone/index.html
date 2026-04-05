@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0f">
-<title>ReRoute</title>
+<title>Swarma</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -381,12 +381,12 @@ body{height:100dvh}
   }
 
   // ── MAC IP ──
-  let macIP = localStorage.getItem('reroute_mac_ip') || location.hostname || '192.168.1.1';
+  let macIP = localStorage.getItem('swarma_mac_ip') || localStorage.getItem('reroute_mac_ip') || location.hostname || '192.168.1.1';
   const connDots = [$('connDot'), $('connDot2')];
 
   function setMacIP(ip) {
     macIP = ip.trim();
-    localStorage.setItem('reroute_mac_ip', macIP);
+    localStorage.setItem('swarma_mac_ip', macIP);
     checkConnection();
   }
 

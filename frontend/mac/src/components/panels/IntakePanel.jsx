@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Video, Smartphone, ArrowUpFromLine, QrCode } from 'lucide-react';
+import { Upload, Smartphone, ArrowUpFromLine, Scan } from 'lucide-react';
 
 const EASE = [0.32, 0.72, 0, 1];
 
@@ -42,39 +42,49 @@ function PhoneQR() {
 
 export default function IntakePanel({ job, items, onUpload, fullscreen }) {
   const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
+  const pendingRef = useRef(null);
 
   const handleDrag = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragActive(e.type === 'dragenter' || e.type === 'dragover');
-  }, []);
+    if (!uploading) setDragActive(e.type === 'dragenter' || e.type === 'dragover');
+  }, [uploading]);
+
+  const startUpload = useCallback((file) => {
+    const url = URL.createObjectURL(file);
+    pendingRef.current = { file, url };
+    setDragActive(false);
+    setUploading(true);
+    setTimeout(() => {
+      if (pendingRef.current) onUpload(pendingRef.current.file, pendingRef.current.url);
+    }, 1200);
+  }, [onUpload]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragActive(false);
+    if (uploading) return;
     const file = e.dataTransfer?.files?.[0];
-    if (file?.type.startsWith('video/')) {
-      const url = URL.createObjectURL(file);
-      onUpload(file, url);
-    }
-  }, [onUpload]);
+    if (file?.type.startsWith('video/')) startUpload(file);
+  }, [uploading, startUpload]);
 
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      onUpload(file, url);
-    }
-  }, [onUpload]);
+    if (file && !uploading) startUpload(file);
+  }, [uploading, startUpload]);
 
   if (!fullscreen) return null;
 
   return (
     <div className="intake-fs">
       <div className="intake-fs-content">
-        <div className="intake-fs-header">
+        <motion.div
+          className="intake-fs-header"
+          animate={uploading ? { opacity: 0, y: -12 } : {}}
+          transition={uploading ? { duration: 0.4, ease: EASE } : {}}
+        >
           <h1 className="intake-fs-title">
             {'Film it.'.split('').map((ch, i) => (
               <motion.span
@@ -114,46 +124,87 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
           >
             One video. Every marketplace. Zero effort.
           </motion.p>
-        </div>
+        </motion.div>
 
-        <div className="intake-cards-row">
+        <motion.div
+          className="intake-cards-row"
+          animate={uploading ? { opacity: 0, scale: 0.95, y: 10 } : {}}
+          transition={uploading ? { duration: 0.5, ease: EASE } : {}}
+        >
           <motion.div
-            className={`intake-drop-card ${dragActive ? 'active' : ''}`}
+            className={`intake-drop-card ${dragActive ? 'active' : ''} ${uploading ? 'uploading' : ''}`}
             onDragEnter={handleDrag}
             onDragOver={handleDrag}
             onDragLeave={handleDrag}
             onDrop={handleDrop}
-            onClick={() => inputRef.current?.click()}
+            onClick={() => !uploading && inputRef.current?.click()}
             initial={{ opacity: 0, y: 30, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.7, delay: 1.8, ease: EASE }}
-            whileHover={{ y: -2, transition: { duration: 0.25, ease: EASE } }}
+            animate={uploading
+              ? { scale: 0.92, opacity: 0.7 }
+              : { opacity: 1, y: 0, scale: 1 }
+            }
+            transition={uploading
+              ? { duration: 0.4, ease: EASE }
+              : { duration: 0.7, delay: 1.8, ease: EASE }
+            }
+            whileHover={uploading ? {} : { y: -2, transition: { duration: 0.25, ease: EASE } }}
           >
-            <div className="intake-drop-visual">
-              <motion.div
-                className="intake-drop-icon-ring"
-                animate={dragActive ? { scale: 1.1 } : { scale: 1 }}
-                transition={{ duration: 0.3, ease: EASE }}
-              >
-                <ArrowUpFromLine size={24} strokeWidth={2} />
-              </motion.div>
-              <div className="intake-drop-ring-pulse" />
-            </div>
+            <AnimatePresence mode="wait">
+              {uploading && pendingRef.current ? (
+                <motion.div
+                  key="uploading-state"
+                  className="intake-drop-uploading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.35, ease: EASE }}
+                >
+                  <motion.div
+                    className="intake-video-preview"
+                    layoutId="video-player"
+                    transition={{ type: 'spring', damping: 30, stiffness: 180, mass: 1 }}
+                  >
+                    <video src={pendingRef.current.url} muted autoPlay loop playsInline />
+                    <div className="mp-scanbar" />
+                    <div className="intake-preview-badge">
+                      <Scan size={10} />
+                      <span>SCANNING</span>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="idle-state"
+                  className="intake-drop-idle"
+                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.25 } }}
+                >
+                  <div className="intake-drop-visual">
+                    <motion.div
+                      className="intake-drop-icon-ring"
+                      animate={dragActive ? { scale: 1.1 } : { scale: 1 }}
+                      transition={{ duration: 0.3, ease: EASE }}
+                    >
+                      <ArrowUpFromLine size={24} strokeWidth={2} />
+                    </motion.div>
+                    <div className="intake-drop-ring-pulse" />
+                  </div>
 
-            <div className="intake-drop-text">
-              <span className="intake-drop-label">
-                {dragActive ? 'Drop to upload' : 'Drop your video here'}
-              </span>
-              <span className="intake-drop-hint">or click anywhere to browse files</span>
-            </div>
+                  <div className="intake-drop-text">
+                    <span className="intake-drop-label">
+                      {dragActive ? 'Drop to upload' : 'Drop your video here'}
+                    </span>
+                    <span className="intake-drop-hint">or click anywhere to browse files</span>
+                  </div>
 
-            <div className="intake-drop-footer">
-              <div className="intake-drop-cta">
-                <Upload size={14} strokeWidth={2.5} />
-                <span>Choose file</span>
-              </div>
-              <span className="intake-drop-formats">MP4, MOV &middot; up to 500MB</span>
-            </div>
+                  <div className="intake-drop-footer">
+                    <div className="intake-drop-cta">
+                      <Upload size={14} strokeWidth={2.5} />
+                      <span>Choose file</span>
+                    </div>
+                    <span className="intake-drop-formats">MP4, MOV &middot; up to 500MB</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <input
               ref={inputRef}
@@ -167,14 +218,19 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
           <motion.div
             className="intake-divider"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 2.0, ease: EASE }}
+            animate={uploading ? { opacity: 0 } : { opacity: 1 }}
+            transition={{ duration: uploading ? 0.25 : 0.5, delay: uploading ? 0 : 2.0, ease: EASE }}
           >
             <span className="intake-divider-text">or</span>
           </motion.div>
 
-          <PhoneQR />
-        </div>
+          <motion.div
+            animate={uploading ? { opacity: 0, scale: 0.95 } : {}}
+            transition={uploading ? { duration: 0.3, ease: EASE } : {}}
+          >
+            <PhoneQR />
+          </motion.div>
+        </motion.div>
       </div>
     </div>
   );

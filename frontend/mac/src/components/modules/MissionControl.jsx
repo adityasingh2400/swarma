@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import Badge from '../shared/Badge';
 import AnimatedValue from '../shared/AnimatedValue';
+import PostingWorkspace from './PostingWorkspace';
 
 /* ────────────────────────────────────────────────────────────────
    Stages + Agents
@@ -1004,6 +1005,7 @@ export default function MissionControl({
   agents = {}, agentsRaw = {}, agentsByItem = {},
   stage3Plan, items = [], decisions = {}, bids = {},
   job = null, listings = {}, onExecuteItem, overrideStageIdx,
+  postingStatus = {},
   miniPlayer, settled,
 }) {
   const autoIdx = getActiveStageIndex(agents);
@@ -1011,7 +1013,6 @@ export default function MissionControl({
 
   const stage = STAGES[activeIdx];
 
-  // Count total concurrent tasks for Stage 3 header
   const stage3TaskCount = useMemo(() => {
     if (!stage3Plan?.plan) return { total: 0, active: 0, done: 0 };
     let total = 0, active = 0, done = 0;
@@ -1067,7 +1068,7 @@ export default function MissionControl({
                   <div className="planets-empty">Waiting for items from Stage 1...</div>
                 )}
               </div>
-            ) : (stage.id === 1 && miniPlayer) ? null : (
+            ) : stage.id === 3 ? null : (stage.id === 1 && miniPlayer) ? null : (
               <div className={`mc-agents-row mc-agents-${stage.agents.length}`}>
                 {stage.agents.map((agent, i) => (
                   <AgentCard key={agent.id} agent={agent} state={agents[agent.id]}
@@ -1078,7 +1079,7 @@ export default function MissionControl({
             )}
 
             {stage.id === 1 && <ProcessingContent job={job} agents={agents} items={items} miniPlayer={miniPlayer} settled={settled} />}
-            {stage.id === 3 && <DecisionContent decisions={decisions} items={items} onExecuteItem={onExecuteItem} />}
+            {stage.id === 3 && <PostingWorkspace items={items} decisions={decisions} postingStatus={postingStatus} />}
           </motion.div>
         </AnimatePresence>
       </div>

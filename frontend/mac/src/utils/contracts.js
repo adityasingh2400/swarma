@@ -15,6 +15,7 @@ export const EVENT_ITEM_IDENTIFIED = 'item:identified';
 export const EVENT_STATE_SNAPSHOT = 'state:snapshot';
 export const EVENT_JOB_PROGRESS = 'job:progress';
 export const EVENT_PIPELINE_UPDATE = 'pipeline:update';
+export const EVENT_ITEM_POSTED = 'item:posted';
 
 // ── WebSocket Event Types (Client → Server) ────────────────────────
 export const CMD_FOCUS_REQUEST = 'focus:request';
