@@ -216,7 +216,7 @@ async def run_cached_pipeline(
 
     research_tasks = []
     for i, (item, platform, agent_id, cached_aid) in enumerate(research_plan):
-        delay = 8.0 + (i * 1.5)
+        delay = 3.2 + (i * 0.45)
         research_tasks.append(_finish_research(item, platform, agent_id, cached_aid, delay))
 
     await asyncio.gather(*research_tasks)
@@ -244,7 +244,7 @@ async def run_cached_pipeline(
         item.listing_package = pkg
         swarma_line("demo_cache", "decision", item=item.name_guess, price=pkg.price_strategy)
 
-    await asyncio.sleep(1.0)
+    await asyncio.sleep(0.35)
 
     # Cancel research frame replays before listing starts
     for t in frame_runners:
