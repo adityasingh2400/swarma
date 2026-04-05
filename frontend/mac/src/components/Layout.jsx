@@ -194,7 +194,7 @@ function DevPreview() {
       <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading preview...</div>}>
           {page === 'intake' && (
-            <IntakePanel job={null} items={[]} onUpload={noop} fullscreen />
+            <IntakePanel onUpload={noop} fullscreen />
           )}
           {page === 'research' && (
             <ResearchPage items={mock.items} bids={mock.bids} decisions={mock.decisions} />
@@ -403,12 +403,7 @@ function LayoutInner({
               }}
               transition={{ duration: 0.3, ease: EASE }}
             >
-              <IntakePanel
-                job={job}
-                items={items}
-                onUpload={handleUpload}
-                fullscreen
-              />
+              <IntakePanel onUpload={handleUpload} fullscreen />
             </motion.div>
           )}
 

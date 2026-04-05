@@ -41,7 +41,7 @@ function PhoneQR() {
   );
 }
 
-export default function IntakePanel({ job, items, onUpload, fullscreen }) {
+export default function IntakePanel({ onUpload, fullscreen }) {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
@@ -141,8 +141,9 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
 
         <motion.div
           className="intake-cards-row"
-          animate={uploading ? { opacity: 0, scale: 0.95, y: 10 } : {}}
-          transition={uploading ? { duration: 0.5, ease: EASE } : {}}
+          initial={{ opacity: 1, y: 0, scale: 1 }}
+          animate={uploading ? { opacity: 0, scale: 0.95, y: 10 } : { opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, ease: EASE }}
         >
           <motion.div
             className={`intake-drop-card glass-enhanced ${dragActive ? 'active' : ''} ${uploading ? 'uploading' : ''}`}
@@ -238,8 +239,9 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
           </motion.div>
 
           <motion.div
-            animate={uploading ? { opacity: 0, scale: 0.95 } : {}}
-            transition={uploading ? { duration: 0.3, ease: EASE } : {}}
+            initial={{ opacity: 1, scale: 1 }}
+            animate={uploading ? { opacity: 0, scale: 0.95 } : { opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, ease: EASE }}
           >
             <PhoneQR />
           </motion.div>

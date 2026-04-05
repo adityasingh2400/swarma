@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Cpu, Scale, Send, MessageSquare } from 'lucide-react';
+import { Cpu, Scale, Send, MessageSquare } from 'lucide-react';
 import Layout from './components/Layout';
 import SwarmaLogo from './components/SwarmaLogo';
 import ListingSimulationModal from './components/modules/ListingSimulationModal';
@@ -9,7 +9,6 @@ import PostingWorkspace from './components/modules/PostingWorkspace';
 import { useJob } from './hooks/useJob';
 import { useScreenshots } from './hooks/useScreenshots';
 import { useMockMode, getPostingDevMock } from './utils/mockData';
-import { ACTIVE_STATUSES } from './utils/contracts';
 
 const STEPS = [
   { id: 'processing', label: 'Processing', icon: Cpu },
@@ -92,17 +91,6 @@ export default function App() {
   const bids = mock.isMock ? mock.bids : realBids;
   const decisions = mock.isMock ? mock.decisions : realDecisions;
   const events = mock.isMock ? mock.events : realEvents;
-
-  const agentSummary = useMemo(() => {
-    const entries = Object.values(agents);
-    const v2Entries = Object.values(v2Agents);
-    const active = entries.filter((a) => ['thinking', 'agent_started', 'agent_progress'].includes(a.status)).length
-      + v2Entries.filter((a) => ACTIVE_STATUSES.has(a.status)).length;
-    const done = entries.filter((a) => ['done', 'agent_completed'].includes(a.status)).length
-      + v2Entries.filter((a) => a.status === 'complete').length;
-    const total = entries.length + v2Entries.length;
-    return { active, done, total };
-  }, [agents, v2Agents]);
 
   const [simModal, setSimModal] = useState(null);
   const [execAnim, setExecAnim] = useState(null);

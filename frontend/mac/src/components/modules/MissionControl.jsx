@@ -3,13 +3,12 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import {
   Cpu, Eye, Search, RefreshCw, Package, Wrench,
-  Trophy, MessageSquare, Loader2, DollarSign, XCircle,
-  CheckCircle2, FileText, AlertTriangle, Image, Zap,
-  ShoppingBag, RotateCcw, Clock, TrendingUp, X,
+  Trophy, Loader2, DollarSign,
+  CheckCircle2, FileText, Image,
+  ShoppingBag, TrendingUp,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import Badge from '../shared/Badge';
-import AnimatedValue from '../shared/AnimatedValue';
 import PostingWorkspace from './PostingWorkspace';
 
 /* ────────────────────────────────────────────────────────────────
@@ -36,14 +35,6 @@ const AGENT_META = {
   repair_roi: { name: 'Repair', icon: Wrench, color: '#FF6B6B' },
 };
 
-const ROUTE_LABELS = {
-  sell_as_is: 'Sell As-Is', trade_in: 'Trade-In', repair_then_sell: 'Repair & Sell',
-  return: 'Return', no_action: 'No Action',
-};
-const ROUTE_ICONS = {
-  sell_as_is: ShoppingBag, trade_in: RefreshCw, repair_then_sell: Wrench,
-  return: RotateCcw, no_action: XCircle,
-};
 const ROUTE_MAP = {
   marketplace_resale: 'sell_as_is', trade_in: 'trade_in',
   repair_roi: 'repair_then_sell', return: 'return',
@@ -267,7 +258,7 @@ function FloatingTradeInWidget({ allBids }) {
   );
 }
 
-function ItemPlanet({ item, itemIndex, totalItems, agentStates, itemBids, stage3Plan }) {
+function ItemPlanet({ item, itemIndex, agentStates, itemBids, stage3Plan }) {
   const planAgents = stage3Plan?.plan?.[item.item_id]?.agents || Object.keys(AGENT_META);
   const allBids = itemBids || [];
 
@@ -626,16 +617,21 @@ function SkeletonPulse({ width = '100%', height = 12, radius = 6, style }) {
 }
 
 function StreamingText({ text, wordsPerTick = 2, intervalMs = 40 }) {
-  const words = useMemo(() => (text || '').split(/\s+/), [text]);
+  const words = useMemo(() => (text || '').split(/\s+/).filter(Boolean), [text]);
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     setCount(0);
-    if (!words.length) return;
+    if (!words.length) return undefined;
     const id = setInterval(() => {
       setCount((c) => {
-        if (c >= words.length) { clearInterval(id); return c; }
-        return c + wordsPerTick;
+        if (c >= words.length) {
+          clearInterval(id);
+          return c;
+        }
+        const next = Math.min(c + wordsPerTick, words.length);
+        if (next >= words.length) clearInterval(id);
+        return next;
       });
     }, intervalMs);
     return () => clearInterval(id);
@@ -857,166 +853,6 @@ function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
   );
 }
 
-function DecisionContent({ decisions, items, onExecuteItem }) {
-  const decisionList = Object.values(decisions);
-  if (decisionList.length === 0) return null;
-
-  const totalValue = decisionList.reduce((sum, d) => sum + (d.estimated_best_value || 0), 0);
-
-  const TRIFECTA_POS = [
-    'trifecta-top',
-    'trifecta-bottom-left',
-    'trifecta-bottom-right',
-  ];
-
-  const itemsWithDecisions = items.filter((item) => decisions[item.item_id]);
-
-  return (
-    <div className="mc-embedded">
-      <div className="decision-trifecta">
-        {/* Central Decider Hub */}
-        <motion.div className="dt-hub"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}>
-          <div className="dt-hub-glow" />
-          <div className="dt-hub-inner">
-            <div className="dt-hub-icon-ring">
-              <Trophy size={24} />
-            </div>
-            <div className="dt-hub-label">Route Decider</div>
-            <div className="dt-hub-total">
-              <span className="dt-hub-total-label">Total Recovery</span>
-              <AnimatedValue value={totalValue} prefix="$" decimals={2} large positive />
-            </div>
-            <div className="dt-hub-items">
-              {itemsWithDecisions.map((item) => {
-                const d = decisions[item.item_id];
-                const Icon = ROUTE_ICONS[d.best_route] || Trophy;
-                return (
-                  <div key={item.item_id} className="dt-hub-item-row">
-                    <Icon size={12} />
-                    <span className="dt-hub-item-name">{item.name_guess?.split(' ').slice(0, 3).join(' ')}</span>
-                    <span className="dt-hub-item-route">{ROUTE_LABELS[d.best_route]}</span>
-                    <span className="dt-hub-item-val">${d.estimated_best_value?.toFixed(0)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Connector lines (SVG) */}
-        <svg className="dt-connectors" viewBox="0 0 800 600" preserveAspectRatio="none">
-          {itemsWithDecisions.map((_, i) => {
-            const paths = [
-              'M 400 200 Q 400 80 400 40',
-              'M 320 280 Q 160 360 120 440',
-              'M 480 280 Q 640 360 680 440',
-            ];
-            return (
-              <motion.path key={i} d={paths[i % 3]} className="dt-conn-line"
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ delay: 0.3 + i * 0.15, duration: 0.6, ease: 'easeOut' }} />
-            );
-          })}
-        </svg>
-
-        {/* Route Cards in trifecta positions */}
-        {itemsWithDecisions.slice(0, 3).map((item, i) => {
-          const d = decisions[item.item_id];
-          const Icon = ROUTE_ICONS[d.best_route] || Trophy;
-          const posClass = TRIFECTA_POS[i % 3];
-
-          const routes = (() => {
-            if (!d.alternatives) return [];
-            const seen = new Set();
-            return [d.winning_bid, ...d.alternatives]
-              .filter(Boolean)
-              .filter((r) => { if (seen.has(r.route_type)) return false; seen.add(r.route_type); return true; })
-              .filter((r) => r.viable !== false)
-              .slice(0, 3);
-          })();
-
-          return (
-            <motion.div key={item.item_id}
-              className={`dt-card ${posClass}`}
-              initial={{ opacity: 0, scale: 0.85, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ delay: 0.2 + i * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}>
-              <div className="dt-card-top">
-                {item.hero_frame_paths?.[0] && (
-                  <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="dt-card-thumb" />
-                )}
-                <div className="dt-card-meta">
-                  <span className="dt-card-name">{item.name_guess}</span>
-                  <Badge variant="success">{ROUTE_LABELS[d.best_route] || d.best_route}</Badge>
-                </div>
-              </div>
-              <div className="dt-card-value">
-                <Icon size={18} />
-                <AnimatedValue value={d.estimated_best_value || 0} prefix="$" decimals={2} positive />
-              </div>
-              {d.route_reason && <div className="dt-card-reason">{d.route_reason}</div>}
-              {routes.length > 0 && (
-                <div className="dt-card-routes">
-                  {routes.map((route, ri) => {
-                    const RouteIcon = ROUTE_ICONS[route.route_type] || TrendingUp;
-                    return (
-                      <div key={route.route_type} className={`dt-card-route ${ri === 0 ? 'winner' : ''}`}>
-                        <RouteIcon size={12} />
-                        <span className="dt-card-route-label">{ROUTE_LABELS[route.route_type] || route.route_type}</span>
-                        <span className="dt-card-route-val">${route.estimated_value?.toFixed(0)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <button className="dt-card-execute" onClick={() => onExecuteItem?.(item.item_id, ['ebay', 'mercari'])}>
-                <Zap size={13} /> Execute Route
-              </button>
-            </motion.div>
-          );
-        })}
-
-        {/* Overflow items (4+) in a row below */}
-        {itemsWithDecisions.length > 3 && (
-          <div className="dt-overflow">
-            {itemsWithDecisions.slice(3).map((item, i) => {
-              const d = decisions[item.item_id];
-              const Icon = ROUTE_ICONS[d.best_route] || Trophy;
-              return (
-                <motion.div key={item.item_id} className="dt-card dt-overflow-card"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + i * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}>
-                  <div className="dt-card-top">
-                    {item.hero_frame_paths?.[0] && (
-                      <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="dt-card-thumb" />
-                    )}
-                    <div className="dt-card-meta">
-                      <span className="dt-card-name">{item.name_guess}</span>
-                      <Badge variant="success">{ROUTE_LABELS[d.best_route] || d.best_route}</Badge>
-                    </div>
-                  </div>
-                  <div className="dt-card-value">
-                    <Icon size={18} />
-                    <AnimatedValue value={d.estimated_best_value || 0} prefix="$" decimals={2} positive />
-                  </div>
-                  <button className="dt-card-execute" onClick={() => onExecuteItem?.(item.item_id, ['ebay', 'mercari'])}>
-                    <Zap size={13} /> Execute Route
-                  </button>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ════════════════════════════════════════════════════════════════
    MAIN MISSION CONTROL
    ════════════════════════════════════════════════════════════════ */
@@ -1077,7 +913,6 @@ export default function MissionControl({
                     key={item.item_id}
                     item={item}
                     itemIndex={i}
-                    totalItems={items.length}
                     agentStates={agentsByItem[item.item_id] || {}}
                     itemBids={bids[item.item_id] || []}
                     stage3Plan={stage3Plan}
