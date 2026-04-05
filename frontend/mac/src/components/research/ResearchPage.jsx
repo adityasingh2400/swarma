@@ -116,9 +116,11 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
     });
   }, [v2Agents, itemId]);
 
+  const agentsFirst = index === 1;
+
   return (
     <motion.div
-      className="rp2-card"
+      className={`rp2-card${agentsFirst ? ' rp2-card-agents-first' : ''}`}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, delay: index * 0.15, ease: EASE }}

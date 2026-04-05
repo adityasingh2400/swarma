@@ -7910,18 +7910,30 @@ body {
 .rp2-grid-2 { grid-template-columns: repeat(2, 1fr); }
 .rp2-grid-3 { grid-template-columns: repeat(3, 1fr); }
 
-/* ── Item card ── */
+/* ── Item card ── (no white/glass panel — sit on page background) */
 .rp2-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 22px;
   padding: 20px;
   border-radius: var(--radius-lg);
-  background: var(--glass-card-bg);
-  border: 1px solid var(--glass-card-border);
-  backdrop-filter: blur(12px);
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* 2nd item only: three browser tiles above the product hero; result bar stays last */
+.rp2-card-agents-first .rp2-card-agents {
+  order: 1;
+}
+.rp2-card-agents-first .rp2-card-hero {
+  order: 2;
+}
+.rp2-card-agents-first .rp2-card-result {
+  order: 3;
 }
 
 /* ── Item hero ── */
@@ -8001,16 +8013,17 @@ body {
 .rp2-card-agents {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 10px;
+  margin-block: 8px;
 }
 
 /* ── Single agent tile ── */
 .rp2-agent-tile {
   border-radius: var(--radius-md);
   overflow: hidden;
-  border: 1px solid var(--glass-card-border);
-  background: var(--bg-elevated);
-  transition: all 200ms ease;
+  border: 1px solid rgba(245, 212, 184, 0.35);
+  background: transparent;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 .rp2-agent-tile:hover {
   border-color: var(--primary);
@@ -8021,7 +8034,7 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 8px;
+  padding: 6px 9px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -8057,12 +8070,17 @@ body {
 }
 
 .rp2-agent-feed {
-  height: 110px;
+  height: 138px;
   overflow: hidden;
-  background: var(--bg-base);
+  background: transparent;
 }
 .rp2-agent-feed .bf-container { height: 100%; }
 .rp2-agent-feed .bf-img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Research page: no filled “browser chrome” slab behind screenshots */
+.rp2-page .bf-container {
+  background: transparent;
+}
 
 .rp2-agent-placeholder {
   width: 100%;
