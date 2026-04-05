@@ -1,0 +1,16 @@
+{
+  "step": 8,
+  "url": "https://www.ebay.com/lstng?draftId=5182232721813&mode=AddItem",
+  "title": "List an item | eBay",
+  "page_summary": "",
+  "memory": "",
+  "next_goal": "",
+  "actions": [
+    {
+      "scroll": {
+        "down": false,
+        "pages": 10.0
+      }
+    }
+  ]
+}

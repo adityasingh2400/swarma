@@ -1,0 +1,27 @@
+Route: facebook_research
+Description: Facebook Marketplace search results
+URL: https://www.facebook.com/marketplace/search/?query=iPhone%2015%20Pro%20256GB
+Time: 32.7s
+Screenshots: 2
+Steps: 2
+
+============================================================
+AGENT DOCUMENTATION:
+============================================================
+
+I have documented the Facebook Marketplace search results for 'iPhone 15 Pro 256GB' as requested:
+
+1. **Total Result Count:** There is no explicit total result count shown on the page. The listings are grouped under 'Results from outside your search'.
+2. **Listing Card Structure:** Each card consists of an image, followed by the price (bold), the listing title, and the location (City, State).
+3. **Price Display:** Prices are displayed in bold text directly below the image. Format is typical currency (e.g., '$300'). In some cases, a discounted price is shown next to a struck-through original price.
+4. **First 5 Listings:**
+   - iPhone 15 Pro Natural Titanium 256GB: $300
+   - iPhone 15 Pro Max 256GB Blacklisted: $500
+   - iPhone 15 Pro Max 256GB Unlocked: $600
+   - iPhone 15 Pro Max (256GB) Unlocked / Liberado: $535
+   - iPhone 15 Pro Max (256GB) Unlocked / Liberado: $535
+5. **Filters and Sorting:** 
+   - **Sorting:** Options include Suggested, Distance, Date listed, and Price (Lowest/Highest).
+   - **Filters:** Price (Min/Max), Delivery method, Condition, Date listed, and Availability.
+   - **Categories:** Various categories like Electronics, Vehicles, etc., are available for narrowing the search.
+6. **Blockers/Popups:** No login prompts, popups, or blockers were observed during the documentation process.

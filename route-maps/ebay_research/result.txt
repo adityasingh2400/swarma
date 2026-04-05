@@ -1,0 +1,24 @@
+Route: ebay_research
+Description: eBay sold listings search results
+URL: https://www.ebay.com/sch/i.html?_nkw=iPhone+15+Pro+256GB&LH_Complete=1&LH_Sold=1
+Time: 31.0s
+Screenshots: 2
+Steps: 2
+
+============================================================
+AGENT DOCUMENTATION:
+============================================================
+
+The eBay sold listings page for 'iPhone 15 Pro 256GB' has been documented as follows:
+
+1. **Total Result Count**: Displayed at the top of the results section as '5,700+ results for iPhone 15 Pro 256GB'.
+2. **Individual Listing Structure**: Each listing includes a sold date (e.g., 'Sold Apr 4, 2026'), a 'New Listing' tag (if applicable), title, condition (e.g., 'Pre-Owned'), model details, storage capacity, lock status, price, bid count or 'Buy It Now' status, shipping cost, seller location, and seller feedback information.
+3. **Sold Prices**: Displayed in bold green text (e.g., '$503.00') located below the item specifications and above the shipping info. Some listings also show 'or Best Offer' if applicable.
+4. **First 5 Listings**:
+   - Grey Apple iPhone 15 Pro Max 256GB Unlocked: $503.00
+   - Apple iPhone 15 Pro Max 256GB Back Titanium - Spectrum Only: $449.99
+   - iphone 15 pro max 256gb unlocked excellent: $500.00
+   - Apple iPhone 15 Pro Max 256GB Silver Unlocked Very Good Cond (see description): $500.00
+   - Apple iPhone 15 Pro Max - 256GB (Unlocked) Works Great -CHECK CONDITION (#724): $419.99
+5. **Filters & Navigation**: Sidebar filters (Category, Network, Model, Lock Status, Color, etc.), horizontal 'Popular Filters' (Unlocked, T-Mobile, etc.), format toggles (All, Auction, Buy It Now), sorting dropdown ('Ended Recently'), and pagination at the bottom.
+6. **Popups/Banners**: Includes a 'Shop eBay Live events' banner and a 'Have one to sell?' promotional banner for AI quick-listing tools.
