@@ -97,8 +97,8 @@ def _build_listing_package(item: ItemCard, decision: RouteDecision, research: di
     img_dir = Path(cfg.listing_images_dir) / item.item_id
     images = []
     if img_dir.exists():
-        for p in sorted(img_dir.glob("photo_*.jpg"))[:6]:
-            images.append(ListingImage(path=str(p)))
+        for j, p in enumerate(sorted(img_dir.glob("photo_*.jpg"))[:6]):
+            images.append(ListingImage(path=str(p), role="hero" if j == 0 else "secondary"))
 
     desc = f"{title}\n\nCondition: {condition}.\n\nShips quickly. Message with questions!"
 
