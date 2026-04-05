@@ -267,7 +267,7 @@ async def parse_items_from_transcript(transcript: str) -> list[str]:
             {
                 "role": "system",
                 "content": (
-                    "Extract up to 4 of the MOST PROMINENT and DIFFERENT items from "
+                    "Extract up to 2 of the MOST PROMINENT and DIFFERENT items from "
                     "this transcript of someone describing items they want to sell.\n\n"
                     "Rules:\n"
                     "- Use the correct proprietary name with model specifics when the "
@@ -277,7 +277,7 @@ async def parse_items_from_transcript(transcript: str) -> list[str]:
                     "- Do NOT guess or invent a brand/model the speaker never mentioned.\n"
                     "- Do NOT split one item into multiple entries (e.g. 'Apple Watch' and "
                     "'Apple Watch band' are the same item — return only the main item).\n"
-                    "- Maximum 4 items. Pick the most prominent ones if more are mentioned.\n\n"
+                    "- Maximum 2 items. Pick the most prominent ones if more are mentioned.\n\n"
                     "Return ONLY a JSON array of strings. No extra text."
                 ),
             },
@@ -288,7 +288,7 @@ async def parse_items_from_transcript(transcript: str) -> list[str]:
     raw = response.choices[0].message.content.strip()
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-    items = json.loads(raw)[:4]
+    items = json.loads(raw)[:2]
     logger.info("Parsed %d items from transcript: %s", len(items), items)
     return items
 
