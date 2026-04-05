@@ -61,3 +61,7 @@ export async function sendReply(jobId, threadId, text) {
     body: JSON.stringify({ text }),
   });
 }
+
+export async function startResearch(jobId) {
+  return request(`/api/jobs/${jobId}/start-research`, { method: 'POST' });
+}

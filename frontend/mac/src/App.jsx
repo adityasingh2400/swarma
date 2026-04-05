@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, Scale, Send, MessageSquare } from 'lucide-react';
 import Layout from './components/Layout';
@@ -8,6 +8,7 @@ import ExecuteRouteAnimation from './components/modules/ExecuteRouteAnimation';
 import PostingWorkspace from './components/modules/PostingWorkspace';
 import { useJob } from './hooks/useJob';
 import { useScreenshots } from './hooks/useScreenshots';
+import { startResearch } from './utils/api';
 import { useMockMode, getPostingDevMock } from './utils/mockData';
 
 const STEPS = [
@@ -27,11 +28,17 @@ function TopbarSteps({
   pipelineStage,
   agents,
   items,
+  v2Agents,
   highlightIdx,
   onStepClick,
 }) {
   const unlocked = researchUnlocked(agents, items);
-  const effectiveIdx = pipelineStage === 'executing' ? 1 : highlightIdx;
+  const effectiveIdx = highlightIdx;
+
+  const agentsActive = useMemo(() => {
+    const entries = Object.values(v2Agents || {});
+    return entries.length > 0 && entries.some(a => a.status === 'running' || a.status === 'queued' || a.status === 'navigating');
+  }, [v2Agents]);
 
   return (
     <div className="topbar-steps">
@@ -42,17 +49,22 @@ function TopbarSteps({
         const isFuture = i > effectiveIdx;
         const canProcessing = i === 0;
         const canResearch = i === 1 && unlocked;
-        const clickable = canProcessing || canResearch;
+        const canPosting = i === 2 && effectiveIdx >= 1;
+        const clickable = canProcessing || canResearch || canPosting;
+        const isPulsing = i === 1 && unlocked && agentsActive && effectiveIdx === 0;
 
         let cls = 'ts-node';
         if (isCurrent) cls += ' ts-current ts-clickable';
         else if (isPast) cls += ' ts-past ts-clickable';
-        else if (i === 1 && unlocked) cls += ' ts-available';
+        else if (i === 1 && unlocked) cls += ' ts-available ts-clickable';
+        else if (i === 2 && effectiveIdx >= 1) cls += ' ts-available ts-clickable';
         else cls += ' ts-future';
+        if (isPulsing) cls += ' ts-pulsing';
 
         const activate = () => {
           if (canProcessing) onStepClick?.(0);
           else if (canResearch) onStepClick?.(1);
+          else if (canPosting) onStepClick?.(2);
         };
 
         return (
@@ -139,18 +151,28 @@ export default function App() {
   const [topbarStepIdx, setTopbarStepIdx] = useState(0);
   const [theaterNavRequest, setTheaterNavRequest] = useState(null);
 
+  const researchTriggered = useRef(false);
+
   useEffect(() => {
     setTopbarStepIdx(0);
     setTheaterNavRequest(null);
+    researchTriggered.current = false;
   }, [job?.job_id]);
 
   const handleTopbarStep = useCallback((groupIdx) => {
     setTopbarStepIdx(groupIdx);
     setTheaterNavRequest({ groupIdx, id: Date.now() });
-  }, []);
 
-  const handleTheaterStageFromPipeline = useCallback((groupIdx) => {
-    setTopbarStepIdx(groupIdx);
+    if (groupIdx === 1 && jobId && !researchTriggered.current) {
+      researchTriggered.current = true;
+      startResearch(jobId).catch((err) =>
+        console.error('Failed to trigger research:', err),
+      );
+    }
+  }, [jobId]);
+
+  const handleTheaterStageFromPipeline = useCallback(() => {
+    // no-op: topbar step only changes on direct topbar click (handleTopbarStep)
   }, []);
 
   const handleTheaterNavConsumed = useCallback(() => {
@@ -222,6 +244,7 @@ export default function App() {
               pipelineStage={pipelineStage}
               agents={agents}
               items={items}
+              v2Agents={v2Agents}
               highlightIdx={topbarStepIdx}
               onStepClick={handleTopbarStep}
             />
@@ -255,17 +278,18 @@ export default function App() {
           theaterNavRequest={theaterNavRequest}
           onTheaterNavConsumed={handleTheaterNavConsumed}
           onTheaterStageChange={handleTheaterStageFromPipeline}
+          topbarStepIdx={topbarStepIdx}
         />
       </AnimatePresence>
 
       <AnimatePresence>
-        {execAnim && (
+        {topbarStepIdx >= 2 && execAnim && (
           <ExecuteRouteAnimation onComplete={handleAnimComplete} />
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {simModal && (
+        {topbarStepIdx >= 2 && simModal && (
           <ListingSimulationModal
             item={simModal.item}
             listing={simModal.listing}

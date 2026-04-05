@@ -6,6 +6,7 @@ import AgentTheater from './panels/AgentTheater';
 import DecisionPanel from './panels/DecisionPanel';
 import FocusMode from './FocusMode';
 import ResearchPage from './research/ResearchPage';
+import SwarmGrid from './SwarmGrid';
 import ConciergePage from './ConciergePage';
 import { ACTIVE_STATUSES } from '../utils/contracts';
 
@@ -325,7 +326,7 @@ function LayoutInner({
   theaterNavRequest,
   onTheaterNavConsumed,
   onTheaterStageChange,
-  userRequestedResearch = false,
+  topbarStepIdx = 0,
 }) {
   const [phase, setPhase] = useState('intake');
   const [videoUrl, setVideoUrl] = useState(null);
@@ -382,7 +383,7 @@ function LayoutInner({
           )}
 
           {/* ── Phase: Processing ───────────────────────────── */}
-          {phase === 'processing' && !showConciergeResults && !userRequestedResearch && (
+          {phase === 'processing' && !showConciergeResults && topbarStepIdx === 0 && (
             <motion.div
               key="processing"
               className="proc-layout"
@@ -417,7 +418,7 @@ function LayoutInner({
           )}
 
           {/* ── Phase: Research ─────────────────────────────── */}
-          {phase === 'processing' && userRequestedResearch && !showConciergeResults && (
+          {phase === 'processing' && topbarStepIdx === 1 && !showConciergeResults && (
             <motion.div
               key="research"
               className="research-fullscreen"
@@ -434,6 +435,31 @@ function LayoutInner({
                 screenshots={screenshots}
                 send={send}
               />
+            </motion.div>
+          )}
+
+          {/* ── Phase: Posting ──────────────────────────────── */}
+          {phase === 'processing' && topbarStepIdx === 2 && !showConciergeResults && (
+            <motion.div
+              key="posting"
+              className="research-fullscreen"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
+              transition={{ duration: 0.5, ease: EASE }}
+            >
+              <div style={{ padding: '24px 32px' }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: 'var(--text-primary)' }}>
+                  Live Listing Agents
+                </h2>
+                <SwarmGrid
+                  v2Agents={v2Agents}
+                  screenshots={screenshots}
+                  onFocusAgent={setFocusedAgentId}
+                  focusedAgentId={focusedAgentId}
+                  filterPhase="listing"
+                />
+              </div>
             </motion.div>
           )}
 

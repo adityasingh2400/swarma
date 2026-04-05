@@ -216,6 +216,9 @@ async def _event_drain_loop(job_id: str):
     Runs as a background task for the lifetime of the pipeline.
     Pattern confirmed in streaming-server-intake-review.md:
       while True: event = await orchestrator.events.get(); broadcast(event)
+
+    Also populates frame_store from agent:screenshot events so the binary WS
+    screenshot pipeline works even when CDP screencast fails.
     """
     logger.info("Event drain loop started for job %s", job_id)
     swarma_line("pipeline", "event_drain_loop_started", job_id=job_id)
@@ -232,7 +235,22 @@ async def _event_drain_loop(job_id: str):
                 event_dict = event
             else:
                 event_dict = {"type": str(event), "data": {}}
-            swarma_line("orchestrator", "event_dequeued", job_id=job_id, type=event_dict.get("type"))
+
+            evt_type = event_dict.get("type")
+            evt_data = event_dict.get("data", {})
+
+            if evt_type == "agent:screenshot" and evt_data.get("screenshot_b64"):
+                agent_id = evt_data.get("agent_id") or evt_data.get("agentId")
+                if agent_id:
+                    try:
+                        import base64 as _b64
+                        from backend.streaming import frame_store, FrameData
+                        jpeg_bytes = _b64.b64decode(evt_data["screenshot_b64"])
+                        frame_store[agent_id] = FrameData(jpeg=jpeg_bytes, ts=time.time())
+                    except Exception:
+                        pass
+
+            swarma_line("orchestrator", "event_dequeued", job_id=job_id, type=evt_type)
             await ws_manager.broadcast_event(job_id, event_dict)
     except asyncio.CancelledError:
         logger.info("Event drain loop stopped for job %s", job_id)
@@ -475,10 +493,16 @@ async def _run_pipeline(job_id: str, video_path: str):
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     settings.ensure_dirs()
-    # Future: warm browser context pool here
     logger.info("SwarmSell server starting")
     swarma_line("server", "lifespan_startup", upload_dir=str(settings.upload_dir))
     yield
+    # Kill the focus-guard osascript process on shutdown
+    try:
+        from orchestrator import _stop_focus_guard, _kill_focus_guard_sync
+        await _stop_focus_guard()
+        _kill_focus_guard_sync()
+    except Exception:
+        pass
     swarma_line("server", "lifespan_shutdown")
     logger.info("SwarmSell server shutting down")
 
@@ -655,6 +679,17 @@ async def get_job_items(job_id: str):
     if items is None:
         raise HTTPException(status_code=404, detail="Job not found or no items yet")
     return [item.model_dump() for item in items]
+
+
+@app.post("/api/jobs/{job_id}/start-research")
+async def start_research(job_id: str):
+    """User clicked Research — unblock the orchestrator gate."""
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    orchestrator.release_research()
+    swarma_line("http", "start_research", job_id=job_id)
+    return {"status": "research_started"}
 
 
 # ── Inbox / Conversation Endpoints ────────────────────────────────────────────

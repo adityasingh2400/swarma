@@ -31,6 +31,7 @@ start: stop deps build
 stop:
 	@lsof -ti:$(PORT_BACKEND) 2>/dev/null | xargs kill 2>/dev/null || true
 	@lsof -ti:$(PORT_FRONTEND) 2>/dev/null | xargs kill 2>/dev/null || true
+	@pkill -f 'osascript.*set targetApp' 2>/dev/null || true
 	@sleep 0.5
 
 # ── Install / sync dependencies ───────────────────────────────────────────

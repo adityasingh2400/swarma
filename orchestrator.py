@@ -115,6 +115,40 @@ async def _stop_focus_guard():
             pass
     _focus_guard_proc = None
 
+
+def _kill_focus_guard_sync():
+    """Synchronous kill — used by atexit and signal handlers.
+
+    This is the nuclear option: if the async cleanup didn't run
+    (server killed, crash, Ctrl+C), this ensures the osascript
+    process is dead. Also kills any orphaned osascript processes
+    matching our script pattern.
+    """
+    global _focus_guard_proc
+    import os
+    import signal as _sig
+    import subprocess
+
+    if _focus_guard_proc is not None:
+        try:
+            os.kill(_focus_guard_proc.pid, _sig.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+        _focus_guard_proc = None
+
+    if _IS_MACOS:
+        try:
+            subprocess.run(
+                ["pkill", "-f", "osascript.*set targetApp"],
+                capture_output=True, timeout=3,
+            )
+        except Exception:
+            pass
+
+
+import atexit
+atexit.register(_kill_focus_guard_sync)
+
 # ---------------------------------------------------------------------------
 # Playbook registry — Person 2 registers these at import time
 # ---------------------------------------------------------------------------

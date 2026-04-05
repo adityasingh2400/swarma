@@ -45,6 +45,9 @@ class ItemCard(BaseModel):
     raw_transcript_segment: str = ""
     hero_frame_indices_raw: list[int] = Field(default_factory=list, exclude=True)
 
+    # v2: attached by orchestrator after route decision
+    listing_package: object | None = Field(default=None, exclude=True)
+
     @property
     def all_defects(self) -> list[DefectSignal]:
         return self.visible_defects + self.spoken_defects

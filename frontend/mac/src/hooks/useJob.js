@@ -150,6 +150,7 @@ export function useJob(jobId) {
         case 'job_created':
         case 'job_updated':
           setJob((prev) => ({ ...prev, ...data }));
+          if (data.status === 'executing') setPipelineStage('executing');
           break;
 
         case 'item_added':
@@ -195,6 +196,7 @@ export function useJob(jobId) {
           break;
 
         case 'decision_made':
+        case 'decision:made':
           setDecisions((prev) => ({ ...prev, [data.item_id]: data }));
           break;
 

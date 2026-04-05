@@ -47,6 +47,11 @@ class ListingPackage(BaseModel):
     category_id: str = ""
     shipping_policy: str = "standard"
 
+    # v2 additions for orchestrator pipeline
+    platforms: list[str] = Field(default_factory=list)
+    prices: dict[str, float] = Field(default_factory=dict)
+    research: dict[str, dict] = Field(default_factory=dict)
+
     @property
     def hero_image(self) -> ListingImage | None:
         for img in self.images:
