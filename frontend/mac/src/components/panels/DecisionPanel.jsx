@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, TrendingUp, ShoppingBag, RefreshCw, Wrench, RotateCcw, Trophy, CheckCircle2 } from 'lucide-react';
+import { Zap, TrendingUp, ShoppingBag, RefreshCw, Wrench, RotateCcw, Trophy, ChevronLeft, ChevronRight } from 'lucide-react';
 import AnimatedValue from '../shared/AnimatedValue';
 import Badge from '../shared/Badge';
+import CircularCarousel from '../shared/CircularCarousel';
 
 const ROUTE_ICONS = {
   sell_as_is: ShoppingBag,
@@ -18,6 +19,72 @@ const ROUTE_LABELS = {
   return: 'Return',
 };
 
+function DecisionCard({ item, decision, onExecuteItem }) {
+  const Icon = ROUTE_ICONS[decision.best_route] || TrendingUp;
+
+  const routes = useMemo(() => {
+    if (!decision?.alternatives) return [];
+    const seen = new Set();
+    return [decision.winning_bid, ...decision.alternatives]
+      .filter(Boolean)
+      .filter((r) => { if (seen.has(r.route_type)) return false; seen.add(r.route_type); return true; })
+      .filter((r) => r.viable !== false)
+      .slice(0, 3);
+  }, [decision]);
+
+  return (
+    <div className="decision-carousel-inner">
+      <div className="decision-fs-card-header">
+        {item.hero_frame_paths?.[0] && (
+          <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="decision-fs-card-thumb" />
+        )}
+        <div className="decision-fs-card-info">
+          <span className="decision-fs-card-name">{item.name_guess}</span>
+          <Badge variant="success">
+            {ROUTE_LABELS[decision.best_route] || decision.best_route}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="decision-fs-card-value">
+        <Icon size={20} />
+        <AnimatedValue value={decision.estimated_best_value || 0} prefix="$" decimals={2} positive />
+      </div>
+
+      {decision.route_reason && (
+        <div className="decision-fs-card-reason">{decision.route_reason}</div>
+      )}
+
+      {routes.length > 0 && (
+        <div className="decision-fs-routes">
+          {routes.map((route, i) => {
+            const RouteIcon = ROUTE_ICONS[route.route_type] || TrendingUp;
+            return (
+              <div key={route.route_type} className={`decision-fs-route ${i === 0 ? 'top' : ''}`}>
+                <RouteIcon size={14} />
+                <span className="decision-fs-route-name">
+                  {ROUTE_LABELS[route.route_type] || route.route_type}
+                </span>
+                <span className="decision-fs-route-value">
+                  ${route.estimated_value?.toFixed(2)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        className="decision-fs-execute"
+        onClick={() => onExecuteItem(item.item_id, ['ebay', 'mercari'])}
+      >
+        <Zap size={14} />
+        Execute Route
+      </button>
+    </div>
+  );
+}
+
 export default function DecisionPanel({ items, decisions, agents = {}, onExecuteItem, fullscreen }) {
   const decisionList = useMemo(() => Object.values(decisions), [decisions]);
 
@@ -26,6 +93,20 @@ export default function DecisionPanel({ items, decisions, agents = {}, onExecute
   }, [decisionList]);
 
   const hasWinner = decisionList.length > 0;
+
+  // Build carousel items: only items that have decisions
+  const carouselItems = useMemo(() => {
+    return items.filter((item) => decisions[item.item_id]);
+  }, [items, decisions]);
+
+  const renderCarouselItem = useCallback((item, index, isActive, isFocused) => {
+    const decision = decisions[item.item_id];
+    if (!decision) return null;
+    return <DecisionCard item={item} decision={decision} onExecuteItem={onExecuteItem} />;
+  }, [decisions, onExecuteItem]);
+
+  // Fallback to original grid for single item or no items
+  const useCarousel = carouselItems.length > 1;
 
   return (
     <div className={`decision-fs ${fullscreen ? 'decision-fs-full' : ''}`}>
@@ -50,80 +131,89 @@ export default function DecisionPanel({ items, decisions, agents = {}, onExecute
           </div>
         </div>
 
-        <AnimatePresence>
-          <div className="decision-fs-grid">
-            {items.map((item, index) => {
-              const decision = decisions[item.item_id];
-              if (!decision) return null;
-              const Icon = ROUTE_ICONS[decision.best_route] || TrendingUp;
-              return (
-                <motion.div
-                  key={item.item_id}
-                  className="decision-fs-card"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05, duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
-                >
-                  <div className="decision-fs-card-header">
-                    {item.hero_frame_paths?.[0] && (
-                      <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="decision-fs-card-thumb" />
-                    )}
-                    <div className="decision-fs-card-info">
-                      <span className="decision-fs-card-name">{item.name_guess}</span>
-                      <Badge variant="success">
-                        {ROUTE_LABELS[decision.best_route] || decision.best_route}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="decision-fs-card-value">
-                    <Icon size={20} />
-                    <AnimatedValue value={decision.estimated_best_value || 0} prefix="$" decimals={2} positive />
-                  </div>
-
-                  {decision.route_reason && (
-                    <div className="decision-fs-card-reason">{decision.route_reason}</div>
-                  )}
-
-                  {decision?.alternatives && (() => {
-                    const seen = new Set();
-                    const routes = [decision.winning_bid, ...decision.alternatives]
-                      .filter(Boolean)
-                      .filter((r) => { if (seen.has(r.route_type)) return false; seen.add(r.route_type); return true; })
-                      .filter((r) => r.viable !== false)
-                      .slice(0, 3);
-                    return (
-                      <div className="decision-fs-routes">
-                        {routes.map((route, i) => {
-                          const RouteIcon = ROUTE_ICONS[route.route_type] || TrendingUp;
-                          return (
-                            <div key={route.route_type} className={`decision-fs-route ${i === 0 ? 'top' : ''}`}>
-                              <RouteIcon size={14} />
-                              <span className="decision-fs-route-name">
-                                {ROUTE_LABELS[route.route_type] || route.route_type}
-                              </span>
-                              <span className="decision-fs-route-value">
-                                ${route.estimated_value?.toFixed(2)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-
-                  <button
-                    className="decision-fs-execute"
-                    onClick={() => onExecuteItem(item.item_id, ['ebay', 'mercari'])}
-                  >
-                    <Zap size={14} />
-                    Execute Route
-                  </button>
-                </motion.div>
-              );
-            })}
+        {useCarousel ? (
+          <div className="decision-carousel-wrap">
+            <CircularCarousel
+              items={carouselItems}
+              renderItem={renderCarouselItem}
+            />
           </div>
-        </AnimatePresence>
+        ) : (
+          <AnimatePresence>
+            <div className="decision-fs-grid">
+              {items.map((item, index) => {
+                const decision = decisions[item.item_id];
+                if (!decision) return null;
+                const Icon = ROUTE_ICONS[decision.best_route] || TrendingUp;
+                return (
+                  <motion.div
+                    key={item.item_id}
+                    className="decision-fs-card glass-enhanced shine-on-hover"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05, duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+                  >
+                    <div className="decision-fs-card-header">
+                      {item.hero_frame_paths?.[0] && (
+                        <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="decision-fs-card-thumb" />
+                      )}
+                      <div className="decision-fs-card-info">
+                        <span className="decision-fs-card-name">{item.name_guess}</span>
+                        <Badge variant="success">
+                          {ROUTE_LABELS[decision.best_route] || decision.best_route}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="decision-fs-card-value">
+                      <Icon size={20} />
+                      <AnimatedValue value={decision.estimated_best_value || 0} prefix="$" decimals={2} positive />
+                    </div>
+
+                    {decision.route_reason && (
+                      <div className="decision-fs-card-reason">{decision.route_reason}</div>
+                    )}
+
+                    {decision?.alternatives && (() => {
+                      const seen = new Set();
+                      const routes = [decision.winning_bid, ...decision.alternatives]
+                        .filter(Boolean)
+                        .filter((r) => { if (seen.has(r.route_type)) return false; seen.add(r.route_type); return true; })
+                        .filter((r) => r.viable !== false)
+                        .slice(0, 3);
+                      return (
+                        <div className="decision-fs-routes">
+                          {routes.map((route, i) => {
+                            const RouteIcon = ROUTE_ICONS[route.route_type] || TrendingUp;
+                            return (
+                              <div key={route.route_type} className={`decision-fs-route ${i === 0 ? 'top' : ''}`}>
+                                <RouteIcon size={14} />
+                                <span className="decision-fs-route-name">
+                                  {ROUTE_LABELS[route.route_type] || route.route_type}
+                                </span>
+                                <span className="decision-fs-route-value">
+                                  ${route.estimated_value?.toFixed(2)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                    <button
+                      className="decision-fs-execute"
+                      onClick={() => onExecuteItem(item.item_id, ['ebay', 'mercari'])}
+                    >
+                      <Zap size={14} />
+                      Execute Route
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </AnimatePresence>
+        )}
 
         {items.length === 0 && (
           <div className="decision-fs-empty">

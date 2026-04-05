@@ -23,7 +23,7 @@ function PhoneQR() {
 
   return (
     <motion.div
-      className="intake-qr-panel"
+      className="intake-qr-panel glass-enhanced"
       initial={{ opacity: 0, y: 40, scale: 0.94 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 1.0, delay: 3.6, ease: [0.16, 1, 0.3, 1] }}
@@ -132,7 +132,7 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
           transition={uploading ? { duration: 0.5, ease: EASE } : {}}
         >
           <motion.div
-            className={`intake-drop-card ${dragActive ? 'active' : ''} ${uploading ? 'uploading' : ''}`}
+            className={`intake-drop-card glass-enhanced ${dragActive ? 'active' : ''} ${uploading ? 'uploading' : ''}`}
             onDragEnter={handleDrag}
             onDragOver={handleDrag}
             onDragLeave={handleDrag}
