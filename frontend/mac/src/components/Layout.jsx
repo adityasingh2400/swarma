@@ -325,11 +325,11 @@ function LayoutInner({
   theaterNavRequest,
   onTheaterNavConsumed,
   onTheaterStageChange,
+  userRequestedResearch = false,
 }) {
   const [phase, setPhase] = useState('intake');
   const [videoUrl, setVideoUrl] = useState(null);
   const [focusedAgentId, setFocusedAgentId] = useState(null);
-  const [researchReady, setResearchReady] = useState(false);
 
   useEffect(() => {
     return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
@@ -341,7 +341,6 @@ function LayoutInner({
   );
 
   const showConciergeResults = globalStage === 'concierge-done' || globalStage === 'concierge';
-  const researchGateOpen = false;
 
   const handleUpload = (file, url) => {
     setVideoUrl(url);
@@ -383,7 +382,7 @@ function LayoutInner({
           )}
 
           {/* ── Phase: Processing ───────────────────────────── */}
-          {phase === 'processing' && !showConciergeResults && !researchGateOpen && (
+          {phase === 'processing' && !showConciergeResults && !userRequestedResearch && (
             <motion.div
               key="processing"
               className="proc-layout"
@@ -405,6 +404,7 @@ function LayoutInner({
                   stage3Plan={stage3Plan} events={events} lastEvent={lastEvent}
                   onExecuteItem={onExecuteItem} onSendReply={onSendReply}
                   v2Agents={v2Agents} pipelineStage={pipelineStage} postingStatus={postingStatus} send={send}
+                  screenshots={screenshots}
                   theaterNavRequest={theaterNavRequest}
                   onTheaterNavConsumed={onTheaterNavConsumed}
                   onStageClick={onTheaterStageChange}
@@ -417,7 +417,7 @@ function LayoutInner({
           )}
 
           {/* ── Phase: Research ─────────────────────────────── */}
-          {phase === 'processing' && researchGateOpen && !showConciergeResults && (
+          {phase === 'processing' && userRequestedResearch && !showConciergeResults && (
             <motion.div
               key="research"
               className="research-fullscreen"

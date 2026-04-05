@@ -325,6 +325,21 @@ body {
   background: rgba(0, 0, 0, 0.09);
 }
 
+.ts-pulsing {
+  animation: ts-pulse 2s ease-in-out infinite;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--text-primary);
+  font-weight: 700;
+  box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+}
+.ts-pulsing svg {
+  color: rgb(99, 102, 241);
+}
+@keyframes ts-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+}
+
 .ts-clickable {
   pointer-events: auto;
   cursor: pointer;
@@ -3846,6 +3861,27 @@ body {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
+}
+
+.pw-center-frames {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.pw-center-frame-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+
+.pw-center-frame-thumb:hover {
+  opacity: 1;
 }
 
 
@@ -7790,6 +7826,37 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scroll-snap-type: y proximity;
+}
+
+/* Live SwarmGrid section within research page */
+.rp2-swarm-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.02);
+}
+.rp2-swarm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+.rp2-swarm-count {
+  margin-left: auto;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: var(--bg-card);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.rp2-swarm-section .sg-grid {
+  max-height: 340px;
 }
 
 /* ==============================================

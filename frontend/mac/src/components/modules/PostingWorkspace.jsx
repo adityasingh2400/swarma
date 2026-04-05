@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import Badge from '../shared/Badge';
 import AnimatedValue from '../shared/AnimatedValue';
+import BrowserFeed from '../BrowserFeed';
+import { ACTIVE_STATUSES, STATUS_COMPLETE, STATUS_ERROR, STATUS_BLOCKED } from '../../utils/contracts';
 
 const E = [0.22, 1, 0.36, 1];
 
@@ -41,9 +43,6 @@ const ROUTE_GLOW = {
   repair_then_sell: 'rgba(255, 196, 136, 0.10)',
   return: 'rgba(200, 160, 255, 0.10)',
 };
-
-const MOCK_VIEW_SRC = (seed) =>
-  `https://picsum.photos/seed/${seed}/200/310`;
 
 const STATUS_CONFIG = {
   in_progress: { icon: Loader2, label: 'Posting...', cls: 'pw-status-posting', spin: true },
@@ -168,16 +167,24 @@ function ItemDecisionCard({ item, decision, index, onPost }) {
   );
 }
 
-/* ── Phase 2: Browser mock ──────────────────────────────── */
+/* ── Phase 2: Live browser feed ─────────────────────────── */
 
-function BrowserInstanceMock({ platform, seedSuffix, posIndex, clusterIndex, postStatus }) {
-  const [imgOk, setImgOk] = useState(true);
-  const seed = `${platform.seed}-${seedSuffix}`;
+function BrowserInstanceLive({ platform, itemId, v2Agents, screenshots, posIndex, clusterIndex, postStatus }) {
+  const agentId = `${platform.id}-listing-${(itemId || '').slice(0, 10)}`;
+  const agent = v2Agents?.[agentId];
+  const shot = screenshots instanceof Map
+    ? screenshots.get(agentId)
+    : screenshots?.[agentId];
+  const screenshotUrl = shot?.url || null;
+
+  const isActive = agent && ACTIVE_STATUSES.has(agent.status);
+  const isDone = agent?.status === STATUS_COMPLETE;
+  const isError = agent?.status === STATUS_ERROR || agent?.status === STATUS_BLOCKED;
   const cfg = postStatus ? STATUS_CONFIG[postStatus.status] : null;
 
   return (
     <motion.div
-      className={`pw-corner-browser ${CORNER_CLASSES[posIndex]} ${cfg?.cls || ''}`}
+      className={`pw-corner-browser ${CORNER_CLASSES[posIndex]} ${cfg?.cls || ''} ${isActive ? 'pw-browser-active' : ''} ${isDone ? 'pw-browser-done' : ''} ${isError ? 'pw-browser-error' : ''}`}
       initial={{ opacity: 0, scale: 0.7, filter: 'blur(6px)' }}
       animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
       transition={{
@@ -195,6 +202,14 @@ function BrowserInstanceMock({ platform, seedSuffix, posIndex, clusterIndex, pos
             <Globe size={9} className="pw-browser-url-icon" />
             <span>{platform.domain}</span>
           </div>
+          {isActive && (
+            <motion.span
+              className="pw-browser-live-badge"
+              animate={{ opacity: [1, 0.4, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              style={{ fontSize: 9, fontWeight: 700, color: '#4ade80', marginLeft: 'auto', marginRight: 6 }}
+            >LIVE</motion.span>
+          )}
           {cfg && (
             <div className={`pw-chrome-status ${cfg.cls}`}>
               <cfg.icon size={10} className={cfg.spin ? 'mc-spinner' : ''} />
@@ -202,13 +217,17 @@ function BrowserInstanceMock({ platform, seedSuffix, posIndex, clusterIndex, pos
           )}
         </div>
         <div className="pw-browser-body">
-          {imgOk && (
-            <img src={MOCK_VIEW_SRC(seed)} alt="" className="pw-browser-img" loading="lazy" onError={() => setImgOk(false)} />
-          )}
-          {!imgOk && (
+          {screenshotUrl ? (
+            <BrowserFeed screenshotUrl={screenshotUrl} size="thumbnail" />
+          ) : agent ? (
+            <div className="pw-browser-fallback pw-browser-fallback-visible">
+              <Loader2 size={22} strokeWidth={1.25} className="mc-spinner" />
+              <span>Agent starting...</span>
+            </div>
+          ) : (
             <div className="pw-browser-fallback pw-browser-fallback-visible">
               <Monitor size={22} strokeWidth={1.25} />
-              <span>Agent viewport</span>
+              <span>Waiting for agent</span>
             </div>
           )}
           <div className="pw-browser-platform"><Badge platform={platform.id} /></div>
@@ -236,20 +255,23 @@ function BrowserInstanceMock({ platform, seedSuffix, posIndex, clusterIndex, pos
   );
 }
 
-function FullPageCluster({ item, decision, slotIndex, postingStatus = {} }) {
+function FullPageCluster({ item, decision, slotIndex, postingStatus = {}, v2Agents = {}, screenshots }) {
   const itemId = item?.item_id;
   const title = item?.name_guess || `Item ${slotIndex + 1}`;
-  const img = item?.hero_frame_paths?.[0];
+  const heroImg = item?.hero_frame_paths?.[0];
+  const allFrames = (item?.all_frame_paths || item?.hero_frame_paths || []).slice(0, 4);
   const allDone = PLATFORMS.every((p) => postingStatus[`${itemId}:${p.id}`]?.status === 'success');
   const anyPosting = PLATFORMS.some((p) => postingStatus[`${itemId}:${p.id}`]?.status === 'in_progress');
 
   return (
     <div className={`pw-fullpage-cluster ${allDone ? 'pw-cluster-done' : ''} ${anyPosting ? 'pw-cluster-active' : ''}`}>
       {PLATFORMS.map((p, i) => (
-        <BrowserInstanceMock
+        <BrowserInstanceLive
           key={p.id}
           platform={p}
-          seedSuffix={itemId || `slot-${slotIndex}`}
+          itemId={itemId}
+          v2Agents={v2Agents}
+          screenshots={screenshots}
           posIndex={i}
           clusterIndex={slotIndex}
           postStatus={postingStatus[`${itemId}:${p.id}`]}
@@ -263,8 +285,8 @@ function FullPageCluster({ item, decision, slotIndex, postingStatus = {} }) {
         transition={{ delay: 0.15, type: 'spring', damping: 22, stiffness: 180 }}
       >
         <div className="pw-center-visual">
-          {img ? (
-            <img src={img} alt="" className="pw-center-img" />
+          {heroImg ? (
+            <img src={heroImg} alt="" className="pw-center-img" />
           ) : (
             <div className="pw-center-placeholder"><Package size={36} strokeWidth={1.2} /></div>
           )}
@@ -274,6 +296,13 @@ function FullPageCluster({ item, decision, slotIndex, postingStatus = {} }) {
           <span className="pw-center-value">
             <AnimatedValue value={decision.estimated_best_value} prefix="$" decimals={2} positive />
           </span>
+        )}
+        {allFrames.length > 1 && (
+          <div className="pw-center-frames">
+            {allFrames.map((fp, i) => (
+              <img key={i} src={fp} alt={`Frame ${i + 1}`} className="pw-center-frame-thumb" />
+            ))}
+          </div>
         )}
       </motion.div>
     </div>
@@ -289,7 +318,7 @@ const slideVariants = {
 
 /* ── Main component ─────────────────────────────────────── */
 
-export default function PostingWorkspace({ items = [], decisions = {}, postingStatus = {}, initialStarted = false }) {
+export default function PostingWorkspace({ items = [], decisions = {}, postingStatus = {}, initialStarted = false, v2Agents = {}, screenshots }) {
   const [postedIds, setPostedIds] = useState(() => new Set());
   const [phase, setPhase] = useState(initialStarted ? 'browsers' : 'decisions');
   const [carouselIdx, setCarouselIdx] = useState(0);
@@ -472,6 +501,8 @@ export default function PostingWorkspace({ items = [], decisions = {}, postingSt
                     decision={decisions[postedItems[carouselIdx]?.item_id]}
                     slotIndex={carouselIdx}
                     postingStatus={postingStatus}
+                    v2Agents={v2Agents}
+                    screenshots={screenshots}
                   />
                 </motion.div>
               </AnimatePresence>

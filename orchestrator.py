@@ -17,16 +17,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import platform
 import time
 import traceback
 
 from browser_use import Agent, Browser, BrowserProfile
+from browser_use.browser.session import BrowserSession
 
 from config import settings
 from contracts import AgentEvent, AgentState, Playbook, RouteDecision
-from extraction import make_research_tools
+from extraction import make_research_tools, get_extraction_js
 from models.item_card import ItemCard
-from models.listing_package import ListingPackage
+from models.listing_package import ListingPackage, ListingImage
 from route_decision import route_decision
 import backend.streaming as streaming
 
@@ -38,6 +40,80 @@ except ImportError:
     def swarma_line(component, event, **fields):
         logger.info("SWARMA | %s | %s | %s", component, event,
                      " | ".join(f"{k}={v}" for k, v in fields.items()))
+
+
+# ---------------------------------------------------------------------------
+# macOS: suppress Chrome window focus-stealing
+# ---------------------------------------------------------------------------
+
+_IS_MACOS = platform.system() == "Darwin"
+
+# A PERSISTENT AppleScript that runs in a tight loop (~300ms) for the
+# lifetime of the pipeline.  Whenever Chrome becomes the frontmost app it:
+#   1. Hides Chrome via System Events  (instant, no window flash)
+#   2. Re-activates the app the user was actually using
+# One long-lived osascript process beats spawning a new one every few seconds.
+_FOCUS_GUARD_SCRIPT = '''\
+set targetApp to "Cursor"
+
+repeat
+    delay 0.25
+    try
+        tell application "System Events"
+            set currentFront to name of first application process whose frontmost is true
+
+            if currentFront is not "Google Chrome" and currentFront is not "osascript" then
+                set targetApp to currentFront
+            end if
+
+            if currentFront is "Google Chrome" then
+                tell process "Google Chrome"
+                    set visible to false
+                end tell
+                tell application targetApp to activate
+            end if
+        end tell
+    end try
+end repeat
+'''
+
+_focus_guard_proc: asyncio.subprocess.Process | None = None
+
+
+async def _start_focus_guard():
+    """Launch the persistent focus-guard AppleScript."""
+    global _focus_guard_proc
+    if not _IS_MACOS:
+        return
+    if _focus_guard_proc is not None:
+        return
+    try:
+        _focus_guard_proc = await asyncio.create_subprocess_exec(
+            "osascript", "-e", _FOCUS_GUARD_SCRIPT,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        swarma_line("focus_guard", "started", pid=_focus_guard_proc.pid)
+    except Exception as exc:
+        swarma_line("focus_guard", "start_failed", error=str(exc))
+        _focus_guard_proc = None
+
+
+async def _stop_focus_guard():
+    """Kill the persistent focus-guard AppleScript."""
+    global _focus_guard_proc
+    if _focus_guard_proc is None:
+        return
+    try:
+        _focus_guard_proc.terminate()
+        await asyncio.wait_for(_focus_guard_proc.wait(), timeout=3)
+        swarma_line("focus_guard", "stopped")
+    except Exception:
+        try:
+            _focus_guard_proc.kill()
+        except Exception:
+            pass
+    _focus_guard_proc = None
 
 # ---------------------------------------------------------------------------
 # Playbook registry — Person 2 registers these at import time
@@ -86,6 +162,140 @@ def _make_llm():
 
 
 # ---------------------------------------------------------------------------
+# Listing detail generation — fills the ListingPackage before agents run
+# ---------------------------------------------------------------------------
+
+def _collect_listing_images(item: ItemCard) -> list[ListingImage]:
+    """Turn intake hero_frame_paths into ListingImage objects with absolute paths.
+
+    intake.py saves best frames at data/optimized/{item_id}/listing_N.jpg.
+    hero_frame_paths may be URL paths (/api/jobs/.../intake-frames/...) or
+    frame_N references.  We resolve to the actual files on disk.
+    """
+    from pathlib import Path
+
+    images: list[ListingImage] = []
+    optimized_dir = Path(settings.optimized_dir) / item.item_id
+
+    if optimized_dir.exists():
+        jpgs = sorted(optimized_dir.glob("*.jpg"))
+        for i, p in enumerate(jpgs[:6]):
+            role = "hero" if i == 0 else "secondary"
+            images.append(ListingImage(path=str(p.resolve()), role=role))
+
+    if not images:
+        cache_dir = Path(".reroutecache/listing_images")
+        if cache_dir.exists():
+            for name_dir in cache_dir.iterdir():
+                if item.name_guess.lower().replace(" ", "_")[:8] in name_dir.name.lower():
+                    jpgs = sorted(name_dir.glob("*.jpg"))
+                    for i, p in enumerate(jpgs[:6]):
+                        role = "hero" if i == 0 else "secondary"
+                        images.append(ListingImage(path=str(p.resolve()), role=role))
+                    break
+
+    if not images:
+        for frame_dir in [Path("data/frames"), Path("backend/.reroutecache/frames")]:
+            if frame_dir.exists():
+                jpgs = sorted(frame_dir.glob("*.jpg"))[:6]
+                for i, p in enumerate(jpgs):
+                    role = "hero" if i == 0 else "secondary"
+                    images.append(ListingImage(path=str(p.resolve()), role=role))
+                if images:
+                    break
+
+    return images
+
+
+def _build_listing_package(
+    item: ItemCard,
+    decision: RouteDecision,
+    research: dict[str, dict],
+    job_id: str,
+) -> ListingPackage:
+    """Generate a complete ListingPackage from item + research data.
+
+    Uses the item card's specs, condition, and research prices to produce
+    title, description, price strategy, and image list — everything the
+    listing playbooks need to fill marketplace forms.
+    """
+    specs = item.likely_specs or {}
+    brand = specs.get("brand", "")
+    model = specs.get("model", "")
+    color = specs.get("color", "")
+    storage = specs.get("storage", "")
+
+    title = item.name_guess
+    if len(title) < 20:
+        extras = [v for k, v in specs.items() if k not in ("brand", "model") and v]
+        title = f"{title} {' '.join(extras[:3])}".strip()
+
+    condition_label = item.condition_label
+    defects = item.all_defects
+    if defects:
+        defect_lines = [f"- {d.description}" for d in defects[:5]]
+        defects_disclosure = "Known issues:\n" + "\n".join(defect_lines)
+    else:
+        defects_disclosure = "No visible defects."
+
+    desc_parts = [
+        title,
+        f"Condition: {condition_label}.",
+    ]
+    if defects:
+        desc_parts.append(defects_disclosure)
+    spec_line = ", ".join(f"{k}: {v}" for k, v in specs.items() if v)
+    if spec_line:
+        desc_parts.append(f"Specs: {spec_line}")
+    desc_parts.append("Ships quickly. Message with questions!")
+    description = "\n\n".join(desc_parts)
+
+    research_prices = [
+        data.get("avg_sold_price", 0.0)
+        for data in research.values()
+        if data.get("avg_sold_price", 0) > 0
+    ]
+    if research_prices:
+        avg_market = sum(research_prices) / len(research_prices)
+        price_strategy = round(avg_market * 0.95, 2)
+        price_min = round(min(research_prices) * 0.85, 2)
+        price_max = round(max(research_prices) * 1.05, 2)
+    else:
+        price_strategy = 0.0
+        price_min = 0.0
+        price_max = 0.0
+
+    images = _collect_listing_images(item)
+
+    return ListingPackage(
+        item_id=item.item_id,
+        job_id=job_id,
+        title=title,
+        description=description,
+        specs=specs,
+        condition_summary=condition_label,
+        defects_disclosure=defects_disclosure,
+        price_strategy=price_strategy,
+        price_min=price_min,
+        price_max=price_max,
+        images=images,
+        platforms=decision.platforms,
+        prices=decision.prices,
+        research=research,
+    )
+
+
+def _should_list_on_platform(item: ItemCard, platform: str) -> bool:
+    """Gate check: skip platforms that are known-bad for this item category."""
+    if platform == "depop" and item.category != item.category.CLOTHING:
+        swarma_line("pipeline", "skip_platform",
+                    item=item.name_guess, platform=platform,
+                    reason="depop is clothing-only, item is " + item.category.value)
+        return False
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 
@@ -97,6 +307,11 @@ class Orchestrator:
 
         self.agents: dict[str, Agent] = {}
         self.agent_states: dict[str, AgentState] = {}
+
+        self._research_gate: asyncio.Event = asyncio.Event()
+        self._pending_items: list[ItemCard] = []
+        self._pending_job_id: str | None = None
+        self._preloaded_sessions: dict[str, BrowserSession] = {}
 
         self.profiles: dict[str, str | None] = settings.storage_state_map
         swarma_line("orchestrator", "init", max_concurrent=limit,
@@ -118,8 +333,10 @@ class Orchestrator:
         storage = self.profiles.get(platform)
         return BrowserProfile(
             storage_state=storage,
+            user_data_dir=None,
             minimum_wait_page_load_time=0.1,
             wait_between_actions=0.1,
+            headless=False,
         )
 
     def _emit(self, event: AgentEvent) -> None:
@@ -178,7 +395,9 @@ class Orchestrator:
                      use_vision: bool | str = False,
                      platform: str = "",
                      phase: str = "",
-                     step_prehook=None) -> Agent:
+                     step_prehook=None,
+                     file_paths: list[str] | None = None,
+                     browser_session: BrowserSession | None = None) -> Agent:
         """Build an Agent with all speed + visual optimizations."""
         tools = make_research_tools(platform) if phase == "research" else None
         base_cb = self._make_step_callback(agent_id)
@@ -191,10 +410,9 @@ class Orchestrator:
         else:
             cb = base_cb
 
-        agent = Agent(
+        kwargs = dict(
             task=task_str,
             llm=_make_llm(),
-            browser_profile=profile,
             flash_mode=True,
             max_actions_per_step=4,
             max_steps=5 if phase == "research" else 30,
@@ -203,6 +421,14 @@ class Orchestrator:
             tools=tools,
             register_new_step_callback=cb,
         )
+        if browser_session is not None:
+            kwargs["browser_session"] = browser_session
+        else:
+            kwargs["browser_profile"] = profile
+        if file_paths:
+            kwargs["available_file_paths"] = file_paths
+
+        agent = Agent(**kwargs)
         return agent
 
     # --- Agent execution ---
@@ -246,9 +472,16 @@ class Orchestrator:
             profile = self._make_profile(playbook.platform)
             use_vision: bool | str = "auto" if phase == "listing" else False
 
+            file_paths: list[str] | None = None
+            if phase == "listing" and item.listing_package:
+                pkg = item.listing_package
+                file_paths = [img.path for img in (pkg.images or []) if img.path]
+
             try:
                 agent_box: list[Agent | None] = [None]
                 sc_started = [False]
+
+                preloaded = self._preloaded_sessions.pop(agent_id, None)
 
                 async def _screencast_on_first_step(state, model_output, step):
                     if sc_started[0]:
@@ -263,13 +496,19 @@ class Orchestrator:
                         swarma_line("agent", "screencast_start_failed", agent_id=agent_id,
                                     error=str(sc_err))
 
+                if preloaded:
+                    sc_started[0] = True
+                    swarma_line("agent", "using_preloaded_session", agent_id=agent_id)
+
                 agent = self._build_agent(
                     agent_id, task_str, profile,
-                    initial_actions=initial_actions,
+                    initial_actions=None if preloaded else initial_actions,
                     use_vision=use_vision,
                     platform=playbook.platform,
                     phase=phase,
-                    step_prehook=_screencast_on_first_step,
+                    step_prehook=None if preloaded else _screencast_on_first_step,
+                    file_paths=file_paths,
+                    browser_session=preloaded,
                 )
                 agent_box[0] = agent
                 self.agents[agent_id] = agent
@@ -324,6 +563,7 @@ class Orchestrator:
                         agent_id, task_str, profile,
                         initial_actions=initial_actions,
                         use_vision=use_vision,
+                        file_paths=file_paths,
                     )
                     self.agents[agent_id] = retry_agent
 
@@ -366,8 +606,19 @@ class Orchestrator:
 
     # --- Pipeline ---
 
+    def release_research(self):
+        """Called when the user clicks Research — unblocks the waiting pipeline."""
+        swarma_line("orchestrator", "research_gate_opened")
+        self._research_gate.set()
+
     async def start_pipeline(self, job_id: str, items: list[ItemCard]) -> None:
-        """Full pipeline: research → route decision → listing."""
+        """Full pipeline: advertise → preload browsers → WAIT → research → listing.
+
+        1. Emit agent:spawn "ready" for every planned agent
+        2. Pre-launch browsers and navigate to target URLs (preload)
+        3. Block on _research_gate until the user clicks "Research"
+        4. Run the actual Browser-Use agents on the already-open pages
+        """
         playbooks = get_all_playbooks()
         num_playbooks = len(playbooks)
 
@@ -382,86 +633,176 @@ class Orchestrator:
                     playbook_platforms=[pb.platform for pb in playbooks],
                     item_names=[i.name_guess for i in items])
 
-        # Phase 1: Research — all items, all platforms, concurrently
-        research_tasks = [
-            self.run_agent(item, pb, "research")
-            for item in items
-            for pb in playbooks
+        self._pending_items = items
+        self._pending_job_id = job_id
+
+        # ── 1. Advertise: emit agent:spawn "ready" ──
+        agent_plan: list[tuple[ItemCard, Playbook, str]] = []
+        for item in items:
+            for pb in playbooks:
+                agent_id = f"{pb.platform}-research-{item.item_id}"
+                agent_plan.append((item, pb, agent_id))
+                self.agent_states[agent_id] = AgentState(
+                    agent_id=agent_id,
+                    item_id=item.item_id,
+                    platform=pb.platform,
+                    phase="research",
+                    status="ready",
+                    task=f"research {pb.platform} for {item.name_guess}",
+                    started_at=None,
+                )
+                self._emit(AgentEvent(
+                    type="agent:spawn", agent_id=agent_id,
+                    data={
+                        "platform": pb.platform, "phase": "research",
+                        "item_id": item.item_id,
+                        "task": self.agent_states[agent_id].task,
+                        "status": "ready",
+                    },
+                ))
+
+        swarma_line("pipeline", "agents_advertised", job_id=job_id,
+                    agents_n=len(agent_plan))
+
+        # ── 2. Preload: launch browsers & navigate to target URLs ──
+        await _start_focus_guard()
+
+        preloaded_sessions = self._preloaded_sessions
+
+        async def _preload_one(item: ItemCard, pb: Playbook, agent_id: str):
+            """Launch one browser, navigate to target URL, start screencast."""
+            try:
+                profile = self._make_profile(pb.platform)
+                session = BrowserSession(browser_profile=profile)
+                await session.start()
+
+                task_str, initial_actions = pb.research_task(item)
+                nav_url = None
+                if initial_actions:
+                    for act in initial_actions:
+                        if isinstance(act, dict) and "navigate" in act:
+                            nav_url = act["navigate"].get("url") or act["navigate"]
+                            break
+                        if isinstance(act, dict) and "go_to_url" in act:
+                            nav_url = act["go_to_url"].get("url") or act["go_to_url"]
+                            break
+
+                if nav_url:
+                    await session.navigate_to(nav_url)
+
+                page = await session.get_current_page()
+                if page:
+                    await streaming.start_screencast(agent_id, page)
+
+                preloaded_sessions[agent_id] = session
+                self._update_state(agent_id, status="preloaded")
+                self._emit(AgentEvent(
+                    type="agent:status", agent_id=agent_id,
+                    data={"status": "preloaded"},
+                ))
+                swarma_line("preload", "done", agent_id=agent_id, url=nav_url or "none")
+            except Exception as exc:
+                swarma_line("preload", "failed", agent_id=agent_id, error=str(exc))
+
+        preload_tasks = [
+            _preload_one(item, pb, aid) for item, pb, aid in agent_plan
         ]
-        swarma_line("pipeline", "research_phase_start", job_id=job_id,
-                    agents_n=len(research_tasks))
+        await asyncio.gather(*preload_tasks, return_exceptions=True)
 
-        all_results = await asyncio.gather(*research_tasks, return_exceptions=True)
+        swarma_line("pipeline", "preload_complete_waiting_for_gate",
+                    job_id=job_id, preloaded=len(preloaded_sessions))
 
-        successes = sum(1 for r in all_results if not isinstance(r, BaseException))
-        failures = sum(1 for r in all_results if isinstance(r, BaseException))
-        swarma_line("pipeline", "research_phase_complete", job_id=job_id,
-                    successes=successes, failures=failures)
+        # ── 3. GATE: wait until the user clicks "Research" ──
+        self._research_gate.clear()
+        await self._research_gate.wait()
+        swarma_line("pipeline", "research_gate_passed", job_id=job_id)
 
-        # Phase 2: Route decision + Phase 3: Listing — per item
-        for i, item in enumerate(items):
-            item_results = all_results[i * num_playbooks: (i + 1) * num_playbooks]
-
-            parsed: dict[str, dict] = {}
-            for pb, result in zip(playbooks, item_results):
-                if isinstance(result, BaseException):
-                    swarma_line("pipeline", "research_result_error", job_id=job_id,
-                                platform=pb.platform, item=item.name_guess,
-                                error=str(result))
-                    continue
-                try:
-                    parsed[pb.platform] = pb.parse_research(result.final_result())
-                    swarma_line("pipeline", "research_parsed", job_id=job_id,
-                                platform=pb.platform, item=item.name_guess,
-                                result_keys=list(parsed[pb.platform].keys()))
-                except Exception as e:
-                    swarma_line("pipeline", "research_parse_failed", job_id=job_id,
-                                platform=pb.platform, item=item.name_guess,
-                                error=str(e))
-
-            if not parsed:
-                swarma_line("pipeline", "no_research_results_skip_listing",
-                            job_id=job_id, item=item.name_guess)
-                continue
-
-            decision: RouteDecision = route_decision(item, parsed)
-
-            swarma_line("pipeline", "route_decision", job_id=job_id,
-                        item=item.name_guess,
-                        platforms=decision.platforms,
-                        prices=decision.prices,
-                        scores=decision.scores)
-
-            self._emit(AgentEvent(
-                type="decision:made",
-                agent_id=f"decision-{item.item_id}",
-                data={
-                    "item_id": item.item_id,
-                    "platforms": decision.platforms,
-                    "prices": decision.prices,
-                    "scores": decision.scores,
-                },
-            ))
-
-            item.listing_package = ListingPackage(
-                item_id=item.item_id,
-                job_id=job_id,
-                platforms=decision.platforms,
-                prices=decision.prices,
-                research=parsed,
-            )
-
-            listing_tasks = [
-                self.run_agent(item, get_playbook(platform), "listing")
-                for platform in decision.platforms
-                if platform in PLAYBOOKS
+        try:
+            # Phase 1: Research — all items, all platforms, concurrently
+            research_tasks = [
+                self.run_agent(item, pb, "research")
+                for item in items
+                for pb in playbooks
             ]
-            if listing_tasks:
-                swarma_line("pipeline", "listing_phase_start", job_id=job_id,
-                            item=item.name_guess, agents_n=len(listing_tasks),
-                            platforms=decision.platforms)
-                await asyncio.gather(*listing_tasks, return_exceptions=True)
-                swarma_line("pipeline", "listing_phase_complete", job_id=job_id,
-                            item=item.name_guess)
+            swarma_line("pipeline", "research_phase_start", job_id=job_id,
+                        agents_n=len(research_tasks))
 
-        swarma_line("pipeline", "complete", job_id=job_id)
+            all_results = await asyncio.gather(*research_tasks, return_exceptions=True)
+
+            successes = sum(1 for r in all_results if not isinstance(r, BaseException))
+            failures = sum(1 for r in all_results if isinstance(r, BaseException))
+            swarma_line("pipeline", "research_phase_complete", job_id=job_id,
+                        successes=successes, failures=failures)
+
+            # Phase 2: Route decision + Phase 3: Listing — per item
+            for i, item in enumerate(items):
+                item_results = all_results[i * num_playbooks: (i + 1) * num_playbooks]
+
+                parsed: dict[str, dict] = {}
+                for pb, result in zip(playbooks, item_results):
+                    if isinstance(result, BaseException):
+                        swarma_line("pipeline", "research_result_error", job_id=job_id,
+                                    platform=pb.platform, item=item.name_guess,
+                                    error=str(result))
+                        continue
+                    try:
+                        parsed[pb.platform] = pb.parse_research(result.final_result())
+                        swarma_line("pipeline", "research_parsed", job_id=job_id,
+                                    platform=pb.platform, item=item.name_guess,
+                                    result_keys=list(parsed[pb.platform].keys()))
+                    except Exception as e:
+                        swarma_line("pipeline", "research_parse_failed", job_id=job_id,
+                                    platform=pb.platform, item=item.name_guess,
+                                    error=str(e))
+
+                if not parsed:
+                    swarma_line("pipeline", "no_research_results_skip_listing",
+                                job_id=job_id, item=item.name_guess)
+                    continue
+
+                decision: RouteDecision = route_decision(item, parsed)
+
+                swarma_line("pipeline", "route_decision", job_id=job_id,
+                            item=item.name_guess,
+                            platforms=decision.platforms,
+                            prices=decision.prices,
+                            scores=decision.scores)
+
+                self._emit(AgentEvent(
+                    type="decision:made",
+                    agent_id=f"decision-{item.item_id}",
+                    data={
+                        "item_id": item.item_id,
+                        "platforms": decision.platforms,
+                        "prices": decision.prices,
+                        "scores": decision.scores,
+                    },
+                ))
+
+                listing_pkg = _build_listing_package(item, decision, parsed, job_id)
+                item.listing_package = listing_pkg
+
+                swarma_line("pipeline", "listing_package_built", job_id=job_id,
+                            item=item.name_guess,
+                            title_len=len(listing_pkg.title),
+                            images_n=len(listing_pkg.images),
+                            price=listing_pkg.price_strategy)
+
+                listing_tasks = [
+                    self.run_agent(item, get_playbook(platform), "listing")
+                    for platform in decision.platforms
+                    if platform in PLAYBOOKS
+                    and _should_list_on_platform(item, platform)
+                ]
+                if listing_tasks:
+                    swarma_line("pipeline", "listing_phase_start", job_id=job_id,
+                                item=item.name_guess, agents_n=len(listing_tasks),
+                                platforms=decision.platforms)
+                    await asyncio.gather(*listing_tasks, return_exceptions=True)
+                    swarma_line("pipeline", "listing_phase_complete", job_id=job_id,
+                                item=item.name_guess)
+
+            swarma_line("pipeline", "complete", job_id=job_id)
+
+        finally:
+            await _stop_focus_guard()

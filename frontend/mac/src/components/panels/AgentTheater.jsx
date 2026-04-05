@@ -70,6 +70,7 @@ export default function AgentTheater({
   pipelineStage,
   postingStatus = {},
   send,
+  screenshots,
   miniPlayer,
   theaterNavRequest,
   onTheaterNavConsumed,
@@ -219,6 +220,7 @@ export default function AgentTheater({
           v2Agents={v2Agents}
           pipelineStage={pipelineStage}
           postingStatus={postingStatus}
+          screenshots={screenshots}
           send={send}
           miniPlayer={miniPlayer}
         />

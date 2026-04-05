@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CircularCarousel from '../shared/CircularCarousel';
 import BrowserFeed from '../BrowserFeed';
 import FocusMode from '../FocusMode';
+import SwarmGrid from '../SwarmGrid';
 import {
   Search, TrendingUp, Wrench,
   CheckCircle2, AlertTriangle,
@@ -23,7 +24,7 @@ const PLATFORM_META = {
   amazon:   { label: 'Amazon',   color: '#FF9900', gradient: 'linear-gradient(135deg, #FF9900, #FFB347)' },
 };
 
-const RESALE_PLATFORMS = ['ebay', 'mercari', 'facebook'];
+const RESALE_PLATFORMS = ['ebay', 'mercari', 'facebook', 'depop', 'amazon'];
 
 function getAgentScreenshot(screenshots, agentId) {
   if (!screenshots || !agentId) return null;
@@ -538,6 +539,18 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
 
   const useCarousel = items.length > 1;
 
+  const hasV2Agents = Object.keys(v2Agents || {}).length > 0;
+
+  const researchOnlyAgents = useMemo(() => {
+    const out = {};
+    for (const [id, agent] of Object.entries(v2Agents || {})) {
+      if (agent.phase !== 'listing') out[id] = agent;
+    }
+    return out;
+  }, [v2Agents]);
+
+  const hasResearchAgents = Object.keys(researchOnlyAgents).length > 0;
+
   const renderCarouselItem = useCallback((item, index) => (
     <ItemUniverse
       item={item}
@@ -553,6 +566,28 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
 
   return (
     <div className="rp2-page">
+      {/* Full SwarmGrid showing research-only browser streams */}
+      {hasResearchAgents && (
+        <motion.div
+          className="rp2-swarm-section"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: EASE }}
+        >
+          <div className="rp2-swarm-header">
+            <Search size={14} />
+            <span>Live Research Agents</span>
+            <span className="rp2-swarm-count">{Object.keys(researchOnlyAgents).length} agents</span>
+          </div>
+          <SwarmGrid
+            v2Agents={researchOnlyAgents}
+            screenshots={screenshots}
+            onFocusAgent={setFocusedAgentId}
+            focusedAgentId={focusedAgentId}
+          />
+        </motion.div>
+      )}
+
       {useCarousel ? (
         <div className="research-carousel-wrap">
           <CircularCarousel

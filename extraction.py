@@ -104,12 +104,18 @@ def make_initial_actions(platform: str, search_url: str) -> list[dict]:
 
     Flow:
     1. Navigate to search URL (no LLM)
-    2. Run JavaScript to extract prices (no LLM)
-    3. Agent starts with extraction results already available via evaluate
+    2. Wait for DOM to settle (no LLM)
+    3. Run JavaScript to extract prices (no LLM)
+    Agent starts with extraction results already in page context.
     """
-    return [
+    js = PLATFORM_JS.get(platform)
+    actions = [
         {"navigate": {"url": search_url}},
+        {"wait": {"seconds": 2}},
     ]
+    if js:
+        actions.append({"evaluate": {"code": js}})
+    return actions
 
 
 def make_research_tools(platform: str) -> Tools | None:

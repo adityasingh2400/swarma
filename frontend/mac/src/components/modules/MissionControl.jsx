@@ -895,6 +895,7 @@ export default function MissionControl({
   stage3Plan, items = [], decisions = {}, bids = {},
   job = null, listings = {}, onExecuteItem, overrideStageIdx,
   postingStatus = {},
+  v2Agents = {}, screenshots,
   miniPlayer,
   prefetchResearch = false,
 }) {
@@ -997,7 +998,7 @@ export default function MissionControl({
             <motion.div key="mc-stage-3" className="mc-stage-content"
               initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -50 }} transition={{ duration: 0.25 }}>
-              <PostingWorkspace items={items} decisions={decisions} postingStatus={postingStatus} />
+              <PostingWorkspace items={items} decisions={decisions} postingStatus={postingStatus} v2Agents={v2Agents} screenshots={screenshots} />
             </motion.div>
           )}
         </AnimatePresence>

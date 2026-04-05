@@ -1,6 +1,7 @@
 """Depop playbook — research active prices + list items on Depop (clothing only)."""
 from __future__ import annotations
 
+from extraction import make_initial_actions
 from models.item_card import ItemCard, ItemCategory
 from models.listing_package import ListingPackage
 from playbooks.base import BasePlaybook
@@ -15,13 +16,19 @@ class DepopPlaybook(BasePlaybook):
 
     def research_task(self, item: ItemCard) -> tuple[str, list[dict]]:
         task = """
-Look at the first 10-15 active listings on this page. Extract ALL visible prices as a list.
+The page may have already run a JavaScript extraction. Check if there is a JSON result
+with prices, avg, and count visible in the page or console output.
+
+If extraction results are available, return them directly as:
+{"sold_prices": [N, N, ...], "listings_found": N}
+
+Otherwise, look at the first 10-15 active listings on this page. Extract ALL visible prices as a list.
 Also note the total number of listings found if shown.
 
 Return as JSON: {"sold_prices": [N, N, N, ...], "listings_found": N}
 """
         url = self._build_search_url("https://depop.com/search/?q={query}", item)
-        return (task.strip(), [{"navigate": {"url": url}}])
+        return (task.strip(), make_initial_actions("depop", url))
 
     def listing_task(self, item: ItemCard, package: ListingPackage) -> tuple[str, list[dict]]:
         images = self._select_images(package, count=4)

@@ -1,6 +1,7 @@
 """Mercari playbook — research sold prices + list items on Mercari."""
 from __future__ import annotations
 
+from extraction import make_initial_actions
 from models.item_card import ItemCard
 from models.listing_package import ListingPackage
 from playbooks.base import BasePlaybook
@@ -8,12 +9,17 @@ from playbooks.base import BasePlaybook
 
 class MercariPlaybook(BasePlaybook):
     platform = "mercari"
-    # Tile labels from route-map screenshots include (NWT)/(NWOT)
     CONDITION_MAP = {"Like New": "Like new (NWOT)", "Good": "Good", "Fair": "Fair"}
 
     def research_task(self, item: ItemCard) -> tuple[str, list[dict]]:
         task = """
-Look at the first 10-15 sold listings on this page. Extract ALL visible sold prices as a list.
+The page may have already run a JavaScript extraction. Check if there is a JSON result
+with prices, avg, and count visible in the page or console output.
+
+If extraction results are available, return them directly as:
+{"sold_prices": [N, N, ...], "listings_found": N}
+
+Otherwise, look at the first 10-15 sold listings on this page. Extract ALL visible sold prices as a list.
 Also note the total number of results shown if available.
 
 Return as JSON: {"sold_prices": [N, N, N, ...], "listings_found": N}
@@ -21,7 +27,7 @@ Return as JSON: {"sold_prices": [N, N, N, ...], "listings_found": N}
         url = self._build_search_url(
             "https://mercari.com/search/?keyword={query}&status=sold_out", item
         )
-        return (task.strip(), [{"navigate": {"url": url}}])
+        return (task.strip(), make_initial_actions("mercari", url))
 
     def listing_task(self, item: ItemCard, package: ListingPackage) -> tuple[str, list[dict]]:
         title = self._truncate_title(package.title)
