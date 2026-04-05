@@ -70,7 +70,7 @@ export default function BundleMerge({ items, bids, decisions }) {
             className="bm-item-card"
             initial={{ opacity: 0, y: -20, x: index % 2 === 0 ? -30 : 30 }}
             animate={{ opacity: 1, y: 0, x: 0 }}
-            transition={{ delay: index * 0.12, type: 'spring', stiffness: 150 }}
+            transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
           >
             <div className="bm-item-image">
               <Package size={28} />
@@ -79,7 +79,7 @@ export default function BundleMerge({ items, bids, decisions }) {
             <motion.div
               className="bm-item-value"
               animate={{ textDecoration: 'line-through', color: 'var(--text-tertiary)' }}
-              transition={{ delay: 0.8 + index * 0.1 }}
+              transition={{ delay: 0.8 + index * 0.05 }}
             >
               ${item.value}
             </motion.div>
@@ -91,7 +91,7 @@ export default function BundleMerge({ items, bids, decisions }) {
         className="bm-arrow"
         initial={{ opacity: 0, scale: 0 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.6, type: 'spring' }}
+        transition={{ delay: 0.6, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
       >
         <ArrowDown size={28} />
       </motion.div>
@@ -100,7 +100,7 @@ export default function BundleMerge({ items, bids, decisions }) {
         className="bm-bundle-card"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 1, type: 'spring', stiffness: 120 }}
+        transition={{ delay: 1, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
           <Layers size={18} color="var(--primary)" />

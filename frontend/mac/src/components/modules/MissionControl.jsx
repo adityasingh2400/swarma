@@ -28,9 +28,9 @@ const STAGES = [
 
 const AGENT_META = {
   marketplace_resale: { name: 'Resale', icon: Search, color: 'var(--primary)' },
-  trade_in: { name: 'Trade-In', icon: RefreshCw, color: '#9A7020' },
-  return: { name: 'Return', icon: Package, color: '#6B4A3A' },
-  repair_roi: { name: 'Repair', icon: Wrench, color: '#9A2020' },
+  trade_in: { name: 'Trade-In', icon: RefreshCw, color: '#FBBF24' },
+  return: { name: 'Return', icon: Package, color: '#A1A1AA' },
+  repair_roi: { name: 'Repair', icon: Wrench, color: '#FF6B6B' },
 };
 
 const ROUTE_LABELS = {
@@ -94,7 +94,7 @@ function AgentCard({ agent, state, perItem, items, index, children }) {
   return (
     <motion.div className={`mc-card mc-card-${status}`}
       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06, type: 'spring', stiffness: 220, damping: 22 }}>
+      transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}>
       <div className="mc-card-header">
         <div className={`mc-card-icon mc-icon-${status}`}><agent.icon size={16} /></div>
         <span className="mc-card-name">{agent.name}</span>
@@ -144,14 +144,12 @@ function FloatingAgentSatellite({ agentId, state, bid, orbitIndex }) {
   const status = getStatus(state);
   const Icon = meta.icon;
   const hasBid = bid && bid.viable;
-  const jitter = [0, 0.12, -0.06, 0.18][orbitIndex % 4] || 0;
-
   return (
     <motion.div
       className={`sat-agent sat-${status}`}
       initial={{ opacity: 0, scale: 0.7, y: 10 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ delay: orbitIndex * 0.22 + jitter, type: 'spring', stiffness: 220, damping: 22 }}
+      transition={{ delay: orbitIndex * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
       style={{ '--agent-accent': meta.color }}
     >
       <div className={`sat-icon-orb sat-orb-${status}`}>
@@ -163,7 +161,7 @@ function FloatingAgentSatellite({ agentId, state, bid, orbitIndex }) {
       {status === 'done' && hasBid && (
         <motion.span className="sat-value"
           initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 15 }}>
+          transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}>
           <DollarSign size={11} />{bid.estimated_value?.toFixed(0)}
         </motion.span>
       )}
@@ -200,13 +198,12 @@ function FloatingCompsCloud({ comps }) {
         {comps.slice(0, 6).map((c, ci) => {
           const pos = COMP_ORBIT[ci % COMP_ORBIT.length];
           const baseDelay = 0.5;
-          const jitter = [0, 0.18, -0.05, 0.25, -0.1, 0.14][ci] || 0;
-          const staggerDelay = baseDelay + ci * 0.35 + jitter;
+          const staggerDelay = baseDelay + ci * 0.05;
           return (
             <motion.div key={ci} className="flt-comp-card"
               initial={{ opacity: 0, scale: 0.6, x: 0, y: 20 }}
               animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-              transition={{ delay: staggerDelay, type: 'spring', stiffness: 180, damping: 20 }}
+              transition={{ delay: staggerDelay, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
               style={{ '--orbit-x': `${pos.x}%`, '--orbit-y': `${pos.y}%` }}>
               <div className={`flt-comp-plat plat-${(c.platform || 'other').toLowerCase()}`}>
                 {(c.platform || 'other').charAt(0).toUpperCase() + (c.platform || 'other').slice(1)}
@@ -240,7 +237,7 @@ function FloatingTradeInWidget({ allBids }) {
   return (
     <motion.div className="flt-tradein"
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 25 }}>
+      transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}>
       <div className="ati-header">
         {isApple && <span className="ati-apple-logo"></span>}
         <span className="ati-title">{isApple ? 'Trade In' : best.provider}</span>
@@ -291,14 +288,12 @@ function ItemPlanet({ item, itemIndex, totalItems, agentStates, itemBids, stage3
     ? (item.visible_defects?.some?.((d) => d.severity === 'major') ? 'Fair' : 'Good')
     : 'Like New';
 
-  const itemJitter = [0, 0.15, 0.08][itemIndex % 3];
-
   return (
     <motion.div
       className={`planet-system ${anyThinking ? 'planet-active' : ''} ${allDone ? 'planet-done' : ''}`}
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: itemIndex * 0.3 + itemJitter, type: 'spring', stiffness: 140, damping: 18 }}
+      transition={{ delay: itemIndex * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
     >
       {/* Agent route badges row */}
       <div className="planet-agents-row">
@@ -318,15 +313,13 @@ function ItemPlanet({ item, itemIndex, totalItems, agentStates, itemBids, stage3
       </div>
 
       {/* The Planet — the item itself */}
-      <motion.div className={`planet-core ${anyThinking ? 'planet-core-active' : ''} ${allDone ? 'planet-core-done' : ''}`}
-        animate={anyThinking ? { boxShadow: ['0 0 16px rgba(61,24,24,0.15)', '0 0 32px rgba(94,40,40,0.25)', '0 0 16px rgba(61,24,24,0.15)'] } : {}}
-        transition={anyThinking ? { duration: 2, repeat: Infinity } : {}}>
+      <div className={`planet-core ${anyThinking ? 'planet-core-active' : ''} ${allDone ? 'planet-core-done' : ''}`}>
         {item.hero_frame_paths?.[0] ? (
           <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="planet-img" />
         ) : (
           <div className="planet-placeholder"><ShoppingBag size={36} /></div>
         )}
-      </motion.div>
+      </div>
 
       {/* Item label below the planet */}
       <div className="planet-label">
@@ -347,7 +340,7 @@ function ItemPlanet({ item, itemIndex, totalItems, agentStates, itemBids, stage3
         </div>
         <div className="planet-progress-ring">
           <svg viewBox="0 0 36 36" className="planet-ring-svg">
-            <circle cx="18" cy="18" r="15.5" fill="none" stroke="#2D1212" strokeWidth="2" />
+            <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--border)" strokeWidth="2" />
             <motion.circle cx="18" cy="18" r="15.5" fill="none"
               stroke={allDone ? 'var(--success)' : 'var(--primary)'}
               strokeWidth="2" strokeLinecap="round"
@@ -382,73 +375,142 @@ function ItemPlanet({ item, itemIndex, totalItems, agentStates, itemBids, stage3
    STAGE-SPECIFIC EMBEDDED CONTENT (1, 2, 4 unchanged)
    ════════════════════════════════════════════════════════════════ */
 
-function ProcessingContent({ job, agents, items }) {
-  const state = agents.intake;
-  const status = getStatus(state);
-  const transcript = state?.transcript_text || job?.transcript_text;
-  const framePaths = state?.frame_paths || job?.frame_paths || [];
+function ProcessingContent({ job, agents, items, miniPlayer }) {
+  const intakeState = agents.intake;
+  const condState = agents.condition_fusion;
+  const transcript = intakeState?.transcript_text || job?.transcript_text;
+  const framePaths = intakeState?.frame_paths || job?.frame_paths || [];
+
+  const intakeActive = getStatus(intakeState) !== 'idle';
+  const condActive = getStatus(condState) !== 'idle';
+  const hasFrames = framePaths.length > 0;
+  const filmstripMode = framePaths.length <= 6 ? 'filmstrip-justify' : '';
+
+  const E = [0.32, 0.72, 0, 1];
 
   return (
-    <div className="mc-embedded">
-      {/* Visual filmstrip of extracted frames */}
-      {framePaths.length > 0 && (
-        <div className="ext-filmstrip">
-          <div className="ext-filmstrip-label"><Image size={12} /> {framePaths.length} frames</div>
-          <div className="ext-filmstrip-rail">
-            {framePaths.map((fp, i) => {
-              const jitter = ((i * 7 + 3) % 5) * 0.02;
-              return (
+    <div className="mc-embedded pc-flow">
+      {/* ── Row 1: Mini-player + Agent cards side by side ── */}
+      <div className="pc-hero-row">
+        {miniPlayer && (
+          <motion.div className="pc-player"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.45, delay: 0.1, ease: E }}
+          >
+            {miniPlayer}
+          </motion.div>
+        )}
+
+        <div className="pc-agents-col">
+          <AnimatePresence>
+            {intakeActive && (
+              <motion.div key="intake-card"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.4, delay: 0.15, ease: E }}
+              >
+                <AgentCard
+                  agent={{ id: 'intake', name: 'Intake', icon: Cpu }}
+                  state={intakeState} perItem={null} items={items} index={0}
+                />
+              </motion.div>
+            )}
+            {condActive && (
+              <motion.div key="cond-card"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.4, delay: 0.3, ease: E }}
+              >
+                <AgentCard
+                  agent={{ id: 'condition_fusion', name: 'ConditionFusion', icon: Eye }}
+                  state={condState} perItem={null} items={items} index={1}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* ── Row 2: Filmstrip ── */}
+      <AnimatePresence>
+        {hasFrames && (
+          <motion.div className="ext-filmstrip"
+            key="filmstrip"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.35, ease: E }}
+          >
+            <div className="ext-filmstrip-label"><Image size={12} /> {framePaths.length} frames</div>
+            <div className={`ext-filmstrip-rail ${filmstripMode}`}>
+              {framePaths.map((fp, i) => (
                 <motion.div key={i} className="ext-frame"
-                  initial={{ opacity: 0, scale: 0.7, y: 8 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 + jitter, type: 'spring', stiffness: 200, damping: 26 }}>
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.45 + i * 0.04, duration: 0.3, ease: E }}>
                   <img src={fp} alt={`Frame ${i + 1}`} />
                   <span className="ext-frame-num">{i + 1}</span>
                 </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Row 3: Transcript ── */}
+      <AnimatePresence>
+        {transcript && (
+          <motion.div className="ext-transcript"
+            key="transcript"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.5, ease: E }}
+          >
+            <div className="ext-transcript-label"><FileText size={12} /> Transcript</div>
+            <p className="ext-transcript-text">{transcript}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Row 4: Detected items ── */}
+      <AnimatePresence>
+        {items && items.length > 0 && (
+          <motion.div className="mc-items-grid"
+            key="items"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.65, ease: E }}
+          >
+            {items.map((item, i) => {
+              const condition = item.visible_defects?.length || item.spoken_defects?.length
+                ? (item.visible_defects?.some?.((d) => d.severity === 'major') ? 'Fair' : 'Good')
+                : 'Like New';
+              return (
+                <motion.div key={item.item_id} className="mc-item-card"
+                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.75 + i * 0.06, duration: 0.3, ease: E }}>
+                  {item.hero_frame_paths?.[0] && (
+                    <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="mc-item-thumb" />
+                  )}
+                  <div className="mc-item-info">
+                    <div className="mc-item-title">{item.name_guess}</div>
+                    <div className="mc-item-tags">
+                      <Badge variant={condition === 'Like New' ? 'success' : 'warning'}>{condition}</Badge>
+                    </div>
+                    {item.visible_defects?.length > 0 && (
+                      <div className="mc-item-defects">
+                        <AlertTriangle size={10} /> {item.visible_defects.map((d) => d.description || d).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
               );
             })}
-          </div>
-        </div>
-      )}
-      {/* Streaming transcript */}
-      {transcript && (
-        <motion.div className="ext-transcript"
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="ext-transcript-label"><FileText size={12} /> Transcript</div>
-          <p className="ext-transcript-text">{transcript}</p>
-        </motion.div>
-      )}
-      {/* Analyzed items */}
-      {items && items.length > 0 && (
-        <div className="mc-items-grid" style={{ marginTop: 12 }}>
-          {items.map((item, i) => {
-            const condition = item.visible_defects?.length || item.spoken_defects?.length
-              ? (item.visible_defects?.some?.((d) => d.severity === 'major') ? 'Fair' : 'Good')
-              : 'Like New';
-            const jitter = ((i * 13 + 7) % 5) * 0.06;
-            return (
-              <motion.div key={item.item_id} className="mc-item-card"
-                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.22 + jitter, type: 'spring', stiffness: 220, damping: 24 }}>
-                {item.hero_frame_paths?.[0] && (
-                  <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="mc-item-thumb" />
-                )}
-                <div className="mc-item-info">
-                  <div className="mc-item-title">{item.name_guess}</div>
-                  <div className="mc-item-tags">
-                    <Badge variant={condition === 'Like New' ? 'success' : 'warning'}>{condition}</Badge>
-                  </div>
-                  {item.visible_defects?.length > 0 && (
-                    <div className="mc-item-defects">
-                      <AlertTriangle size={10} /> {item.visible_defects.map((d) => d.description || d).join(', ')}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -474,7 +536,7 @@ function DecisionContent({ decisions, items, onExecuteItem }) {
         <motion.div className="dt-hub"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 180, damping: 20 }}>
+          transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}>
           <div className="dt-hub-glow" />
           <div className="dt-hub-inner">
             <div className="dt-hub-icon-ring">
@@ -540,7 +602,7 @@ function DecisionContent({ decisions, items, onExecuteItem }) {
               className={`dt-card ${posClass}`}
               initial={{ opacity: 0, scale: 0.85, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ delay: 0.2 + i * 0.12, type: 'spring', stiffness: 200, damping: 22 }}>
+              transition={{ delay: 0.2 + i * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}>
               <div className="dt-card-top">
                 {item.hero_frame_paths?.[0] && (
                   <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="dt-card-thumb" />
@@ -586,7 +648,7 @@ function DecisionContent({ decisions, items, onExecuteItem }) {
                 <motion.div key={item.item_id} className="dt-card dt-overflow-card"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + i * 0.1 }}>
+                  transition={{ delay: 0.5 + i * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}>
                   <div className="dt-card-top">
                     {item.hero_frame_paths?.[0] && (
                       <img src={item.hero_frame_paths[0]} alt={item.name_guess} className="dt-card-thumb" />
@@ -620,6 +682,7 @@ export default function MissionControl({
   agents = {}, agentsRaw = {}, agentsByItem = {},
   stage3Plan, items = [], decisions = {}, bids = {},
   job = null, listings = {}, onExecuteItem, overrideStageIdx,
+  miniPlayer,
 }) {
   const autoIdx = getActiveStageIndex(agents);
   const activeIdx = overrideStageIdx != null ? Math.min(overrideStageIdx, STAGES.length - 1) : autoIdx;
@@ -682,7 +745,7 @@ export default function MissionControl({
                   <div className="planets-empty">Waiting for items from Stage 1...</div>
                 )}
               </div>
-            ) : (
+            ) : (stage.id === 1 && miniPlayer) ? null : (
               <div className={`mc-agents-row mc-agents-${stage.agents.length}`}>
                 {stage.agents.map((agent, i) => (
                   <AgentCard key={agent.id} agent={agent} state={agents[agent.id]}
@@ -692,7 +755,7 @@ export default function MissionControl({
               </div>
             )}
 
-            {stage.id === 1 && <ProcessingContent job={job} agents={agents} items={items} />}
+            {stage.id === 1 && <ProcessingContent job={job} agents={agents} items={items} miniPlayer={miniPlayer} />}
             {stage.id === 3 && <DecisionContent decisions={decisions} items={items} onExecuteItem={onExecuteItem} />}
           </motion.div>
         </AnimatePresence>

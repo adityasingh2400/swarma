@@ -27,7 +27,7 @@ export function useWebSocket(jobId) {
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host || 'localhost:8080';
-      const url = `${protocol}//${host}/ws/${jobId}`;
+      const url = `${protocol}//${host}/ws/${jobId}/events`;
 
       const ws = new WebSocket(url);
       wsRef.current = ws;
@@ -69,8 +69,16 @@ export function useWebSocket(jobId) {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) wsRef.current.close();
       setConnected(false);
+      setEvents([]);
+      setLastEvent(null);
     };
   }, [jobId, dispatch]);
 
-  return { connected, events, lastEvent, subscribe };
+  const send = useCallback((msg) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+  }, []);
+
+  return { connected, events, lastEvent, subscribe, send };
 }

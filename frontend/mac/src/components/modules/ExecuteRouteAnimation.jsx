@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MAROON = {
-  deep: '#5A0A1A',
-  primary: '#7A1B2D',
-  mid: '#9A2840',
-  bright: '#C0364E',
-  glow: '#E04060',
-  gold: '#D4A85C',
-  goldLight: '#F0D090',
+  deep: '#FFF7F0',
+  primary: '#EF4444',
+  mid: '#FFFFFF',
+  bright: '#FFF1E6',
+  glow: '#E7E5E4',
+  gold: '#D97706',
+  goldLight: '#F59E0B',
 };
 
 const BRANCHES = [

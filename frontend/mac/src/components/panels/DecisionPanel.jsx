@@ -62,7 +62,7 @@ export default function DecisionPanel({ items, decisions, agents = {}, onExecute
                   className="decision-fs-card"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1, type: 'spring', stiffness: 200, damping: 22 }}
+                  transition={{ delay: index * 0.05, duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
                 >
                   <div className="decision-fs-card-header">
                     {item.hero_frame_paths?.[0] && (

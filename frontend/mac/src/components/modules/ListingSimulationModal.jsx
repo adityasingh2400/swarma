@@ -325,7 +325,7 @@ function LiveChat({ itemId }) {
       </div>
       <div className="sim-chat-body">
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: 32 }}>
+          <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13, padding: 32 }}>
             Waiting for buyer to message from the phone…
           </div>
         )}

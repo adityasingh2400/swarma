@@ -11,33 +11,33 @@ const LANE_CONFIG = {
   resale: {
     label: 'Resale',
     desc: 'Scanning comparable listings',
-    color: '#7A1B2D',
+    color: '#FF6B6B',
     icon: ShoppingBag,
   },
   trade_in: {
     label: 'Trade-In',
     desc: 'Checking guaranteed payout options',
-    color: '#4A7A2E',
+    color: '#34D399',
     icon: RefreshCw,
   },
   repair: {
     label: 'Repair',
     desc: 'Searching replacement parts and ROI',
-    color: '#9A7020',
+    color: '#FBBF24',
     icon: Wrench,
   },
   bundle: {
     label: 'Bundle',
     desc: 'Testing grouped selling value',
-    color: '#6B4A3A',
+    color: '#A1A1AA',
     icon: Layers,
   },
 };
 
 const PLATFORM_COLORS = {
-  ebay: '#7A1B2D', mercari: '#7A1B2D', swappa: '#7A1B2D',
-  amazon: '#7A1B2D', facebook: '#7A1B2D', offerup: '#7A1B2D',
-  poshmark: '#7A1B2D', craigslist: '#7A1B2D', other: '#7A1B2D',
+  ebay: '#FF6B6B', mercari: '#FF6B6B', swappa: '#FF6B6B',
+  amazon: '#FF6B6B', facebook: '#FF6B6B', offerup: '#FF6B6B',
+  poshmark: '#FF6B6B', craigslist: '#FF6B6B', other: '#FF6B6B',
 };
 
 const ROUTE_LABELS = {
@@ -96,7 +96,7 @@ function ResaleCard({ comp, index, isBest }) {
       className={`sw-card ${isBest ? 'sw-card-best' : ''}`}
       initial={{ opacity: 0, x: 80, scale: 0.88 }}
       animate={{ opacity: 1, x: 0, scale: isBest ? 1.03 : 1 }}
-      transition={{ delay: index * 0.25, type: 'spring', stiffness: 120, damping: 16 }}
+      transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
     >
       <ListingImage src={comp.image_url} alt={comp.title} platformColor={platformColor} />
       <div className="sw-card-badges">
@@ -142,9 +142,9 @@ function QuoteCard({ quote, index, isBest }) {
       className={`sw-card sw-quote-card ${isBest ? 'sw-card-best' : ''}`}
       initial={{ opacity: 0, x: 60 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.1, type: 'spring', stiffness: 160, damping: 18 }}
+      transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
     >
-      <div className="sw-quote-header" style={{ borderColor: isBest ? '#4A7A2E' : 'var(--border)' }}>
+      <div className="sw-quote-header" style={{ borderColor: isBest ? '#34D399' : 'var(--border)' }}>
         <div className="sw-quote-provider">{quote.provider}</div>
         <div className="sw-quote-payout" style={{ color: isBest ? 'var(--success)' : 'var(--text-primary)' }}>
           ${quote.payout?.toFixed?.(2) ?? quote.payout}
@@ -173,19 +173,19 @@ function RepairCard({ part, index }) {
       className="sw-card sw-repair-card"
       initial={{ opacity: 0, x: 60 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.1, type: 'spring', stiffness: 160, damping: 18 }}
+      transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
     >
-      <div className="sw-card-img sw-card-img-fallback" style={{ background: 'linear-gradient(135deg, #F5EDD8, #F0E5D0)' }}>
+      <div className="sw-card-img sw-card-img-fallback" style={{ background: 'linear-gradient(135deg, #FFEAD9, #F5D4B8)' }}>
         {part.part_image_url ? (
           <img src={part.part_image_url} alt={part.part_name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         ) : (
-          <Wrench size={28} style={{ opacity: 0.4, color: '#9A7020' }} />
+          <Wrench size={28} style={{ opacity: 0.4, color: '#FBBF24' }} />
         )}
       </div>
       <div className="sw-card-body">
         <div className="sw-card-title">{part.part_name}</div>
         <div className="sw-card-price-row">
-          <span className="sw-card-price" style={{ color: '#9A7020' }}>${part.part_price?.toFixed(2)}</span>
+          <span className="sw-card-price" style={{ color: '#FBBF24' }}>${part.part_price?.toFixed(2)}</span>
         </div>
         <div className="sw-card-meta">
           <Badge platform={part.source?.toLowerCase() || 'amazon'} />
@@ -336,7 +336,7 @@ function DecisionStrip({ itemBids, decision }) {
           className="sw-strip-best"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5, type: 'spring' }}
+          transition={{ delay: 0.5, duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
         >
           <Trophy size={14} />
           <span>Best route: <strong>{ROUTE_LABELS[winnerType] || winnerType}</strong></span>

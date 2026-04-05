@@ -69,8 +69,8 @@ export default function RouteClose({ listings, decisions }) {
             className="rc-loser"
             initial={{ opacity: 1, scale: 1, x: 0 }}
             animate={{ opacity: 0.3, scale: 0.9 }}
-            exit={{ opacity: 0, x: index % 2 === 0 ? -100 : 100, scale: 0.5 }}
-            transition={{ delay: index * 0.15, duration: 0.5 }}
+            exit={{ opacity: 0, x: index % 2 === 0 ? -100 : 100, scale: 0.5, transition: { duration: 0.2 } }}
+            transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
           >
             <Badge platform={loser.platform} />
             <div className="rc-loser-name">{loser.reason}</div>
@@ -82,13 +82,13 @@ export default function RouteClose({ listings, decisions }) {
         className="rc-winner"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.5, type: 'spring', stiffness: 120 }}
+        transition={{ delay: 0.5, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
       >
         <motion.div
           className="rc-winner-check"
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          transition={{ delay: 0.8, type: 'spring' }}
+          transition={{ delay: 0.8, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
         >
           <CheckCircle size={28} />
         </motion.div>
