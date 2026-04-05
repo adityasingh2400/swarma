@@ -24,6 +24,7 @@ from browser_use import Agent, Browser, BrowserProfile
 
 from config import settings
 from contracts import AgentEvent, AgentState, Playbook, RouteDecision
+from extraction import make_research_tools
 from models.item_card import ItemCard
 from models.listing_package import ListingPackage
 from route_decision import route_decision
@@ -161,17 +162,23 @@ class Orchestrator:
 
     def _build_agent(self, agent_id: str, task_str: str, profile: BrowserProfile,
                      initial_actions: list[dict] | None = None,
-                     use_vision: bool | str = False) -> Agent:
+                     use_vision: bool | str = False,
+                     platform: str = "",
+                     phase: str = "") -> Agent:
         """Build an Agent with all speed + visual optimizations."""
+        # Research agents get custom JS extraction tools (replaces slow LLM extract)
+        tools = make_research_tools(platform) if phase == "research" else None
+
         agent = Agent(
             task=task_str,
             llm=_make_llm(),
             browser_profile=profile,
             flash_mode=True,
             max_actions_per_step=4,
-            max_steps=30,  # research shouldn't need more than ~10 steps
+            max_steps=5 if phase == "research" else 30,
             use_vision=use_vision,
             initial_actions=initial_actions,
+            tools=tools,
             register_new_step_callback=self._make_step_callback(agent_id),
         )
         return agent
@@ -219,6 +226,8 @@ class Orchestrator:
                     agent_id, task_str, profile,
                     initial_actions=initial_actions,
                     use_vision=use_vision,
+                    platform=playbook.platform,
+                    phase=phase,
                 )
                 self.agents[agent_id] = agent
 

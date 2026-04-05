@@ -1,0 +1,23 @@
+{
+  "step": 11,
+  "url": "https://www.ebay.com/lstng?draftId=5182232721813&mode=AddItem",
+  "title": "List an item | eBay",
+  "page_summary": "",
+  "memory": "The listing form is now fully visible, including the \"Pricing\" and \"Delivery\" sections. I have scrolled through most of the page and can now identify the major sections and fields for documentation.",
+  "next_goal": "",
+  "actions": [
+    {
+      "scroll": {
+        "down": true,
+        "pages": 3.0
+      }
+    },
+    {
+      "extract": {
+        "query": "List every input field, dropdown, button, and interactive element. For each, identify its label, whether it's required (if indicated), its section/group (e.g., Photos, Pricing, Delivery), the order from top to bottom, and visible dropdown options. Identify the final publish button text and any popups or blockers.",
+        "extract_links": false,
+        "already_collected": []
+      }
+    }
+  ]
+}

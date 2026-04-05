@@ -1,0 +1,17 @@
+{
+  "step": 2,
+  "url": "https://www.depop.com/products/create/first/",
+  "title": "Depop - buy, sell, discover unique fashion",
+  "page_summary": "",
+  "memory": "The previous action to extract the page structure was successful. I have captured the details of the fields, dropdowns, buttons, and sections as requested, including labels, types, and the submit button text.",
+  "next_goal": "",
+  "actions": [
+    {
+      "extract": {
+        "query": "List all fields, buttons, and dropdowns on the Depop product creation page in order from top to bottom. Include the label for each, the type of input, the photo upload section details, and the text of the submit/continue button. Note if there are any login prompts or blockers.",
+        "extract_links": false,
+        "already_collected": []
+      }
+    }
+  ]
+}

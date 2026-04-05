@@ -1,0 +1,16 @@
+{
+  "step": 1,
+  "url": "https://www.facebook.com/marketplace/create/item",
+  "title": "Facebook",
+  "page_summary": "",
+  "memory": "I have successfully navigated to the Facebook Marketplace item creation page and the page content has loaded. I can see the photo upload areas, input fields for Title, Price, Category, and the \"Next\" (submit-like) button.",
+  "next_goal": "",
+  "actions": [
+    {
+      "extract": {
+        "query": "List all input fields, dropdowns, buttons, and interactive elements on the page in order from top to bottom. For each item, include its visible label text, element type, and its purpose. Specifically identify the photo upload area and the final submission button. Note any visible login prompts or popups.",
+        "already_collected": []
+      }
+    }
+  ]
+}

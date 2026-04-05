@@ -1,0 +1,17 @@
+{
+  "step": 2,
+  "url": "https://www.facebook.com/marketplace/create/item",
+  "title": "Facebook",
+  "page_summary": "",
+  "memory": "I have successfully identified the core form elements on the Facebook Marketplace item creation page, including the photo/video upload areas, Title, Price, Category, Condition, and Description fields, along with the \"Next\" button. I will now use the extract tool to formally document the structure and specific details requested by the user.",
+  "next_goal": "",
+  "actions": [
+    {
+      "extract": {
+        "query": "Document the Facebook Marketplace item creation page. Include: 1) The current URL. 2) Every input field, dropdown, button, and interactive element in order from top to bottom. 3) Visible label text for each. 4) Identify the photo upload area. 5) Identify the submit button text. 6) Note any login prompts, popups, or location prompts (e.g. 'Goleta' mentioned in preview).",
+        "extract_links": false,
+        "already_collected": []
+      }
+    }
+  ]
+}

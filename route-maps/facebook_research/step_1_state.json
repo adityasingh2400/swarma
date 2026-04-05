@@ -1,0 +1,16 @@
+{
+  "step": 1,
+  "url": "https://www.facebook.com/marketplace/108303669197672/search/?query=iPhone%2015%20Pro%20256GB",
+  "title": "Facebook",
+  "page_summary": "",
+  "memory": "The previous action to navigate to Facebook Marketplace was successful. I have now initiated an extraction to document the page layout, results, filters, and any potential blockers as requested.",
+  "next_goal": "",
+  "actions": [
+    {
+      "extract": {
+        "query": "1. Total result count (if shown)\n2. Structure of listing cards (elements included like price, title, location)\n3. Price display format and location on card\n4. First 5 listings: title and price\n5. Available filters or sorting options\n6. Presence of login prompts, popups, or blockers",
+        "already_collected": []
+      }
+    }
+  ]
+}

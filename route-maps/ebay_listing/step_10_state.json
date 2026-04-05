@@ -1,0 +1,28 @@
+{
+  "step": 10,
+  "url": "https://www.ebay.com/lstng?draftId=5182232721813&mode=AddItem",
+  "title": "List an item | eBay",
+  "page_summary": "",
+  "memory": "I have reached the main listing creation page and have visible sections for Photos & Video, Title, Item Category, Condition, Item Specifics, and Description. I need to continue scrolling down to document the remaining sections such as Pricing, Shipping, and the final Publish button.",
+  "next_goal": "",
+  "actions": [
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    },
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    },
+    {
+      "scroll": {
+        "down": true,
+        "pages": 1.0
+      }
+    }
+  ]
+}
