@@ -3132,7 +3132,7 @@ body {
 
 /* Portrait-optimised: phone photos are typically 3:4 or 9:16 */
 .pw-dc-image-wrap {
-  width: 100%;
+  width: 80%;
   aspect-ratio: 3 / 4;
   border-radius: 0.85rem;
   overflow: hidden;
@@ -3701,9 +3701,9 @@ body {
 /* Portrait item thumbnail in cluster center */
 .pw-item-visual {
   position: relative;
-  width: 72px;
-  height: 96px;
-  border-radius: 12px;
+  width: 60px;
+  height: 80px;
+  border-radius: 10px;
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.5);
   box-shadow:
