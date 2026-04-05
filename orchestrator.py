@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import platform
 import time
 import traceback
 
@@ -42,6 +43,141 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# macOS: suppress Chrome window focus-stealing
+# ---------------------------------------------------------------------------
+
+_IS_MACOS = platform.system() == "Darwin"
+
+# A PERSISTENT AppleScript that runs in a tight loop for the lifetime of the
+# pipeline.  Whenever Chrome becomes the frontmost app it:
+#   1. Hides Chrome via System Events  (instant, no window flash)
+#   2. Re-activates the app the user was actually using
+# Detects the user's current app on first run so it works regardless of IDE.
+# SELF-TERMINATING: checks if parent Python process is still alive every loop.
+# If the terminal is closed or the server is killed, this exits automatically.
+_FOCUS_GUARD_SCRIPT_TEMPLATE = '''\
+set parentPID to "{pid}"
+
+-- Detect whatever app the user is actually using right now
+tell application "System Events"
+    set targetApp to name of first application process whose frontmost is true
+end tell
+if targetApp is "osascript" then set targetApp to "Finder"
+
+repeat
+    delay 0.1
+    try
+        -- Exit immediately if parent process is dead (terminal closed, server killed)
+        set exitCode to (do shell script "kill -0 " & parentPID & " 2>/dev/null; echo $?")
+        if exitCode is not "0" then exit repeat
+
+        tell application "System Events"
+            set currentFront to name of first application process whose frontmost is true
+
+            if currentFront is not "Google Chrome" and currentFront is not "Chromium" and currentFront is not "osascript" then
+                set targetApp to currentFront
+            end if
+
+            if currentFront is "Google Chrome" or currentFront is "Chromium" then
+                tell process currentFront
+                    set visible to false
+                end tell
+                tell application targetApp to activate
+            end if
+        end tell
+    end try
+end repeat
+'''
+
+_focus_guard_proc: asyncio.subprocess.Process | None = None
+
+
+async def _start_focus_guard():
+    """Launch the persistent focus-guard AppleScript."""
+    global _focus_guard_proc
+    if not _IS_MACOS:
+        return
+    if _focus_guard_proc is not None:
+        return
+    try:
+        import os
+        script = _FOCUS_GUARD_SCRIPT_TEMPLATE.format(pid=os.getpid())
+        _focus_guard_proc = await asyncio.create_subprocess_exec(
+            "osascript", "-e", script,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        swarma_line("focus_guard", "started",
+                     pid=_focus_guard_proc.pid, parent_pid=os.getpid())
+    except Exception as exc:
+        swarma_line("focus_guard", "start_failed", error=str(exc))
+        _focus_guard_proc = None
+
+
+async def _stop_focus_guard():
+    """Kill the persistent focus-guard AppleScript."""
+    global _focus_guard_proc
+    if _focus_guard_proc is None:
+        return
+    try:
+        _focus_guard_proc.terminate()
+        await asyncio.wait_for(_focus_guard_proc.wait(), timeout=3)
+        swarma_line("focus_guard", "stopped")
+    except Exception:
+        try:
+            _focus_guard_proc.kill()
+        except Exception:
+            pass
+    _focus_guard_proc = None
+
+
+def _kill_focus_guard_sync():
+    """Synchronous kill — used by atexit and signal handlers.
+
+    This is the nuclear option: if the async cleanup didn't run
+    (server killed, crash, Ctrl+C), this ensures the osascript
+    process is dead. Also kills any orphaned osascript processes
+    matching our script pattern.
+    """
+    global _focus_guard_proc
+    import os
+    import signal as _sig
+    import subprocess
+
+    if _focus_guard_proc is not None:
+        try:
+            os.kill(_focus_guard_proc.pid, _sig.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+        _focus_guard_proc = None
+
+    if _IS_MACOS:
+        try:
+            subprocess.run(
+                ["pkill", "-f", "osascript.*set parentPID"],
+                capture_output=True, timeout=3,
+            )
+        except Exception:
+            pass
+
+
+import atexit
+import signal as _sig2
+
+atexit.register(_kill_focus_guard_sync)
+
+# Also kill on SIGHUP (terminal close) and SIGTERM (kill command)
+def _signal_cleanup(signum, frame):
+    _kill_focus_guard_sync()
+    raise SystemExit(128 + signum)
+
+for _s in (getattr(_sig2, "SIGHUP", None), _sig2.SIGTERM):
+    if _s is not None:
+        try:
+            _sig2.signal(_s, _signal_cleanup)
+        except (OSError, ValueError):
+            pass  # can't set handler in non-main thread
+
 # ---------------------------------------------------------------------------
 # Playbook registry — Person 2 registers these at import time
 # ---------------------------------------------------------------------------
@@ -624,7 +760,7 @@ class Orchestrator:
                     agents_n=len(agent_plan))
 
         # ── 2. Preload: launch browsers & navigate to target URLs ──
-
+        await _start_focus_guard()
 
         preloaded_sessions = self._preloaded_sessions
 
@@ -816,3 +952,4 @@ class Orchestrator:
                 except Exception:
                     pass
             self._preloaded_sessions.clear()
+            await _stop_focus_guard()
