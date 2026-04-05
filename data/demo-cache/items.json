@@ -1,0 +1,56 @@
+[
+  {
+    "item_id": "2c3b9aed6f",
+    "name_guess": "Sony WHXM4 headphones",
+    "condition": "Fair",
+    "hero_frame_paths": [
+      "/api/jobs/cc22edac8f60/intake-frames/7",
+      "/api/jobs/cc22edac8f60/intake-frames/4",
+      "/api/jobs/cc22edac8f60/intake-frames/1",
+      "/api/jobs/cc22edac8f60/intake-frames/0"
+    ],
+    "listing_image_paths": [
+      "/Users/aditya/Desktop/swarma/data/listing-images/2c3b9aed6f/photo_1.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/2c3b9aed6f/photo_2.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/2c3b9aed6f/photo_3.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/2c3b9aed6f/photo_4.jpg"
+    ],
+    "category": "electronics"
+  },
+  {
+    "item_id": "2206c070f7",
+    "name_guess": "Takis Fuego snack",
+    "condition": "Like New",
+    "hero_frame_paths": [
+      "/api/jobs/cc22edac8f60/intake-frames/16",
+      "/api/jobs/cc22edac8f60/intake-frames/11",
+      "/api/jobs/cc22edac8f60/intake-frames/13",
+      "/api/jobs/cc22edac8f60/intake-frames/10"
+    ],
+    "listing_image_paths": [
+      "/Users/aditya/Desktop/swarma/data/listing-images/2206c070f7/photo_1.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/2206c070f7/photo_2.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/2206c070f7/photo_3.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/2206c070f7/photo_4.jpg"
+    ],
+    "category": "other"
+  },
+  {
+    "item_id": "d392a1378a",
+    "name_guess": "Cotton On green hoodie",
+    "condition": "Fair",
+    "hero_frame_paths": [
+      "/api/jobs/cc22edac8f60/intake-frames/24",
+      "/api/jobs/cc22edac8f60/intake-frames/27",
+      "/api/jobs/cc22edac8f60/intake-frames/20",
+      "/api/jobs/cc22edac8f60/intake-frames/19"
+    ],
+    "listing_image_paths": [
+      "/Users/aditya/Desktop/swarma/data/listing-images/d392a1378a/photo_1.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/d392a1378a/photo_2.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/d392a1378a/photo_3.jpg",
+      "/Users/aditya/Desktop/swarma/data/listing-images/d392a1378a/photo_4.jpg"
+    ],
+    "category": "clothing"
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "frame_counts": {
+    "amazon-research-2206c070f7": 91,
+    "depop-research-d392a1378a": 39,
+    "amazon-research-d392a1378a": 422,
+    "facebook-research-2206c070f7": 22,
+    "depop-research-2206c070f7": 22,
+    "depop-research-2c3b9aed6f": 37,
+    "amazon-research-2c3b9aed6f": 140,
+    "facebook-research-2c3b9aed6f": 45,
+    "facebook-research-d392a1378a": 14,
+    "facebook-listing-2206c070f7": 59,
+    "facebook-listing-2c3b9aed6f": 76,
+    "fb-concierge-2c3b9aed": 3,
+    "fb-concierge-2206c070": 1,
+    "facebook-listing-d392a1378a": 96
+  },
+  "total_frames": 1067,
+  "agents_captured": [
+    "amazon-research-2206c070f7",
+    "depop-research-d392a1378a",
+    "amazon-research-d392a1378a",
+    "facebook-research-2206c070f7",
+    "depop-research-2206c070f7",
+    "depop-research-2c3b9aed6f",
+    "amazon-research-2c3b9aed6f",
+    "facebook-research-2c3b9aed6f",
+    "facebook-research-d392a1378a",
+    "facebook-listing-2206c070f7",
+    "facebook-listing-2c3b9aed6f",
+    "fb-concierge-2c3b9aed",
+    "fb-concierge-2206c070",
+    "facebook-listing-d392a1378a"
+  ],
+  "results_captured": [
+    ""
+  ],
+  "events_captured": 274
+}
