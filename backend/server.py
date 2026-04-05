@@ -502,7 +502,14 @@ async def _run_pipeline(job_id: str, video_path: str):
         })
 
         swarma_line("pipeline", "orchestrator_start_pipeline", job_id=job_id, items_n=len(items))
-        await orchestrator.start_pipeline(job_id, items)
+
+        # Use cached demo pipeline for known items, real pipeline otherwise
+        from demo_cache import is_full_demo, run_cached_pipeline
+        if is_full_demo(items):
+            swarma_line("pipeline", "using_demo_cache", job_id=job_id)
+            await run_cached_pipeline(orchestrator, job_id, items)
+        else:
+            await orchestrator.start_pipeline(job_id, items)
 
         # Pipeline continues via event_drain_loop and screenshot_push_loop
         # until orchestrator signals completion. For now, we wait.
