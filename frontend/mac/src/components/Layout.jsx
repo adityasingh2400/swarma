@@ -6,6 +6,7 @@ import AgentTheater from './panels/AgentTheater';
 import DecisionPanel from './panels/DecisionPanel';
 import SwarmGrid from './SwarmGrid';
 import FocusMode from './FocusMode';
+import ResearchPage from './research/ResearchPage';
 import { ACTIVE_STATUSES } from '../utils/contracts';
 
 const EASE = [0.32, 0.72, 0, 1];
@@ -74,6 +75,7 @@ export default function Layout({
   const [phase, setPhase] = useState('intake');
   const [videoUrl, setVideoUrl] = useState(null);
   const [focusedAgentId, setFocusedAgentId] = useState(null);
+  const [researchReady, setResearchReady] = useState(false);
 
   useEffect(() => {
     return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
@@ -84,6 +86,16 @@ export default function Layout({
     [agents, v2Agents, pipelineStage],
   );
   const useV2 = Object.keys(v2Agents).length > 0;
+
+  // Transition to research phase when condition_fusion is done and items exist
+  useEffect(() => {
+    const cfStatus = agents?.condition_fusion?.status;
+    const cfDone = cfStatus === 'agent_completed' || cfStatus === 'done';
+    if (cfDone && items.length > 0 && phase === 'processing' && !researchReady) {
+      const t = setTimeout(() => setResearchReady(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [agents, items, phase, researchReady]);
 
   const [viewOverride, setViewOverride] = useState(null);
   const activeView = viewOverride || globalStage;
@@ -147,13 +159,13 @@ export default function Layout({
           )}
 
           {/* ── Phase: Processing ───────────────────────────── */}
-          {phase === 'processing' && !showConciergeResults && (
+          {phase === 'processing' && !showConciergeResults && !researchReady && (
             <motion.div
               key="processing"
               className="proc-layout"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, transition: { duration: 0.25 } }}
+              exit={{ opacity: 0, filter: 'blur(4px)', transition: { duration: 0.3 } }}
               transition={{ duration: 0.4, ease: EASE }}
             >
               {viewOverride && (globalStage === 'concierge-done' || globalStage === 'concierge') && (
@@ -205,6 +217,24 @@ export default function Layout({
                   />
                 </motion.div>
               )}
+            </motion.div>
+          )}
+
+          {/* ── Phase: Research ─────────────────────────────── */}
+          {phase === 'processing' && researchReady && !showConciergeResults && (
+            <motion.div
+              key="research"
+              className="research-fullscreen"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
+              transition={{ duration: 0.5, ease: EASE }}
+            >
+              <ResearchPage
+                items={items}
+                bids={bids}
+                decisions={decisions}
+              />
             </motion.div>
           )}
 

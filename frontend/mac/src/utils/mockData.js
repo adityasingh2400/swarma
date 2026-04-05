@@ -517,7 +517,43 @@ export function useMockMode() {
     }, 6500 + D);
     timersRef.current.push(t3);
 
-    // Stage 2+ disabled — staying on processing screen for now
+    const t4 = setTimeout(() => {
+      setV1Agent('condition_fusion', 'agent_started', 'Analyzing condition for all items...');
+    }, 6500 + D + 500);
+    timersRef.current.push(t4);
+
+    const t5 = setTimeout(() => {
+      setV1Agent('condition_fusion', 'agent_progress', 'Inspecting iPhone 15 Pro — checking screen, back glass, ports...', {
+        elapsed_ms: 2000,
+      });
+    }, 8500 + D);
+    timersRef.current.push(t5);
+
+    const t6 = setTimeout(() => {
+      setV1Agent('condition_fusion', 'agent_progress', 'Inspecting AirPods Pro — verifying case, buds, charging port...', {
+        elapsed_ms: 4500,
+      });
+    }, 11000 + D);
+    timersRef.current.push(t6);
+
+    const t7 = setTimeout(() => {
+      setV1Agent('condition_fusion', 'agent_completed', 'Condition analysis complete for 2 items', {
+        elapsed_ms: 7000,
+      });
+    }, 13500 + D);
+    timersRef.current.push(t7);
+
+    // ── STAGE 2: Research Phase ──────────────────────
+    const t8 = setTimeout(() => {
+      setPipelineStage('research');
+      setBids(buildMockBids());
+    }, 14500 + D);
+    timersRef.current.push(t8);
+
+    const t9 = setTimeout(() => {
+      setDecisions(buildMockDecisions());
+    }, 16000 + D);
+    timersRef.current.push(t9);
 
     return mockJobId;
   }, [isMock, started, mockJobId, cleanup, generateScreenshot, advanceAgent, setV1Agent, pushEvent]);
