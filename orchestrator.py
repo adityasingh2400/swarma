@@ -292,6 +292,14 @@ def _build_listing_package(
 
     images = _collect_listing_images(item)
 
+    swarma_line("pipeline", "listing_package_detail",
+                item_id=item.item_id, item_name=item.name_guess,
+                title=title, price=price_strategy,
+                images_n=len(images),
+                image_paths=[img.path for img in images],
+                condition=condition_label,
+                specs_keys=list(specs.keys()))
+
     return ListingPackage(
         item_id=item.item_id,
         job_id=job_id,
@@ -502,7 +510,14 @@ class Orchestrator:
             file_paths: list[str] | None = None
             if phase == "listing" and item.listing_package:
                 pkg = item.listing_package
-                file_paths = [img.path for img in (pkg.images or []) if img.path]
+                from pathlib import Path as _P
+                file_paths = [img.path for img in (pkg.images or []) if img.path and _P(img.path).exists()]
+                swarma_line("agent", "listing_file_paths",
+                            agent_id=agent_id, item=item.name_guess,
+                            requested=[img.path for img in (pkg.images or [])],
+                            valid=file_paths,
+                            title=pkg.title[:80],
+                            price=pkg.price_strategy)
 
             try:
                 agent_box: list[Agent | None] = [None]
@@ -795,9 +810,12 @@ class Orchestrator:
 
                 swarma_line("pipeline", "listing_package_built", job_id=job_id,
                             item=item.name_guess,
-                            title_len=len(listing_pkg.title),
+                            item_id=item.item_id,
+                            title=listing_pkg.title[:80],
                             images_n=len(listing_pkg.images),
-                            price=listing_pkg.price_strategy)
+                            image_paths=[img.path for img in listing_pkg.images],
+                            price=listing_pkg.price_strategy,
+                            condition=listing_pkg.condition_summary)
 
                 listing_tasks = [
                     self.run_agent(item, get_playbook(platform), "listing")
