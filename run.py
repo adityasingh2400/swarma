@@ -29,15 +29,23 @@ def main():
     logging.getLogger("hpack").setLevel(logging.WARNING)
     logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
     logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
+    logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
     print(_DEBUG_BANNER, flush=True)
 
     settings.ensure_dirs()
+
+    log_config = uvicorn.config.LOGGING_CONFIG
+    log_config["loggers"]["watchfiles"] = {"level": "WARNING", "handlers": []}
+    log_config["loggers"]["watchfiles.main"] = {"level": "WARNING", "handlers": []}
+
     uvicorn.run(
         "backend.server:app",
         host=settings.api_host,
         port=settings.api_port,
         reload=True,
         log_level="info",
+        log_config=log_config,
     )
 
 
