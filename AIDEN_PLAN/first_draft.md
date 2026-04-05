@@ -1,24 +1,26 @@
-# Person 3 First Draft: Server + Streaming + Intake
+# Person 3: Server + Streaming + Intake (Strategy S2 Solidified)
 
 **Author:** Aiden (Person 3)
 **Date:** 2026-04-04
-**Branch:** main
-**Status:** First draft, builds against stubs
+**Branch:** feat/native-fps-intake
+**Status:** S2 (Flash-Lite + Image Snapshots) solidified as production pipeline. Audio pipeline integrated.
 
 ---
 
 ## What Was Built
 
-Four files, 1,314 lines total. The I/O backbone of ReRoute v2: video goes in, screenshots come out.
+Three core files. The I/O backbone of ReRoute v2: video goes in, screenshots come out.
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `backend/server.py` | 490 | FastAPI app, dual WS endpoints, REST routes, pipeline orchestration |
-| `backend/streaming.py` | 194 | CDP screenshot capture, JPEG encoding, binary WS framing |
-| `backend/intake.py` | 555 | Streaming ffmpeg extraction, Gemini batch analysis, image pipeline, video duration validation |
-| `backend/config.py` | 109 | Updated with v2 settings (screenshot, intake, Browser-Use config) |
+| File | Purpose |
+|------|---------|
+| `backend/server.py` | FastAPI app, dual WS endpoints, REST routes, pipeline orchestration |
+| `backend/streaming.py` | CDP screenshot capture, JPEG encoding, binary WS framing |
+| `backend/intake.py` | Audio pipeline + Strategy S2: segment extraction, OpenCV filter, Flash-Lite analysis, per-item aggregation |
+| `backend/config.py` | Updated with v2 settings (screenshot, intake, Browser-Use config) |
 
-Replaces the v1 `server.py` (which was already deleted from the working tree). `run.py:52` references `backend.server:app` and resolves to our v2 code with no changes needed.
+Experiment code (`backend/experiments.py`, `backend/templates/`) removed after Strategy S2 was validated as the best approach. Experiment documentation preserved in `AIDEN_PLAN/`.
+
+`run.py:52` references `backend.server:app` and resolves to our v2 code with no changes needed.
 
 ---
 
@@ -28,13 +30,18 @@ Replaces the v1 `server.py` (which was already deleted from the working tree). `
 VIDEO INPUT (POST /api/upload)
     |
     v
-intake.py
-    |  ffprobe duration check (reject >31s)
-    |  ffmpeg -f image2pipe (streaming, 1 fps)
-    |  -> collect 5-frame batches
-    |  -> fan-out to Gemini Flash-Lite (parallel, round-robin keys)
-    |  -> deduplicate items across batches
-    |  -> crop/resize listing images
+intake.py (streaming_analysis)
+    |  Phase 0: Audio pipeline
+    |    ffmpeg extract audio (16kHz mono WAV)
+    |    Deepgram Nova-3 transcription
+    |    Groq Llama 4 Scout → up to 3 item_ids
+    |    (falls back to free-form detection if audio fails)
+    |  Phase 1: Preprocess to 1080p30 H.264 (skip if compliant)
+    |  Phase 2: 10*N parallel ffmpeg segment seeks
+    |  Phase 3: OpenCV Laplacian sharpness filter (best per segment)
+    |  Phase 4: Parallel Gemini 3.1 Flash-Lite (item-aware prompts)
+    |  Phase 5: Arctic-Embed per-item aggregation
+    |  Phase 6: Up to 4 best frames per item (histogram diversity, sharpness-ordered)
     |
     v  ItemCard objects
 server.py (_run_pipeline)
@@ -66,6 +73,7 @@ streaming.py (capture_loop, per agent)
 | POST | `/api/upload` | Accept video (multipart), return `{ job_id, status }`, start pipeline |
 | GET | `/api/jobs/{jobId}` | Job status and metadata |
 | GET | `/api/jobs/{jobId}/agents` | All agent states (for WS reconnection state rebuild) |
+| GET | `/api/jobs/{jobId}/items` | Full ItemCard details for a job |
 
 ## WebSocket Endpoints
 
@@ -142,11 +150,11 @@ All reviewed via `/plan-eng-review`.
 - Continue with whatever frames were extracted (may be 0, which triggers #4)
 
 ### 6. Video duration limit (intake.py)
-- **Decision: Reject videos longer than 31 seconds**
+- **Decision: Reject videos longer than 60 seconds**
 - `ffprobe` checks duration before any frame extraction begins
-- Raises `ValueError` with clear message ("Video is X.Xs, maximum allowed is 31s")
+- Raises `ValueError` with clear message ("Video is X.Xs, maximum allowed is 60s")
 - Caught by pipeline guard, surfaces as FAILED job
-- Limit is hardcoded as `MAX_VIDEO_DURATION_SEC = 31` in intake.py
+- Limit is hardcoded as `MAX_VIDEO_DURATION_SEC = 60` in intake.py
 
 ---
 
@@ -169,12 +177,8 @@ The stub (`_OrchestratorStub` in server.py) emits fake `agent:spawn` events for 
 
 **Action needed:** Person 1 must confirm how to get a CDP-capable Page from a Browser-Use Browser. The stub accepts any async callable returning a Page or None.
 
-### A3: Gemini Model Names
-Using model IDs from the design doc as defaults:
-- Detection: `gemini-2.5-flash-lite-preview-06-17`
-- Detail: `gemini-2.5-flash-preview-05-20`
-
-These are configurable via `settings.gemini_detection_model` and `settings.gemini_detail_model`. If the preview model IDs change or aren't available, update `.env`.
+### A3: Gemini Model Name
+Strategy S2 uses a single model: `gemini-3.1-flash-lite-preview` (configurable via `settings.gemini_image_model`). The multi-model config (`gemini_detection_model`, `gemini_detail_model`) was removed when S2 was solidified as the sole strategy.
 
 ### A4: Gemini Rate Limits Are Per-Project
 Per `gemini-pipeline-optimization.md`, round-robin across keys from the SAME GCP project gives zero additional throughput. The code round-robins across whatever keys are configured. **The actual rate limit benefit depends on keys being from separate GCP projects.** This is a deployment concern, not a code concern.
@@ -195,7 +199,7 @@ The in-memory job store (`_jobs` dict in server.py) has no persistence and no cl
 `intake.py` shells out to `ffmpeg` (frame extraction) and `ffprobe` (duration check) via `asyncio.create_subprocess_exec`. Both must be installed and on the system PATH. No fallback if either is missing.
 
 ### A10: Gemini Key Alignment with .env
-The .env defines `GEMINI_API_KEY` through `GEMINI_API_KEY_9` (9 keys total). `intake.py`'s `_GeminiPool` reads exactly these 9 keys. `config.py` retains a `gemini_api_key_10` field for v1 `services/gemini.py` backwards compatibility, but our v2 intake code does not reference it.
+The .env defines `GEMINI_API_KEY` through `GEMINI_API_KEY_9` (9 keys total). `intake.py`'s `_GeminiPool` reads exactly these 9 keys. The v1 `gemini_api_key_10` field was removed from `config.py` during S2 solidification.
 
 ---
 
@@ -218,8 +222,7 @@ The .env defines `GEMINI_API_KEY` through `GEMINI_API_KEY_9` (9 keys total). `in
 | `intake_batch_size` | `5` | Frames per Gemini analysis batch |
 | `intake_ffmpeg_fps` | `1.0` | ffmpeg frame extraction rate |
 | `intake_min_frames_required` | `3` | Minimum frames before failing job |
-| `gemini_detection_model` | `gemini-2.5-flash-lite-preview-06-17` | Model for frame batch analysis |
-| `gemini_detail_model` | `gemini-2.5-flash-preview-05-20` | Model for item detail generation |
+| `gemini_image_model` | `gemini-3.1-flash-lite-preview` | Gemini model for S2 image analysis |
 
 ---
 
@@ -231,7 +234,7 @@ The .env defines `GEMINI_API_KEY` through `GEMINI_API_KEY_9` (9 keys total). `in
 - **Tests**: No test files written. Test plan exists in the eng review.
 - **Detail-tier Gemini calls**: intake.py only uses Flash-Lite for detection. The Flash-tier detail generation (title, description, pricing per item) is not implemented. This would run after detection, before listing agents.
 - **Auth/cookie injection**: No browser profile or cookie management
-- **Transcript extraction**: v1's audio transcript pipeline is not ported. The v2 detection prompt analyzes frames only (no audio).
+- **Video strategies (S1/S3/S4)**: Removed after experiments showed S2 (Flash-Lite + images) was the most effective. Experiment documentation preserved in `AIDEN_PLAN/experiment-strategies.md` and `AIDEN_PLAN/experiments.md`.
 
 ---
 
@@ -263,6 +266,8 @@ Person 3 modules read the following vars from `.env` (via `backend/config.py`):
 | `MAX_CONCURRENT_AGENTS` | `max_concurrent_agents` | server.py (orchestrator pool size) |
 | `GEMINI_API_KEY` | `gemini_api_key` | intake.py (`_GeminiPool` key 1) |
 | `GEMINI_API_KEY_2` through `_9` | `gemini_api_key_2` ... `_9` | intake.py (`_GeminiPool` keys 2-9) |
+| `DEEPGRAM_API_KEY` | `deepgram_api_key` | intake.py (audio transcription via Nova-3) |
+| `GROQ_API_KEY` | `groq_api_key` | intake.py (Llama 4 Scout item parsing) |
 | `API_HOST` | `api_host` | server.py (FastAPI bind address) |
 | `API_PORT` | `api_port` | server.py (FastAPI bind port) |
 
@@ -275,11 +280,22 @@ Note: `config.py` retains `gemini_api_key_10` for v1 `services/gemini.py` compat
 
 ---
 
+## Considerations
+
+- **Model warmup at startup**: Arctic-Embed and Gemini pool must be initialized during server lifespan startup (not lazily on first request). Cold-start latency on the first pipeline run is unacceptable for a demo — move `_gemini_pool._ensure_init()` and `_embed_pool._ensure_init()` into the FastAPI lifespan handler.
+- **Gemini prompt tuning**: The current `_build_item_prompt` and `DETECTION_PROMPT` are functional but not optimized. The item-aware prompt in particular should be tested and iterated on for: condition assessment accuracy, bounding box tightness, spec extraction completeness, and null-return calibration (too aggressive = missed items, too lenient = noisy detections). The prompt is also padded to >=1024 tokens to activate Gemini's implicit context caching (per `gemini-pipeline-optimization.md`), so any edits must preserve that minimum length.
+- **MUST: Add `DEEPGRAM_API_KEY` and `GROQ_API_KEY` to `.env`**. The audio pipeline (Deepgram Nova-3 transcription + Groq Llama 4 Scout item parsing) will fail without these keys. They are already in `.env.example` but must be populated with real values before running the pipeline. Without them, every request falls back to the free-form `DETECTION_PROMPT` (no item-aware prompts, no per-item aggregation).
+
+---
+
 ## Verification Done
 
-- All 4 files pass Python AST syntax validation
+- All modified files pass Python AST syntax validation
 - All imports resolve (config, models, streaming modules)
 - `backend.server:app` import works, `run.py:52` resolves to v2 code
 - Binary protocol encode/decode verified: version byte, 32-byte padded agent ID, uint32 BE timestamp, JPEG payload
-- FastAPI app registers all 5 REST routes + 2 WS endpoints correctly (9 total with OpenAPI)
-- .env variable alignment confirmed: intake.py reads keys 1-9, config retains key_10 for v1 compat only
+- FastAPI app registers 4 REST routes + 2 WS endpoints (experiment/debug endpoints removed)
+- .env variable alignment confirmed: intake.py reads Gemini keys 1-9, Deepgram key, Groq key
+- No references to removed code (`gemini_detection_model`, `run_video_strategy`, `experiments`) remain in backend/
+- Audio pipeline integrated into `streaming_analysis` with fallback logging when audio fails
+- Frame selection is per-item (up to 4 diverse frames each, ordered by sharpness descending) — each ItemCard gets its own hero_frame_paths

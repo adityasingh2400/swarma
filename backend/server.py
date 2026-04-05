@@ -280,7 +280,7 @@ async def _run_pipeline(job_id: str, video_path: str):
             "data": {"stage": "analyzing", "detail": "Extracting frames and identifying items..."},
         })
 
-        items = await streaming_analysis(video_path, job_id)
+        items, _timings, _best_frames = await streaming_analysis(video_path, job_id)
 
         if not items:
             job.status = JobStatus.FAILED
@@ -421,6 +421,15 @@ async def get_agents(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return {"agents": orchestrator.get_agent_states(job_id)}
+
+
+@app.get("/api/jobs/{job_id}/items")
+async def get_job_items(job_id: str):
+    """Get full ItemCard details for a job."""
+    items = _job_items.get(job_id)
+    if items is None:
+        raise HTTPException(status_code=404, detail="Job not found or no items yet")
+    return [item.model_dump() for item in items]
 
 
 # ── WebSocket Endpoints ───────────────────────────────────────────────────────
