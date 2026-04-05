@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Eye, Package, X, ChevronLeft, ChevronRight,
-  MessageSquare, Send, Star, Check, ExternalLink,
-  Tag, Truck, Globe, Monitor, Loader2,
+  Eye, Package, ChevronLeft, ChevronRight,
+  MessageSquare, Send, Star, ExternalLink,
+  Globe, Monitor,
 } from 'lucide-react';
 import SwarmaLogo from './SwarmaLogo';
 import BrowserFeed from './BrowserFeed';

@@ -829,6 +829,9 @@ async def suggest_reply(job_id: str, thread_id: str):
     if not thread:
         swarma_line("http", "inbox_suggest", job_id=job_id, thread_id=thread_id, error="thread_not_found")
         raise HTTPException(status_code=404, detail="Thread not found")
+    # Return cached suggestion if we already have one for this message state
+    if thread.suggested_reply:
+        return {"thread_id": thread_id, "suggested_reply": thread.suggested_reply}
     try:
         from backend.systems.unified_inbox import UnifiedInboxSystem
         inbox = UnifiedInboxSystem()
@@ -838,6 +841,8 @@ async def suggest_reply(job_id: str, thread_id: str):
         logger.exception("Reply suggestion failed for thread %s: %s", thread_id, exc)
         suggestion = _mock_suggest(thread)
         swarma_line("http", "inbox_suggest", job_id=job_id, thread_id=thread_id, source="mock_fallback", error=str(exc))
+    # Persist so subsequent /inbox polls include it and frontend skips re-fetching
+    thread.suggested_reply = suggestion
     return {"thread_id": thread_id, "suggested_reply": suggestion}
 
 

@@ -41,10 +41,16 @@ function TopbarSteps({
     a => a.status === 'complete' || a.status === 'error' || a.status === 'blocked'
   );
 
-  const agentsActive = useMemo(() => {
-    const entries = Object.values(v2Agents || {});
-    return entries.length > 0 && entries.some(a => a.status === 'running' || a.status === 'queued' || a.status === 'navigating');
+  // All research agents have finished preloading (none still in 'ready' state)
+  const researchReady = useMemo(() => {
+    const research = Object.values(v2Agents || {}).filter(a => a.phase === 'research');
+    return research.length > 0 && research.every(a => a.status !== 'ready');
   }, [v2Agents]);
+
+  // All listing agents have finished preloading
+  const listingReady = useMemo(() => {
+    return listingAgents.length > 0 && listingAgents.every(a => a.status !== 'ready');
+  }, [listingAgents]);
 
   return (
     <div className="topbar-steps">
@@ -58,7 +64,8 @@ function TopbarSteps({
         const canPosting = i === 2 && effectiveIdx >= 1;
         const canConcierge = i === 3 && (listingDone || effectiveIdx >= 2);
         const clickable = canProcessing || canResearch || canPosting || canConcierge;
-        const isPulsing = (i === 1 && unlocked && agentsActive && effectiveIdx === 0)
+        const isPulsing = (i === 1 && researchReady && effectiveIdx === 0)
+          || (i === 2 && listingReady && effectiveIdx === 1)
           || (i === 3 && listingDone && effectiveIdx === 2);
 
         let cls = 'ts-node';
@@ -166,30 +173,9 @@ export default function App() {
     setTheaterNavRequest(null);
   }, [job?.job_id]);
 
-  // Auto-advance to Research when the first CDP frame arrives
-  useEffect(() => {
-    if (topbarStepIdx === 0 && screenshots instanceof Map && screenshots.size > 0) {
-      setTopbarStepIdx(1);
-    }
-  }, [topbarStepIdx, screenshots]);
-
-  // Auto-advance to Posting when the first listing-agent CDP frame arrives
-  useEffect(() => {
-    if (topbarStepIdx !== 1 || !(screenshots instanceof Map)) return;
-    const listingAgents = Object.values(v2Agents || {}).filter(a => a.phase === 'listing');
-    if (listingAgents.length === 0) return;
-    const hasListingFrame = listingAgents.some(a => screenshots.has(a.agent_id));
-    if (hasListingFrame) setTopbarStepIdx(2);
-  }, [topbarStepIdx, v2Agents, screenshots]);
-
-  // Auto-advance to Concierge when all listing agents finish
-  useEffect(() => {
-    if (topbarStepIdx !== 2) return;
-    const listingAgents = Object.values(v2Agents || {}).filter(a => a.phase === 'listing');
-    if (listingAgents.length === 0) return;
-    const allDone = listingAgents.every(a => a.status === 'complete' || a.status === 'error' || a.status === 'blocked');
-    if (allDone) setTopbarStepIdx(3);
-  }, [topbarStepIdx, v2Agents]);
+  // Stage navigation is manual — user clicks topbar icons when they
+  // pulse blue.  Browser-Use agents run autonomously; the blue signal
+  // means the next page's data is loaded and ready to render.
 
   const handleTopbarStep = useCallback((groupIdx) => {
     setTopbarStepIdx(groupIdx);

@@ -7782,17 +7782,239 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   PAGE — full scroll container
+   RESEARCH PAGE — Clean layout: item + 3 agents
    ═══════════════════════════════════════════════════════ */
 
 .rp2-page {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  scroll-snap-type: y proximity;
+  padding: 20px 24px 32px;
+  gap: 20px;
 }
 
-/* Live SwarmGrid section within research page */
+/* ── Header bar ── */
+.rp2-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-accent);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.rp2-header svg { color: var(--text-tertiary); }
+.rp2-header-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+/* ── Item cards grid ── */
+.rp2-grid {
+  flex: 1;
+  display: grid;
+  gap: 20px;
+  min-height: 0;
+  align-content: start;
+}
+.rp2-grid-1 { grid-template-columns: 1fr; max-width: 520px; margin: 0 auto; }
+.rp2-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.rp2-grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+/* ── Item card ── */
+.rp2-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--glass-card-bg);
+  border: 1px solid var(--glass-card-border);
+  backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Item hero ── */
+.rp2-card-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+.rp2-card-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140px;
+  height: 140px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255,107,107,0.12) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.rp2-card-img {
+  width: 96px;
+  height: 96px;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+.rp2-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rp2-card-img-ph {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+}
+.rp2-card-name {
+  font-family: var(--font-accent);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  line-height: 1.3;
+  position: relative;
+  z-index: 1;
+}
+.rp2-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+.rp2-cond-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.rp2-cond-good { background: rgba(22,163,74,0.1); color: #059669; }
+.rp2-cond-warn { background: rgba(255,195,18,0.12); color: #B45309; }
+.rp2-card-idx {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+/* ── Agent tiles row ── */
+.rp2-card-agents {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* ── Single agent tile ── */
+.rp2-agent-tile {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--glass-card-border);
+  background: var(--bg-elevated);
+  transition: all 200ms ease;
+}
+.rp2-agent-tile:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.rp2-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.rp2-agent-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rp2-agent-name { flex: 1; }
+.rp2-agent-live {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--live);
+  letter-spacing: 0.08em;
+}
+.rp2-agent-done {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: var(--success);
+}
+.rp2-agent-waiting {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.rp2-agent-feed {
+  height: 110px;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+.rp2-agent-feed .bf-container { height: 100%; }
+.rp2-agent-feed .bf-img { width: 100%; height: 100%; object-fit: cover; }
+
+.rp2-agent-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  opacity: 0.3;
+}
+
+/* ── Result summary bar ── */
+.rp2-card-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+}
+.rp2-result-icon { color: rgb(99, 102, 241); flex-shrink: 0; }
+.rp2-result-route {
+  font-family: var(--font-accent);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.rp2-result-price {
+  margin-left: auto;
+  font-family: var(--font-accent);
+  font-size: 16px;
+  font-weight: 800;
+  color: rgb(99, 102, 241);
+}
+
+/* ── LEGACY: keep old .rp2-swarm-section hidden so no errors if referenced ── */
 .rp2-swarm-section {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);

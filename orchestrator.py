@@ -48,26 +48,38 @@ except ImportError:
 
 _IS_MACOS = platform.system() == "Darwin"
 
-# A PERSISTENT AppleScript that runs in a tight loop (~300ms) for the
-# lifetime of the pipeline.  Whenever Chrome becomes the frontmost app it:
+# A PERSISTENT AppleScript that runs in a tight loop for the lifetime of the
+# pipeline.  Whenever Chrome becomes the frontmost app it:
 #   1. Hides Chrome via System Events  (instant, no window flash)
 #   2. Re-activates the app the user was actually using
-# One long-lived osascript process beats spawning a new one every few seconds.
-_FOCUS_GUARD_SCRIPT = '''\
-set targetApp to "Cursor"
+# Detects the user's current app on first run so it works regardless of IDE.
+# SELF-TERMINATING: checks if parent Python process is still alive every loop.
+# If the terminal is closed or the server is killed, this exits automatically.
+_FOCUS_GUARD_SCRIPT_TEMPLATE = '''\
+set parentPID to "{pid}"
+
+-- Detect whatever app the user is actually using right now
+tell application "System Events"
+    set targetApp to name of first application process whose frontmost is true
+end tell
+if targetApp is "osascript" then set targetApp to "Finder"
 
 repeat
-    delay 0.25
+    delay 0.1
     try
+        -- Exit immediately if parent process is dead (terminal closed, server killed)
+        set exitCode to (do shell script "kill -0 " & parentPID & " 2>/dev/null; echo $?")
+        if exitCode is not "0" then exit repeat
+
         tell application "System Events"
             set currentFront to name of first application process whose frontmost is true
 
-            if currentFront is not "Google Chrome" and currentFront is not "osascript" then
+            if currentFront is not "Google Chrome" and currentFront is not "Chromium" and currentFront is not "osascript" then
                 set targetApp to currentFront
             end if
 
-            if currentFront is "Google Chrome" then
-                tell process "Google Chrome"
+            if currentFront is "Google Chrome" or currentFront is "Chromium" then
+                tell process currentFront
                     set visible to false
                 end tell
                 tell application targetApp to activate
@@ -88,12 +100,15 @@ async def _start_focus_guard():
     if _focus_guard_proc is not None:
         return
     try:
+        import os
+        script = _FOCUS_GUARD_SCRIPT_TEMPLATE.format(pid=os.getpid())
         _focus_guard_proc = await asyncio.create_subprocess_exec(
-            "osascript", "-e", _FOCUS_GUARD_SCRIPT,
+            "osascript", "-e", script,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
-        swarma_line("focus_guard", "started", pid=_focus_guard_proc.pid)
+        swarma_line("focus_guard", "started",
+                     pid=_focus_guard_proc.pid, parent_pid=os.getpid())
     except Exception as exc:
         swarma_line("focus_guard", "start_failed", error=str(exc))
         _focus_guard_proc = None
@@ -139,7 +154,7 @@ def _kill_focus_guard_sync():
     if _IS_MACOS:
         try:
             subprocess.run(
-                ["pkill", "-f", "osascript.*set targetApp"],
+                ["pkill", "-f", "osascript.*set parentPID"],
                 capture_output=True, timeout=3,
             )
         except Exception:
@@ -147,7 +162,21 @@ def _kill_focus_guard_sync():
 
 
 import atexit
+import signal as _sig2
+
 atexit.register(_kill_focus_guard_sync)
+
+# Also kill on SIGHUP (terminal close) and SIGTERM (kill command)
+def _signal_cleanup(signum, frame):
+    _kill_focus_guard_sync()
+    raise SystemExit(128 + signum)
+
+for _s in (getattr(_sig2, "SIGHUP", None), _sig2.SIGTERM):
+    if _s is not None:
+        try:
+            _sig2.signal(_s, _signal_cleanup)
+        except (OSError, ValueError):
+            pass  # can't set handler in non-main thread
 
 # ---------------------------------------------------------------------------
 # Playbook registry — Person 2 registers these at import time
@@ -372,6 +401,11 @@ class Orchestrator:
             minimum_wait_page_load_time=0.1,
             wait_between_actions=0.1,
             headless=False,
+            # Keep agent windows small and off-screen so they don't cover the
+            # user's main Chrome window.  CDP + screencast work regardless of
+            # on-screen visibility, so agents are unaffected.
+            window_size={"width": 800, "height": 600},
+            window_position={"width": 3000, "height": 3000},
         )
 
     def _emit(self, event: AgentEvent) -> None:
