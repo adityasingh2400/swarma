@@ -23,7 +23,7 @@ Browser-Use solves all three: browser automation replaces API connectors (any we
 
 You record a 30-second video of stuff you want to sell. Within seconds, 12-15 browser windows light up on your screen. You watch one agent searching eBay sold listings. Another is navigating Facebook Marketplace's listing form. Another is checking Apple's trade-in page. Another is browsing Mercari for competitive pricing. All simultaneously. All visible. All real.
 
-Click any agent and you zoom into its full browser view. Watch it type a listing title, upload photos, set a price, hit publish. The system isn't a dashboard showing you status badges. It's a live mission control showing you REAL BROWSERS doing REAL WORK.
+Every agent streams live at 5 fps — you see all of them at once, simultaneously, in a grid. Watch one type a listing title on eBay while another uploads photos to Facebook Marketplace while another sets a price on Mercari. The system isn't a dashboard showing you status badges. It's a live mission control showing you REAL BROWSERS doing REAL WORK, all at the same time.
 
 Nobody has built this. Cross-listing tools (Vendoo, Nifty) work behind the scenes. ReRoute v2 makes the intelligence visible.
 
@@ -56,8 +56,8 @@ An independent Claude subagent reviewed the session cold. Key insights:
 
 ## Approaches Considered
 
-### Approach A: "Live Swarm" — Maximum Visual Impact + Focus Mode
-12-15 concurrent Browser-Use agents with real-time CDP screenshot streaming to a React grid. Every agent's browser visible simultaneously. Click any agent to zoom into full-screen live view. Video → streaming Gemini analysis → agents spawn as items are identified.
+### Approach A: "Live Swarm" — Maximum Visual Impact
+12-15 concurrent Browser-Use agents with real-time CDP video streaming to a React grid. Every agent's browser visible simultaneously at 5 fps minimum. Video → streaming Gemini analysis → agents spawn as items are identified.
 - Effort: L | Risk: High | Pros: Maximum "whoa," most technically impressive | Cons: Resource-intensive, needs careful memory management
 
 ### Approach B: "Cinematic Orchestrator" — Speed + Polish
@@ -70,9 +70,7 @@ Orchestration grid as default + single-agent focus mode with live feed. Replay m
 
 ## Recommended Approach
 
-**Approach A: Live Swarm + Focus Mode** — chosen by the user. No compromises, no replay fallbacks. The real thing, live, all at once.
-
-The focus mode drill-in from Approach C is included: click any agent card in the grid to expand to full-screen live browser view.
+**Approach A: Live Swarm** — chosen by the user. No compromises, no replay fallbacks. The real thing, live, all at once. Every agent streams at 5 fps minimum, all simultaneously displayed. No focus mode, no click-to-drill-in — the whole grid is always live.
 
 ### Architecture
 
@@ -111,16 +109,16 @@ VIDEO INPUT
 │  Queue priority: research > listing, item 1 > item 2      │
 └────────────────────┬─────────────────────────────────────┘
                      │
-                     │ CDP screenshots (3 fps capture, throttled delivery)
+                     │ CDP live video stream (screencast, event-driven)
                      │ + agent status events (JSON)
                      ▼
 ┌──────────────────────────────────────────────────────────┐
 │              WEBSOCKET FANOUT SERVER                       │
 │                                                            │
-│  Collects screenshots from all active browser contexts     │
+│  Receives screencast frames pushed by each CDP session     │
 │  Pushes frames + status events to frontend                 │
-│  Smart throttling: higher FPS for focused agent,           │
-│  lower FPS for grid thumbnails                             │
+│  Uniform delivery: all agents at 5 fps minimum             │
+│  (no per-agent throttle differentiation)                   │
 └────────────────────┬─────────────────────────────────────┘
                      │
                      ▼
@@ -133,23 +131,14 @@ VIDEO INPUT
 │                                                            │
 │  ┌─ AGENT SWARM GRID (3x4 or 4x4) ──────────────────┐   │
 │  │ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐              │   │
-│  │ │ eBay │ │  FB  │ │Mercar│ │Apple │  ← live       │   │
-│  │ │search│ │scout │ │price │ │trade │    browser     │   │
-│  │ │ ░░░░ │ │ ░░░░ │ │ ░░░░ │ │ ░░░░ │    thumbnails │   │
+│  │ │ eBay │ │  FB  │ │Mercar│ │Apple │  ← all live    │   │
+│  │ │search│ │scout │ │price │ │trade │    5 fps min   │   │
+│  │ │ ░░░░ │ │ ░░░░ │ │ ░░░░ │ │ ░░░░ │    always on  │   │
 │  │ ├──────┤ ├──────┤ ├──────┤ ├──────┤              │   │
 │  │ │Amazon│ │eBay  │ │ FB   │ │Mercar│              │   │
 │  │ │parts │ │list  │ │ list │ │list  │              │   │
 │  │ │ ░░░░ │ │ ░░░░ │ │ ░░░░ │ │ ░░░░ │              │   │
 │  │ └──────┘ └──────┘ └──────┘ └──────┘              │   │
-│  └────────────────────────────────────────────────────┘   │
-│                                                            │
-│  ┌─ FOCUS MODE (click any agent) ────────────────────┐   │
-│  │                                                    │   │
-│  │  Full-screen live browser view of selected agent   │   │
-│  │  Higher framerate (5-10 fps)                       │   │
-│  │  Agent task description + elapsed time overlay     │   │
-│  │  Click outside or ESC to return to grid            │   │
-│  │                                                    │   │
 │  └────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -188,9 +177,8 @@ Agents will fail. Platforms change, CAPTCHAs appear, elements move. Strategy:
 - **React 19** + **Vite** (carried from v1)
 - **Framer Motion** (carried from v1) for pipeline animations
 - **WebSocket** for real-time agent screenshots + status events
-- **New: BrowserFeed component** — renders CDP screenshot stream as animated image sequence
-- **New: SwarmGrid component** — responsive grid of BrowserFeed thumbnails
-- **New: FocusMode component** — full-screen single-agent browser view
+- **New: BrowserFeed component** — renders CDP live video stream (screencast frames) as a continuous video feed at 5 fps minimum
+- **New: SwarmGrid component** — responsive grid of BrowserFeed tiles, all streaming simultaneously
 
 ### Agent Architecture: Hybrid Structured Workflows
 
@@ -289,21 +277,22 @@ The key: don't wait for all frames. Extract frames in a streaming fashion (ffmpe
 - **Browser context pool**: Pre-launch browser contexts when FastAPI server starts (warm pool, before any user interaction). Target: 12-15 active contexts. Must validate on target hardware first (see Step 0 in Next Steps). Realistic ceiling on 16GB MacBook Pro may be 10-12, use 32GB machine if available.
 - **Agent queue**: With 2 items producing up to 18 agents, 3-6 will be queued at any time. Priority: research agents first (they unblock the route decision), then listing agents. Item 1's research agents take priority over item 2's if contexts are scarce.
 - **Memory budget**: Each context with an active marketplace page (heavy JS) realistically uses 200-400MB. At 10 contexts: ~2-4GB. At 15: ~3-6GB. Plus Chromium shared process (~500MB-1GB), Python backend, ffmpeg. On a 16GB machine, 10-12 contexts is the safe ceiling. On 32GB, 15 is comfortable. Step 0 benchmarking will establish the real number.
-- **Screenshot streaming (capture vs delivery)**:
-  - **Capture rate**: CDP screenshots taken at 2 fps for all active agents (uniform capture, server-side). 3 fps is aspirational, may need to drop to 1-2 fps based on Step 0 CPU benchmarking (2 fps x 12 agents = 24 captures/sec which is significant CPU load).
-  - **Delivery rate to frontend**: Grid thumbnails delivered at 1 fps (every 3rd frame), focused agent at 3 fps (every frame), unfocused/background agents at 0.5 fps. Server-side filtering.
-  - **Thumbnail resolution**: Grid thumbnails resized to 320x240 JPEG quality 60 (~15-25KB each). Focus mode: 1280x960 JPEG quality 80 (~80-120KB each).
-  - **Transport**: Binary WebSocket frames (not base64 JSON) for screenshots to avoid 33% overhead. Status events remain JSON.
-  - **Bandwidth estimate**: 12 grid agents at 1 fps x 20KB = 240KB/s + 1 focused agent at 3 fps x 100KB = 300KB/s. Total: ~540KB/s sustained. Comfortable on localhost.
+- **Live video streaming (capture vs delivery)**:
+  - **Capture**: Each agent's browser streams via CDP `Page.startScreencast` — event-driven push, no polling. Browser pushes JPEG frames on every N-th vsync. At 5 fps: `everyNthFrame=12`. 5 fps x 12 agents = 60 frames/sec inbound total — significant CPU load; validate with Step 0 benchmarking and tune `everyNthFrame` if needed, but 5 fps is the hard floor.
+  - **Delivery rate to frontend**: All agents delivered uniformly at 5 fps minimum. No per-agent throttle differentiation — every feed in the swarm stays live simultaneously. There is no focused agent concept.
+  - **Resolution**: All agents rendered at 320x240 JPEG quality 60 (~15-25KB each). Single resolution tier — no focus/grid split.
+  - **Transport**: Binary WebSocket frames (not base64 JSON) for video stream frames to avoid 33% overhead. Status events remain JSON text frames.
+  - **Bandwidth estimate**: 12 agents at 5 fps x 20KB = 1,200KB/s (~1.2MB/s) sustained. Comfortable on localhost; validate on demo hardware during Step 0.
 
 ### WebSocket Protocol
 
 ```json
 // Agent lifecycle events
 {"type": "agent:spawn", "agentId": "ebay-research-1", "task": "Search eBay for iPhone 15 Pro sold listings", "platform": "ebay", "phase": "research"}
-// Screenshots are sent as BINARY WebSocket frames (not JSON) to avoid base64 overhead:
+// Live video stream frames are sent as BINARY WebSocket frames (not JSON) to avoid base64 overhead:
 // Format: [1 byte msg type = 0x01] [32 bytes agent ID, utf8 padded] [4 bytes timestamp uint32] [JPEG payload]
-// All other messages (status, lifecycle, focus) remain JSON text frames.
+// Source: CDP Page.startScreencast pushes JPEG frames; server throttles and delivers via /ws/{jobId}/screenshots
+// All other messages (status, lifecycle) remain JSON text frames.
 {"type": "agent:status", "agentId": "ebay-research-1", "status": "navigating", "detail": "Opening ebay.com/sch/..."}
 {"type": "agent:result", "agentId": "ebay-research-1", "data": {"avg_sold_price": 799, "listings_found": 12}}
 {"type": "agent:complete", "agentId": "ebay-research-1", "duration_s": 14.2}
@@ -312,10 +301,6 @@ The key: don't wait for all frames. Extract frames in a streaming fashion (ffmpe
 {"type": "item:identified", "itemId": "item-1", "name": "iPhone 15 Pro 256GB", "confidence": 0.94}
 {"type": "decision:made", "itemId": "item-1", "route": "marketplace_resale", "platforms": ["ebay", "facebook", "mercari"]}
 {"type": "listing:live", "itemId": "item-1", "platform": "ebay", "url": "https://ebay.com/itm/..."}
-
-// Focus mode
-{"type": "focus:request", "agentId": "ebay-listing-1"}  // client → server: increase FPS
-{"type": "focus:release", "agentId": "ebay-listing-1"}   // client → server: decrease FPS
 ```
 
 ## Open Questions
@@ -331,8 +316,7 @@ The key: don't wait for all frames. Extract frames in a streaming fashion (ffmpe
 ## Success Criteria
 
 - Upload a video of 2-3 items → first agents visible within 5-8 seconds, full grid (12-15 agents) populated within 30 seconds
-- All agents visible simultaneously in grid view with live browser thumbnails
-- Click any agent to see full-screen live browser feed
+- All agents visible simultaneously in grid view, each streaming live at 5 fps minimum
 - At least 3 marketplace platforms receiving real listings (eBay, Facebook, Mercari)
 - Total pipeline time: under 2 minutes from video to live listings
 - Zero manual intervention after video upload
@@ -350,16 +334,16 @@ The key: don't wait for all frames. Extract frames in a streaming fashion (ffmpe
 0. **Benchmark: validate concurrency ceiling** — Launch 5, 10, 15 Playwright browser contexts on target hardware, each navigating to a marketplace homepage. Measure memory and CPU. Establish the real ceiling before building the orchestrator. Also test one Browser-Use agent creating an eBay listing with Gemini as LLM: run 10 times, measure success rate. If below 80%, switch to ChatBrowserUse.
 1. **Create new project folder** with Python backend + React frontend scaffold
 2. **Build one reliable eBay listing agent** with hybrid structured workflow. Success = listing URL confirmed live. Target: 8/10 success rate.
-3. **Build CDP screenshot → WebSocket binary streaming pipeline** with 4 parallel agents
+3. **Build CDP live video streaming pipeline** — `Page.startScreencast` per agent, binary WebSocket delivery at 5 fps minimum, with 4 parallel agents
 4. **Wire video intake** → Gemini streaming analysis (batches of 3-5 frames) → agent spawning
-5. **Build SwarmGrid + FocusMode** React components
+5. **Build SwarmGrid** React component — all agents simultaneously live in grid
 6. **Add Facebook Marketplace + Mercari** agents with platform-specific playbooks. Success criteria per agent type:
    - Research agent: returns structured JSON with price data within 30s
    - Listing agent: listing URL confirmed live within 60s
    - Target: 7/10 success rate per platform (lower than eBay, iterate to improve)
 7. **Scale to 12-15 concurrent agents** and optimize memory/FPS. Validate against benchmark from Step 0.
 8. **Design system** — run /design-consultation for new visual identity
-9. **Polish animations** — pipeline transitions, agent spawn effects, focus mode zoom
+9. **Polish animations** — pipeline transitions, agent spawn effects
 10. **End-to-end integration test**: Full pipeline from video to live listings on 3 platforms. Run 5 times. Identify flaky platforms, fix or prepare graceful degradation.
 
 ## What I noticed about how you think

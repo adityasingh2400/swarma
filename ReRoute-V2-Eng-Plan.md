@@ -5,7 +5,7 @@
 
 ## Context
 
-ReRoute v2 replaces Fetch AI uAgents with Browser-Use for all agent research and marketplace posting. New project folder. Live CDP screenshot streaming of 12-15 concurrent browser agents to a React dashboard. Video input with streaming latency fix. **Browser-Use is a hackathon sponsor** so the product should heavily showcase Browser-Use capabilities.
+ReRoute v2 replaces Fetch AI uAgents with Browser-Use for all agent research and marketplace posting. New project folder. Live CDP video streaming of 12-15 concurrent browser agents to a React dashboard — each agent's browser is a live video feed, not periodic screenshots. Video input with streaming latency fix. **Browser-Use is a hackathon sponsor** so the product should heavily showcase Browser-Use capabilities.
 
 ---
 
@@ -15,7 +15,7 @@ ReRoute v2 replaces Fetch AI uAgents with Browser-Use for all agent research and
 |---|----------|-----------|
 | 1 | **Cookie injection** via `context.add_cookies()`, not `user_data_dir` | `user_data_dir` launches a full Chromium process per profile (500-800MB). Cookie injection uses lightweight contexts (200-400MB) sharing one process. |
 | 2 | **Split LLMs**: Gemini for video analysis, ChatBrowserUse for agents | Separates rate limit bottleneck. 10 Gemini keys can't sustain 15 concurrent Browser-Use agents. ChatBrowserUse is optimized for browser tasks. |
-| 3 | **Two WebSocket endpoints**: `/ws/{jobId}/events` (JSON) + `/ws/{jobId}/screenshots` (binary) | Clean separation. Screenshot stream can be paused independently. No framing ambiguity. |
+| 3 | **Two WebSocket endpoints**: `/ws/{jobId}/events` (JSON) + `/ws/{jobId}/screenshots` (binary video stream) | Clean separation. No framing ambiguity. CDP `Page.startScreencast` pushes frames; server delivers all agents uniformly at 5 fps minimum via `/screenshots`. |
 | 4 | **Human takeover for CAPTCHAs**: Agent pauses, emits `needs_human`, presenter intervenes in headful browser, agent resumes | Browser-Use agents don't know to wait. Need explicit pause mechanism. Headful mode makes this a demo feature, not a bug. |
 | 5 | **Context recycling** after each agent task | Prevents Chromium JS heap accumulation. Adds ~1-2s per context creation. |
 | 6 | **Clean module split** from day one | server.py (<200 lines), orchestrator.py, playbooks/, streaming.py, intake.py, route_decision.py |
@@ -70,14 +70,16 @@ VIDEO INPUT
     │             │
     ▼             ▼
 streaming.py   server.py
-CDP screenshots  FastAPI + WS
-(2 fps capture)  (/events + /screenshots)
+CDP screencast   FastAPI + WS
+live video push  (/events + /screenshots)
+(event-driven,   binary stream delivery
+ no polling)
     │             │
     └──────┬──────┘
            │
            ▼
     React Frontend
-    SwarmGrid + FocusMode
+    SwarmGrid (all agents live, 5 fps min)
 ```
 
 ## Backend Module Structure
@@ -88,7 +90,7 @@ reroute-v2/
 │   ├── server.py              ← FastAPI routes + 2 WS endpoints (<200 lines)
 │   ├── orchestrator.py        ← Agent lifecycle, context pool, queue
 │   ├── intake.py              ← Video upload, streaming ffmpeg, Gemini analysis
-│   ├── streaming.py           ← CDP screenshot capture loops, binary framing
+│   ├── streaming.py           ← CDP live video stream (screencast push), binary WS framing
 │   ├── route_decision.py      ← Scoring algorithm (extracted from v1)
 │   ├── playbooks/
 │   │   ├── base.py            ← Abstract playbook interface
@@ -114,9 +116,8 @@ reroute-v2/
 │   │   │   └── useScreenshots.js   ← NEW: binary WS screenshot handler
 │   │   ├── components/
 │   │   │   ├── Layout.jsx          ← Adapted from v1
-│   │   │   ├── SwarmGrid.jsx       ← NEW: agent thumbnail grid
-│   │   │   ├── BrowserFeed.jsx     ← NEW: screenshot image sequence
-│   │   │   ├── FocusMode.jsx       ← NEW: full-screen agent view
+│   │   │   ├── SwarmGrid.jsx       ← NEW: all-agent live video grid (5 fps min)
+│   │   │   ├── BrowserFeed.jsx     ← NEW: single-agent live video stream tile
 │   │   │   ├── PipelineHeader.jsx  ← NEW: stage progress bar
 │   │   │   └── shared/             ← COPIED from v1
 │   │   └── index.css               ← New design system
@@ -167,9 +168,9 @@ reroute-v2/
 | 0 | **Benchmark**: launch 5/10/15 Playwright contexts on 18GB M3 Pro, measure memory. Test one Browser-Use agent + ChatBrowserUse filling eBay form. | — | — | Real context ceiling established. Agent success rate measured. |
 | 1 | **Scaffold**: new project folder, copy reusable v1 code, install deps | Step 0 | all | `pip install browser-use` + `npm install` works. Copied v1 code imports clean. |
 | 2 | **eBay listing agent**: one reliable Browser-Use agent filling eBay form with hybrid task string | Step 1 | `playbooks/ebay.py`, `orchestrator.py` | 8/10 success rate. Listing URL confirmed live. |
-| 3 | **CDP screenshot streaming**: capture screenshots from agent contexts, push via binary WebSocket | Step 2 | `streaming.py`, `server.py` | Browser feed visible in browser devtools/test page. |
+| 3 | **CDP live video streaming**: subscribe to `Page.startScreencast` per agent context, push binary video frames via WebSocket | Step 2 | `streaming.py`, `server.py` | Live video feed visible in browser devtools/test page. Event-driven, no polling. |
 | 4 | **Video intake**: streaming ffmpeg → Gemini batches → agent dispatch | Step 1 | `intake.py` | Video → item identified → agent spawned within 8s. |
-| 5 | **SwarmGrid + FocusMode**: React components for grid + drill-in | Step 3 | `SwarmGrid.jsx`, `BrowserFeed.jsx`, `FocusMode.jsx`, `useScreenshots.js` | Grid shows thumbnails. Click opens focus view. |
+| 5 | **SwarmGrid**: React component for all-agent live video grid | Step 3 | `SwarmGrid.jsx`, `BrowserFeed.jsx`, `useScreenshots.js` | All agents visible simultaneously at 5 fps minimum. |
 | 6 | **Facebook + Mercari agents**: additional platform playbooks | Step 2 | `playbooks/facebook.py`, `playbooks/mercari.py` | 7/10 success rate per platform. |
 | 7 | **Scale**: concurrent agents, context pool, queue | Steps 2-6 | `orchestrator.py` | 12+ agents running simultaneously. Memory within budget. |
 | 8 | **Design system**: new visual identity | — | CSS | /design-consultation output applied. |
@@ -181,7 +182,7 @@ reroute-v2/
 1. eBay playbook generates valid task string from ItemCard
 2. Orchestrator spawns + queues agents correctly with priority
 3. Route decision scoring matches v1 weighted algorithm
-4. Binary WebSocket screenshot frame parsing (frontend)
+4. Binary WebSocket video stream frame parsing (frontend — `[0x01][32B agentId][4B ts][JPEG]`)
 5. Cookie injection authenticates marketplace sessions
 6. Gemini streaming analysis returns ItemCards from frame batches
 7. Image extraction produces listing-ready JPEG files
@@ -195,7 +196,8 @@ reroute-v2/
 | Browser-Use agent | Task fails mid-form | Test #8 | Retry once, mark BLOCKED | Red border in grid |
 | CAPTCHA | Marketplace challenge | No | needs_human event + pause | Presenter solves live |
 | Context pool | All exhausted | Test #2 | Queue with priority | Agents show "queued" state |
-| WebSocket | Disconnect | No | Auto-reconnect (v1 code) | Brief feed pause |
+| WebSocket | Disconnect during video stream | No | Auto-reconnect (v1 code) | Brief video feed pause, resumes on reconnect |
+| CDP screencast | Session teardown before stop | No | try/except in stop_screencast | Frame store cleared, feed stops |
 | Session cookie | Expired | No | Agent hits login page, fails | BLOCKED state |
 | ffmpeg | Unsupported codec | No | Empty frame list | "No items found" message |
 
@@ -208,7 +210,7 @@ reroute-v2/
 | 2: eBay agent | playbooks/, orchestrator.py | Step 1 |
 | 3: CDP streaming | streaming.py, server.py | Step 2 |
 | 4: Video intake | intake.py, services/ | Step 1 |
-| 5: Frontend components | frontend/src/ | Step 3 |
+| 5: SwarmGrid component | frontend/src/ | Step 3 |
 
 **Parallel lanes:**
 - **Lane A:** Step 2 (eBay agent) → Step 3 (CDP streaming) → Step 7 (scale) — sequential, shared orchestrator

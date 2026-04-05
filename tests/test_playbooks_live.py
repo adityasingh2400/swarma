@@ -36,6 +36,7 @@ from models.item_card import DefectSignal, ItemCard, ItemCategory
 from models.listing_package import ListingImage, ListingPackage
 from playbooks.amazon import AmazonPlaybook
 from playbooks.depop import DepopPlaybook
+
 from playbooks.ebay import EbayPlaybook
 from playbooks.facebook import FacebookPlaybook
 from playbooks.mercari import MercariPlaybook

@@ -3,19 +3,29 @@ from __future__ import annotations
 
 import struct
 import time
+from io import BytesIO
 
 import pytest
+from PIL import Image
 
 from backend.streaming import (
     FrameData,
-    _encode_and_resize,
+    _encode_frame,
     encode_binary_frame,
     frame_store,
     get_all_agent_ids,
     get_frame_for_delivery,
-    stop_capture,
+    stop_screencast,
 )
 import backend.streaming as streaming_mod
+
+
+def _make_jpeg(width: int = 1920, height: int = 1080, color=(100, 150, 200)) -> bytes:
+    """Create a minimal JPEG for use as a synthetic CDP frame."""
+    img = Image.new("RGB", (width, height), color=color)
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=80)
+    return buf.getvalue()
 
 
 # ── Binary Frame Protocol ────────────────────────────────────────────────────
@@ -26,7 +36,7 @@ class TestBinaryFrameEncoding:
 
     def test_header_total_37_bytes(self, sample_jpeg_bytes):
         frame = encode_binary_frame("agent-1", sample_jpeg_bytes)
-        header = frame[: 37]
+        header = frame[:37]
         payload = frame[37:]
         assert len(header) == 37
         assert payload == sample_jpeg_bytes
@@ -72,45 +82,23 @@ class TestBinaryFrameEncoding:
 
 
 class TestJpegEncoding:
-    def test_produces_grid_and_focus(self, sample_jpeg_bytes):
-        # _encode_and_resize expects PNG input
-        from io import BytesIO
-        from PIL import Image
+    """_encode_frame takes an incoming CDP JPEG and returns grid + focus variants."""
 
-        img = Image.new("RGB", (1920, 1080), color=(100, 150, 200))
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-        png_bytes = buf.getvalue()
-
-        grid, focus = _encode_and_resize(png_bytes)
-        assert isinstance(grid, bytes)
-        assert isinstance(focus, bytes)
-        assert len(grid) > 0
-        assert len(focus) > 0
-        # Focus should be larger (higher quality + resolution)
+    def test_produces_grid_and_focus(self):
+        jpeg = _make_jpeg()
+        grid, focus = _encode_frame(jpeg)
+        assert isinstance(grid, bytes) and len(grid) > 0
+        assert isinstance(focus, bytes) and len(focus) > 0
+        # Focus is higher quality + larger resolution → bigger
         assert len(focus) > len(grid)
 
     def test_grid_dimensions(self):
-        from io import BytesIO
-        from PIL import Image
-
-        img = Image.new("RGB", (1920, 1080), color=(50, 50, 50))
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-
-        grid, _ = _encode_and_resize(buf.getvalue())
+        grid, _ = _encode_frame(_make_jpeg())
         decoded = Image.open(BytesIO(grid))
         assert decoded.size == (320, 240)
 
     def test_focus_dimensions(self):
-        from io import BytesIO
-        from PIL import Image
-
-        img = Image.new("RGB", (1920, 1080), color=(50, 50, 50))
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-
-        _, focus = _encode_and_resize(buf.getvalue())
+        _, focus = _encode_frame(_make_jpeg())
         decoded = Image.open(BytesIO(focus))
         assert decoded.size == (1280, 960)
 
@@ -137,14 +125,6 @@ class TestFrameStore:
         result = get_frame_for_delivery("agent-1")
         assert result == (b"FOCUS", True)
 
-    def test_stop_capture_removes_agent(self):
-        frame_store["agent-1"] = FrameData(grid=b"G", focus=b"F", ts=1.0)
-        stop_capture("agent-1")
-        assert "agent-1" not in frame_store
-
-    def test_stop_capture_noop_for_unknown(self):
-        stop_capture("nonexistent")  # should not raise
-
     def test_get_all_agent_ids(self):
         frame_store["a"] = FrameData(grid=b"", focus=b"", ts=1.0)
         frame_store["b"] = FrameData(grid=b"", focus=b"", ts=1.0)
@@ -156,3 +136,22 @@ class TestFrameStore:
         frame_store["agent-1"] = FrameData(grid=b"NEW", focus=b"", ts=2.0)
         result = get_frame_for_delivery("agent-1")
         assert result == (b"NEW", False)
+
+
+# ── stop_screencast ───────────────────────────────────────────────────────────
+
+
+class TestStopScreencast:
+    def setup_method(self):
+        frame_store.clear()
+        streaming_mod._cdp_sessions.clear()
+
+    @pytest.mark.anyio
+    async def test_removes_frame_store_entry(self):
+        frame_store["agent-1"] = FrameData(grid=b"G", focus=b"F", ts=1.0)
+        await stop_screencast("agent-1")
+        assert "agent-1" not in frame_store
+
+    @pytest.mark.anyio
+    async def test_noop_for_unknown_agent(self):
+        await stop_screencast("nonexistent")  # should not raise

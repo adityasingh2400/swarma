@@ -39,10 +39,11 @@ from backend.models.item_card import ItemCard
 from backend.models.job import Job, JobStatus
 from backend.streaming import (
     encode_binary_frame,
-    focused_agent_id,
     frame_store,
     get_all_agent_ids,
     get_frame_for_delivery,
+    start_screencast,
+    stop_screencast,
 )
 import backend.streaming as streaming_mod
 
@@ -59,8 +60,14 @@ class _OrchestratorStub:
 
     Real interface (from Person 1):
       orchestrator.events           — asyncio.Queue[AgentEvent]
-      orchestrator.get_browser(id)  — Returns Browser-Use Browser instance
       orchestrator.start_pipeline(job_id, items) — Direct method call
+
+    CDP screencast hook points Person 1 must call when spinning up each agent:
+      # When the agent's Playwright Page is ready:
+      await streaming.start_screencast(agent_id, page)
+
+      # When the agent completes or is cancelled:
+      await streaming.stop_screencast(agent_id)
     """
 
     def __init__(self):
