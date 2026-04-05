@@ -11,7 +11,7 @@ function elapsed(startedAt) {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-export default function FocusMode({ agent, screenshotUrl, onClose, send }) {
+export default function FocusMode({ agent, screenshotUrl, onClose, send, immersive = false }) {
   const agentId = agent?.agent_id;
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function FocusMode({ agent, screenshotUrl, onClose, send }) {
           onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
         >
           <motion.div
-            className="fm-panel"
+            className={`fm-panel${immersive ? ' fm-panel--immersive' : ''}`}
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0, transition: { duration: 0.2 } }}

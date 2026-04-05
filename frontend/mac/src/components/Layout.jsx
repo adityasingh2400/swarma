@@ -449,14 +449,12 @@ function LayoutInner({
               exit={{ opacity: 0, transition: { duration: 0.3 } }}
               transition={{ duration: 0.5, ease: EASE }}
             >
-              <div className="posting-grid" style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${Math.min(items.length || 1, 3)}, 1fr)`,
-                gap: 20,
-                padding: '24px 28px',
-                height: '100%',
-                alignContent: 'stretch',
-              }}>
+              <div
+                className="posting-grid"
+                style={{
+                  '--posting-cols': Math.min(items.length || 1, 3),
+                }}
+              >
                 {items.map((item, i) => {
                   const condition = item.visible_defects?.length || item.spoken_defects?.length
                     ? (item.visible_defects?.some?.((d) => d.severity === 'major') ? 'Fair' : 'Good')
@@ -476,7 +474,7 @@ function LayoutInner({
                       initial={{ opacity: 0, y: 30 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.1, duration: 0.5, ease: EASE }}
-                      style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0, flex: 1 }}
                     >
                       {/* Item card — click opens bubble modal like processing page */}
                       <motion.div

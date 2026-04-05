@@ -4,7 +4,7 @@ import BrowserFeed from '../BrowserFeed';
 import FocusMode from '../FocusMode';
 import {
   Search, TrendingUp, CheckCircle2, DollarSign,
-  Sparkles, Package,
+  Package,
 } from 'lucide-react';
 import {
   ACTIVE_STATUSES,
@@ -305,11 +305,15 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
 
   if (!items || items.length === 0) return null;
 
+  const singleItem = items.length === 1;
+  const itemsLayoutN = Math.min(items.length, 3);
   const focusedShot = focusedAgentId ? getScreenshot(screenshots, focusedAgentId) : null;
   const focusedAgent = focusedAgentId ? resolveAgentForFocus(focusedAgentId, v2Agents) : null;
 
   return (
-    <div className="rp2-page">
+    <div
+      className={`rp2-page rp2-page--items-${itemsLayoutN}${singleItem ? ' rp2-page--single' : ''}`}
+    >
       <motion.div
         className="rp2-header"
         initial={{ opacity: 0, y: -12 }}
@@ -341,7 +345,7 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
 
       {heroPreviewUrl && (
         <div
-          className="rp2-preview-overlay"
+          className={singleItem ? 'rp2-preview-overlay rp2-preview-overlay--single' : 'rp2-preview-overlay'}
           onClick={() => setHeroPreviewUrl(null)}
           role="presentation"
         >
@@ -366,6 +370,7 @@ export default function ResearchPage({ items, bids, decisions, v2Agents, screens
         screenshotUrl={focusedShot}
         onClose={() => setFocusedAgentId(null)}
         send={send}
+        immersive
       />
     </div>
   );
