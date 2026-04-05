@@ -270,6 +270,11 @@ async def parse_items_from_transcript(transcript: str) -> list[str]:
                     "Extract up to 2 of the MOST PROMINENT and DIFFERENT items from "
                     "this transcript of someone describing items they want to sell.\n\n"
                     "Rules:\n"
+                    "- Rank items from MOST prominent to LEAST prominent. The first item "
+                    "in the array should be the one the speaker spends the most time on "
+                    "or describes most clearly.\n"
+                    "- Pick items that are maximally DISTINCT from each other. If two items "
+                    "are very similar (e.g. two iPhones), only keep the more prominent one.\n"
                     "- Use the correct proprietary name with model specifics when the "
                     "speaker clearly identifies a brand/model (e.g. 'iPhone 15 Pro').\n"
                     "- Use a corrected generic name when the speaker describes something "
@@ -277,8 +282,8 @@ async def parse_items_from_transcript(transcript: str) -> list[str]:
                     "- Do NOT guess or invent a brand/model the speaker never mentioned.\n"
                     "- Do NOT split one item into multiple entries (e.g. 'Apple Watch' and "
                     "'Apple Watch band' are the same item — return only the main item).\n"
-                    "- Maximum 2 items. Pick the most prominent ones if more are mentioned.\n\n"
-                    "Return ONLY a JSON array of strings, ordered from MOST prominent to LEAST prominent. No extra text."
+                    "- Maximum 2 items.\n\n"
+                    "Return ONLY a JSON array of strings, ordered most to least prominent. No extra text."
                 ),
             },
             {"role": "user", "content": transcript},
