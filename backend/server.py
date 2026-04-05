@@ -47,7 +47,7 @@ from backend.streaming import (
 )
 from backend.debug_trace import swarma_line, swarma_ws_out
 
-logger = logging.getLogger("reroute.server")
+logger = logging.getLogger("swarmsell.server")
 
 # In-memory thread store for conversation endpoints.
 # Mirrors the store.py pattern but scoped to the v2 server.
@@ -483,11 +483,11 @@ async def _run_pipeline(job_id: str, video_path: str):
 async def lifespan(_app: FastAPI):
     settings.ensure_dirs()
     # Future: warm browser context pool here
-    logger.info("ReRoute v2 server starting")
+    logger.info("SwarmSell server starting")
     swarma_line("server", "lifespan_startup", upload_dir=str(settings.upload_dir))
     yield
     swarma_line("server", "lifespan_shutdown")
-    logger.info("ReRoute v2 server shutting down")
+    logger.info("SwarmSell server shutting down")
 
 
 app = FastAPI(title="SwarmSell", lifespan=lifespan)
@@ -502,6 +502,27 @@ app.add_middleware(
 
 
 # ── REST Endpoints ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/health")
+async def health():
+    """Health check."""
+    return {"status": "ok", "service": "swarmsell"}
+
+
+@app.get("/api/local-ip")
+async def local_ip():
+    """Return the server's LAN IP so the phone QR code works."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        ip = "127.0.0.1"
+    logger.info("GET /api/local-ip → %s", ip)
+    return {"ip": ip}
 
 
 class UploadResponse(BaseModel):
@@ -664,12 +685,14 @@ async def get_inbox(job_id: str):
     """Get all conversation threads across all items for a job, ranked by seriousness."""
     job = _jobs.get(job_id)
     if not job:
+        swarma_line("http", "get_inbox", job_id=job_id, found=False)
         raise HTTPException(status_code=404, detail="Job not found")
     all_threads = []
     for item_id in (job.item_ids or []):
         all_threads.extend(_get_threads_for_item(item_id))
     seriousness_order = {"high": 0, "medium": 1, "low": 2, "spam": 3}
     all_threads.sort(key=lambda t: seriousness_order.get(t.seriousness_score.value if hasattr(t.seriousness_score, 'value') else t.seriousness_score, 99))
+    swarma_line("http", "get_inbox", job_id=job_id, threads_n=len(all_threads))
     return [t.model_dump(mode="json") for t in all_threads]
 
 
@@ -677,13 +700,16 @@ async def get_inbox(job_id: str):
 async def reply_to_thread(job_id: str, thread_id: str, body: ReplyRequest):
     """Seller replies to a conversation thread."""
     if not _jobs.get(job_id):
+        swarma_line("http", "inbox_reply", job_id=job_id, thread_id=thread_id, error="job_not_found")
         raise HTTPException(status_code=404, detail="Job not found")
     thread = _threads.get(thread_id)
     if not thread:
+        swarma_line("http", "inbox_reply", job_id=job_id, thread_id=thread_id, error="thread_not_found")
         raise HTTPException(status_code=404, detail="Thread not found")
     from backend.models.conversation import ChatMessage
     from datetime import datetime
     thread.messages.append(ChatMessage(sender="seller", text=body.text, timestamp=datetime.utcnow()))
+    swarma_line("http", "inbox_reply", job_id=job_id, thread_id=thread_id, msg_count=len(thread.messages))
     return thread.model_dump(mode="json")
 
 
@@ -691,17 +717,21 @@ async def reply_to_thread(job_id: str, thread_id: str, body: ReplyRequest):
 async def suggest_reply(job_id: str, thread_id: str):
     """Get an AI-suggested reply for a conversation thread."""
     if not _jobs.get(job_id):
+        swarma_line("http", "inbox_suggest", job_id=job_id, thread_id=thread_id, error="job_not_found")
         raise HTTPException(status_code=404, detail="Job not found")
     thread = _threads.get(thread_id)
     if not thread:
+        swarma_line("http", "inbox_suggest", job_id=job_id, thread_id=thread_id, error="thread_not_found")
         raise HTTPException(status_code=404, detail="Thread not found")
     try:
         from backend.systems.unified_inbox import UnifiedInboxSystem
         inbox = UnifiedInboxSystem()
         suggestion = await inbox.suggest_reply(thread)
+        swarma_line("http", "inbox_suggest", job_id=job_id, thread_id=thread_id, source="ai")
     except Exception as exc:
         logger.exception("Reply suggestion failed for thread %s: %s", thread_id, exc)
         suggestion = _mock_suggest(thread)
+        swarma_line("http", "inbox_suggest", job_id=job_id, thread_id=thread_id, source="mock_fallback", error=str(exc))
     return {"thread_id": thread_id, "suggested_reply": suggestion}
 
 
@@ -716,6 +746,7 @@ async def buyer_chat_get_thread(item_id: str):
     """Get or create the buyer chat thread for an item."""
     thread_id = f"phone-buyer-{item_id}"
     thread = _threads.get(thread_id)
+    created = False
     if not thread:
         thread = ConversationThread(
             thread_id=thread_id,
@@ -724,6 +755,8 @@ async def buyer_chat_get_thread(item_id: str):
             buyer_handle="Phone Buyer",
         )
         _threads[thread_id] = thread
+        created = True
+    swarma_line("http", "buyer_chat_thread", item_id=item_id, created=created, msg_count=len(thread.messages))
     return thread.model_dump(mode="json")
 
 
@@ -756,13 +789,17 @@ async def buyer_chat_send(item_id: str, body: BuyerChatRequest):
     if is_offer and offer_amount is not None:
         thread.current_offer = offer_amount
 
+    swarma_line("http", "buyer_chat_send", item_id=item_id, is_offer=is_offer, offer=offer_amount)
+
     seller_reply = _mock_suggest(thread)
     try:
         from backend.systems.unified_inbox import UnifiedInboxSystem
         inbox = UnifiedInboxSystem()
         seller_reply = await inbox.suggest_reply(thread)
+        swarma_line("http", "buyer_chat_auto_reply", item_id=item_id, source="ai")
     except Exception as exc:
         logger.warning("Auto-reply generation failed for %s: %s", thread_id, exc)
+        swarma_line("http", "buyer_chat_auto_reply", item_id=item_id, source="mock_fallback", error=str(exc))
 
     thread.messages.append(ChatMessage(sender="seller", text=seller_reply, timestamp=datetime.utcnow()))
     return thread.model_dump(mode="json")

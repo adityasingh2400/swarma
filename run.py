@@ -16,13 +16,19 @@ _DEBUG_BANNER = """
 
 def main():
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        level=logging.DEBUG,
+        format="%(asctime)s | %(levelname)-5s | %(name)s | %(message)s",
         datefmt="%H:%M:%S",
         stream=sys.stdout,
         force=True,
     )
-    logging.getLogger("swarma.trace").setLevel(logging.INFO)
+    logging.getLogger("swarma.trace").setLevel(logging.DEBUG)
+    logging.getLogger("swarmsell.server").setLevel(logging.DEBUG)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("hpack").setLevel(logging.WARNING)
+    logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+    logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
     print(_DEBUG_BANNER, flush=True)
 
     settings.ensure_dirs()
