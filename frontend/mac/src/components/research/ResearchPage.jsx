@@ -114,7 +114,7 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
       const agent = v2Agents?.[`${p}-research-${itemId}`];
       return agent?.status === STATUS_COMPLETE;
     });
-  }, [v2Agents, prefix]);
+  }, [v2Agents, itemId]);
 
   return (
     <motion.div
