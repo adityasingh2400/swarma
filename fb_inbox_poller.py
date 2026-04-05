@@ -279,7 +279,7 @@ class FBInboxPoller:
             self._sessions[agent_id] = session
 
             page = await session.get_current_page()
-            await streaming.start_screencast(agent_id, page)
+            await streaming.start_screencast(agent_id, page, session)
             swarma_line("fb_poller", "screencast_started", agent_id=agent_id)
 
             # Navigate to FB Marketplace selling inbox

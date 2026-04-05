@@ -62,32 +62,43 @@ def encode_binary_frame(agent_id: str, jpeg_bytes: bytes) -> bytes:
 # ── CDP Screencast ────────────────────────────────────────────────────────────
 
 
-async def start_screencast(agent_id: str, page) -> None:
-    """Start a CDP screencast session for one agent's Playwright Page.
+async def start_screencast(agent_id: str, page, browser_session=None) -> None:
+    """Start a CDP screencast session for one agent's browser page.
 
-    The browser pushes JPEG frames via Page.screencastFrame events.
-    CDP performs the resize to the configured grid dimensions before encoding —
-    no server-side image processing.
+    Tries multiple strategies to obtain a CDP session:
+    1. BrowserSession.get_or_create_cdp_session() (Browser-Use v0.12+)
+    2. Playwright page.context.new_cdp_session(page) (direct Playwright)
 
     Args:
-        agent_id: Unique agent identifier (e.g. "ebay-research-0").
-        page:     Playwright Page from Browser-Use's browser_session.
-
-    Called by the orchestrator immediately after the agent's browser page is ready.
+        agent_id:        Unique agent identifier.
+        page:            Playwright Page from Browser-Use's browser_session.
+        browser_session: Optional BrowserSession — preferred for CDP access.
     """
     if agent_id in _cdp_sessions:
         logger.warning("start_screencast called twice for %s — stopping old session", agent_id)
         await stop_screencast(agent_id)
 
-    try:
-        ctx = getattr(page, 'context', None)
-        if ctx is None and hasattr(page, '_impl_obj'):
-            ctx = page._impl_obj.context
-        if ctx is None:
-            raise AttributeError("Cannot access browser context from page object")
-        cdp = await ctx.new_cdp_session(page)
-    except Exception as exc:
-        logger.warning("CDP session creation failed for %s: %s — falling back to screenshot callbacks", agent_id, exc)
+    cdp = None
+    # Strategy 1: Use BrowserSession's CDP client (Browser-Use v0.12+)
+    if browser_session is not None and hasattr(browser_session, 'get_or_create_cdp_session'):
+        try:
+            cdp = await browser_session.get_or_create_cdp_session()
+        except Exception as exc:
+            logger.debug("BrowserSession CDP failed for %s: %s", agent_id, exc)
+
+    # Strategy 2: Playwright page context
+    if cdp is None:
+        try:
+            ctx = getattr(page, 'context', None)
+            if ctx is None and hasattr(page, '_impl_obj'):
+                ctx = page._impl_obj.context
+            if ctx is not None:
+                cdp = await ctx.new_cdp_session(page)
+        except Exception as exc:
+            logger.debug("Playwright CDP failed for %s: %s", agent_id, exc)
+
+    if cdp is None:
+        logger.warning("CDP session creation failed for %s — falling back to screenshot callbacks", agent_id)
         return
     _cdp_sessions[agent_id] = cdp
 

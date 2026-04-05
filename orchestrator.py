@@ -565,7 +565,7 @@ class Orchestrator:
                     sc_started[0] = True
                     try:
                         page = await agent_box[0].browser_session.get_current_page()
-                        await streaming.start_screencast(agent_id, page)
+                        await streaming.start_screencast(agent_id, page, agent_box[0].browser_session)
                         swarma_line("agent", "screencast_started", agent_id=agent_id,
                                     url=getattr(page, "url", "unknown"))
                     except Exception as sc_err:
@@ -647,7 +647,7 @@ class Orchestrator:
                         try:
                             if retry_box[0] and retry_box[0].browser_session:
                                 page = await retry_box[0].browser_session.get_current_page()
-                                await streaming.start_screencast(agent_id, page)
+                                await streaming.start_screencast(agent_id, page, retry_box[0].browser_session)
                                 swarma_line("agent", "retry_screencast_started", agent_id=agent_id)
                         except Exception:
                             pass
@@ -788,7 +788,7 @@ class Orchestrator:
 
                 page = await session.get_current_page()
                 if page:
-                    await streaming.start_screencast(agent_id, page)
+                    await streaming.start_screencast(agent_id, page, session)
 
                     # Run extraction JS during preload so agent starts with data
                     extract_js = get_extraction_js(pb.platform)
