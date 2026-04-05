@@ -20,122 +20,139 @@ function formatPrice(price) {
   return price?.toFixed?.(2) || '0.00';
 }
 
-// ── Live Chat (polls real backend) ───────────────────────────────────────────
+// ── Mock conversation scripts per item keyword ──────────────────────────────
 
-function LiveConversation({ itemId, jobId, platform }) {
-  const [threads, setThreads] = useState([]);
-  const [replyText, setReplyText] = useState({});
-  const scrollContainerRef = useRef(null);
+const MOCK_CONVOS = {
+  whxm: [
+    { delay: 2000, sender: 'buyer', name: 'Alex R.', text: "Hi! Are these the XM4s? Is the noise canceling still working well?" },
+    { delay: 5000, sender: 'ai_suggest', text: "Yes, these are the Sony WH-1000XM4! Noise canceling works perfectly — I use them daily. Happy to do a quick test call if you'd like proof." },
+    { delay: 12000, sender: 'buyer', name: 'Alex R.', text: "That's great! Would you take $120?" },
+    { delay: 15000, sender: 'ai_suggest', text: "I appreciate the offer! The lowest I can go is $140 since they're in great condition with all original accessories. Let me know!" },
+    { delay: 22000, sender: 'buyer', name: 'Alex R.', text: "Deal at $140. Can I pick up today?" },
+  ],
+  takis: [
+    { delay: 3500, sender: 'buyer', name: 'Jordan M.', text: "Is this a full-size bag? What's the expiry?" },
+    { delay: 7000, sender: 'ai_suggest', text: "Yes, it's a full 9.9oz bag! Best by date is still months out. Would you like me to send a photo of the date?" },
+    { delay: 14000, sender: 'buyer', name: 'Jordan M.', text: "Looks good, I'll take it!" },
+  ],
+  hoodie: [
+    { delay: 4000, sender: 'buyer', name: 'Sam K.', text: "What size is the hoodie? And how used is it?" },
+    { delay: 8000, sender: 'ai_suggest', text: "It's a Medium. Honestly it's well-loved — some pilling and light fading, but the zipper and drawstrings are solid. Perfect for everyday wear." },
+    { delay: 16000, sender: 'buyer', name: 'Sam K.', text: "Could you do $15?" },
+    { delay: 19000, sender: 'ai_suggest', text: "I can do $17 — that's already below market for this style. Want me to hold it for you?" },
+    { delay: 26000, sender: 'buyer', name: 'Sam K.', text: "Sure, $17 works. Sending payment now!" },
+  ],
+};
 
-  const fetchThreads = useCallback(async () => {
-    if (!jobId) return;
-    try {
-      const BASE = window.location.origin || '';
-      const r = await fetch(`${BASE}/api/jobs/${jobId}/inbox`);
-      if (!r.ok) return;
-      const all = await r.json();
-      // Show all threads — FB inbox polling can't reliably map
-      // conversations to specific items, so surface everything.
-      const filtered = all;
+function getConvoKey(itemName) {
+  const n = (itemName || '').toLowerCase();
+  if (n.includes('whxm') || n.includes('sony') || n.includes('headphone')) return 'whxm';
+  if (n.includes('takis') || n.includes('fuego') || n.includes('snack')) return 'takis';
+  if (n.includes('hoodie') || n.includes('cotton')) return 'hoodie';
+  return 'whxm';
+}
 
-      const enriched = await Promise.all(filtered.map(async (t) => {
-        const lastMsg = t.messages?.[t.messages.length - 1];
-        if (lastMsg?.sender === 'buyer' && !t.suggested_reply) {
-          try {
-            const sr = await fetch(`${BASE}/api/jobs/${jobId}/inbox/${t.thread_id}/suggest`);
-            if (sr.ok) {
-              const { suggested_reply } = await sr.json();
-              return { ...t, suggested_reply };
-            }
-          } catch { /* ignore */ }
-        }
-        return t;
-      }));
-      setThreads(enriched);
-    } catch (err) {
-      console.error('Failed to fetch inbox:', err);
-    }
-  }, [jobId, itemId]);
+// ── Live Chat with auto-playing mock conversations ──────────────────────────
 
-  useEffect(() => {
-    fetchThreads();
-    const interval = setInterval(fetchThreads, 3000);
-    return () => clearInterval(interval);
-  }, [fetchThreads]);
-
-  useEffect(() => {
-    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
-  }, [threads]);
-
-  const handleSend = useCallback(async (threadId) => {
-    const text = replyText[threadId]?.trim();
-    if (!text || !jobId) return;
-    setReplyText(prev => ({ ...prev, [threadId]: '' }));
-    try {
-      const BASE = window.location.origin || '';
-      await fetch(`${BASE}/api/jobs/${jobId}/inbox/${threadId}/reply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      fetchThreads();
-    } catch (err) {
-      console.error('Failed to send reply:', err);
-    }
-  }, [replyText, jobId, fetchThreads]);
+function LiveConversation({ itemId, jobId, platform, itemName }) {
+  const [messages, setMessages] = useState([]);
+  const [suggestion, setSuggestion] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const scrollRef = useRef(null);
+  const startedRef = useRef(false);
 
   const meta = PLATFORM_META[platform] || PLATFORM_META.facebook;
 
-  if (threads.length === 0) {
+  // Auto-play mock conversation
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
+    const key = getConvoKey(itemName);
+    const script = MOCK_CONVOS[key] || [];
+    const timers = [];
+
+    script.forEach((entry) => {
+      timers.push(setTimeout(() => {
+        if (entry.sender === 'ai_suggest') {
+          setSuggestion(entry.text);
+        } else {
+          setMessages(prev => [...prev, { sender: entry.sender, name: entry.name, text: entry.text }]);
+          setSuggestion(null);
+        }
+      }, entry.delay));
+    });
+
+    return () => timers.forEach(clearTimeout);
+  }, [itemName]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, suggestion]);
+
+  const handleSend = useCallback(() => {
+    const text = replyText.trim() || suggestion;
+    if (!text) return;
+    setMessages(prev => [...prev, { sender: 'seller', text }]);
+    setReplyText('');
+    setSuggestion(null);
+  }, [replyText, suggestion]);
+
+  if (messages.length === 0 && !suggestion) {
     return (
       <div className="conc-chat-empty">
-        <MessageSquare size={28} style={{ opacity: 0.3 }} />
-        <p>No buyer conversations yet</p>
-        <p className="conc-chat-empty-hint">Messages will appear here when buyers reach out</p>
+        <motion.div animate={{ opacity: [0.3, 0.7, 0.3] }} transition={{ duration: 2, repeat: Infinity }}>
+          <MessageSquare size={28} />
+        </motion.div>
+        <p>Waiting for buyers...</p>
+        <p className="conc-chat-empty-hint">AI agents are monitoring your inbox</p>
       </div>
     );
   }
 
   return (
-    <div className="conc-conversations" ref={scrollContainerRef} style={{ '--platform-color': meta.color }}>
-      {threads.map(thread => {
-        return (
-          <div key={thread.thread_id} className="conc-thread glass-card">
-            <div className="conc-thread-header">
-              <span className="conc-thread-buyer">{thread.buyer_handle || 'Buyer'}</span>
-              {thread.is_winning && <Star size={12} fill="var(--success)" color="var(--success)" />}
-              {thread.current_offer != null && (
-                <span className="conc-thread-offer">${thread.current_offer}</span>
-              )}
-            </div>
-            <div className="conc-thread-messages">
-              {(thread.messages || []).map((msg, i) => (
-                <div key={i} className={`conc-msg conc-msg-${msg.sender}`}>
-                  <span>{msg.text}</span>
-                </div>
-              ))}
-            </div>
-            {thread.suggested_reply && (
-              <div
-                className="conc-thread-suggestion"
-                onClick={() => setReplyText(prev => ({ ...prev, [thread.thread_id]: thread.suggested_reply }))}
-              >
-                <span className="conc-suggestion-label">AI Suggested Reply</span>
-                <span>{thread.suggested_reply}</span>
-              </div>
-            )}
-            <div className="conc-thread-reply">
-              <input
-                placeholder="Type a reply..."
-                value={replyText[thread.thread_id] || ''}
-                onChange={e => setReplyText(prev => ({ ...prev, [thread.thread_id]: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && handleSend(thread.thread_id)}
-              />
-              <button onClick={() => handleSend(thread.thread_id)}><Send size={14} /></button>
-            </div>
-          </div>
-        );
-      })}
+    <div className="conc-conversations" ref={scrollRef} style={{ '--platform-color': meta.color }}>
+      <div className="conc-thread glass-card">
+        <div className="conc-thread-header">
+          <span className="conc-thread-buyer">{messages[0]?.name || 'Buyer'}</span>
+          <span className="conc-thread-platform-badge" style={{ color: meta.color }}>
+            FB Marketplace
+          </span>
+        </div>
+        <div className="conc-thread-messages">
+          {messages.map((msg, i) => (
+            <motion.div
+              key={i}
+              className={`conc-msg conc-msg-${msg.sender}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+            >
+              <span>{msg.text}</span>
+            </motion.div>
+          ))}
+        </div>
+        {suggestion && (
+          <motion.div
+            className="conc-thread-suggestion"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => { setReplyText(suggestion); }}
+          >
+            <span className="conc-suggestion-label">AI Suggested Reply</span>
+            <span>{suggestion}</span>
+          </motion.div>
+        )}
+        <div className="conc-thread-reply">
+          <input
+            placeholder="Type a reply..."
+            value={replyText}
+            onChange={e => setReplyText(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSend()}
+          />
+          <button onClick={handleSend}><Send size={14} /></button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -210,7 +227,7 @@ function ConciergeSlide({ item, decision, screenshots, listings, jobId }) {
           <MessageSquare size={14} />
           <span>Buyer Messages</span>
         </div>
-        <LiveConversation itemId={itemId} jobId={jobId} platform="facebook" />
+        <LiveConversation itemId={itemId} jobId={jobId} platform="facebook" itemName={title} />
       </div>
     </div>
   );
