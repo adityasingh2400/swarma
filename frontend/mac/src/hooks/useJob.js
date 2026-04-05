@@ -341,9 +341,11 @@ export function useJob(jobId) {
         case EVENT_AGENT_RESULT: {
           const aid = data.agent_id ?? data.agentId;
           if (!aid) break;
+          // Backend orchestrator sends final_result; keep result alias for older payloads
+          const payload = data.final_result ?? data.result;
           setV2Agents((prev) => {
             const existing = prev[aid] || {};
-            return { ...prev, [aid]: { ...existing, result: data.result, agent_id: aid } };
+            return { ...prev, [aid]: { ...existing, result: payload, agent_id: aid } };
           });
           break;
         }

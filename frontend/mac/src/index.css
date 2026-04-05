@@ -354,6 +354,9 @@ body {
   position: relative;
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .panel-header {
@@ -7915,7 +7918,9 @@ body {
 
 .research-fullscreen {
   flex: 1;
+  min-height: 0;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -7935,6 +7940,9 @@ body {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   box-sizing: border-box;
   gap: clamp(16px, 2.2vw, 24px);
   padding: clamp(16px, 2.2vw, 28px);
@@ -7951,6 +7959,22 @@ body {
   cursor: pointer;
   transition: box-shadow 0.3s ease, border-color 0.3s ease;
   background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 0;
+}
+/* Full marketplace view: fit entire screenshot (CDP viewport), not cover-crop / “zoomed in” */
+.posting-feed-wrap .bf-container.bf-full {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  aspect-ratio: unset;
+}
+.posting-feed-wrap .bf-img {
+  object-fit: contain;
+  object-position: top center;
+  background: rgba(0, 0, 0, 0.07);
 }
 .posting-feed-active {
   border-color: var(--primary) !important;
@@ -7967,12 +7991,14 @@ body {
 
 .rp2-page {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 20px 24px 32px;
   gap: 20px;
+  -webkit-overflow-scrolling: touch;
 }
 .rp2-page--single {
   padding: 16px clamp(16px, 3vw, 28px) 28px;

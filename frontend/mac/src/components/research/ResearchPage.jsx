@@ -41,6 +41,55 @@ const PLATFORM_META = {
 
 const RESEARCH_PLATFORMS = ['facebook', 'depop', 'amazon'];
 
+/** Parse agent:result / final_result (JSON string or object) for playbook avg_sold_price. */
+function extractPlatformResearchPrice(agent) {
+  const raw = agent?.result;
+  if (raw == null) return null;
+  let obj = raw;
+  if (typeof raw === 'string') {
+    try {
+      obj = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof obj !== 'object' || !obj) return null;
+  const v = obj.avg_sold_price ?? obj.avg_active_price ?? obj.median_price;
+  return typeof v === 'number' && v > 0 ? v : null;
+}
+
+/** When route decision isn't in state yet (common with multiple items), build prices from research agents. */
+function valuationFromResearchAgents(itemId, v2Agents) {
+  const prices = {};
+  for (const p of RESEARCH_PLATFORMS) {
+    const agent = v2Agents?.[`${p}-research-${itemId}`];
+    if (!agent || agent.status !== STATUS_COMPLETE) continue;
+    const price = extractPlatformResearchPrice(agent);
+    if (price != null) prices[p] = price;
+  }
+  const vals = Object.values(prices).filter((n) => n > 0);
+  if (vals.length === 0) return null;
+  return {
+    prices,
+    estimated_best_value: Math.max(...vals),
+  };
+}
+
+function decisionHasPrices(decision) {
+  if (!decision?.prices || typeof decision.prices !== 'object') return false;
+  return Object.values(decision.prices).some((v) => typeof v === 'number' && v > 0);
+}
+
+function mergeDecisionForValuation(decision, researchValuation) {
+  if (decisionHasPrices(decision)) return decision;
+  if (!researchValuation) return null;
+  return {
+    ...(decision || {}),
+    prices: { ...(decision?.prices || {}), ...researchValuation.prices },
+    estimated_best_value: researchValuation.estimated_best_value,
+  };
+}
+
 function getScreenshot(screenshots, agentId) {
   if (!screenshots || !agentId) return null;
   const want = String(agentId).trim();
@@ -214,6 +263,16 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
     });
   }, [v2Agents, itemId]);
 
+  const researchValuation = useMemo(
+    () => valuationFromResearchAgents(itemId, v2Agents),
+    [itemId, v2Agents],
+  );
+
+  const valuationDecision = useMemo(
+    () => mergeDecisionForValuation(decision, researchValuation),
+    [decision, researchValuation],
+  );
+
   const agentsFirst = index === 1;
 
   return (
@@ -273,7 +332,9 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
       </div>
 
       <AnimatePresence>
-        {allDone && <ValuationCard decision={decision} item={item} />}
+        {allDone && valuationDecision && (
+          <ValuationCard decision={valuationDecision} item={item} />
+        )}
       </AnimatePresence>
     </motion.div>
   );
