@@ -28,6 +28,7 @@ function TopbarSteps({
   agents,
   items,
   v2Agents,
+  screenshots,
   highlightIdx,
   onStepClick,
 }) {
@@ -41,16 +42,20 @@ function TopbarSteps({
     a => a.status === 'complete' || a.status === 'error' || a.status === 'blocked'
   );
 
-  // All research agents have finished preloading (none still in 'ready' state)
+  // Research glow: every research agent has a screenshot frame in the frontend
   const researchReady = useMemo(() => {
     const research = Object.values(v2Agents || {}).filter(a => a.phase === 'research');
-    return research.length > 0 && research.every(a => a.status !== 'ready');
-  }, [v2Agents]);
+    if (research.length === 0) return false;
+    if (!(screenshots instanceof Map)) return false;
+    return research.every(a => screenshots.has(a.agent_id));
+  }, [v2Agents, screenshots]);
 
-  // All listing agents have finished preloading
+  // Posting glow: every listing agent has a screenshot frame in the frontend
   const listingReady = useMemo(() => {
-    return listingAgents.length > 0 && listingAgents.every(a => a.status !== 'ready');
-  }, [listingAgents]);
+    if (listingAgents.length === 0) return false;
+    if (!(screenshots instanceof Map)) return false;
+    return listingAgents.every(a => screenshots.has(a.agent_id));
+  }, [listingAgents, screenshots]);
 
   return (
     <div className="topbar-steps">
@@ -256,6 +261,7 @@ export default function App() {
               agents={agents}
               items={items}
               v2Agents={v2Agents}
+              screenshots={screenshots}
               highlightIdx={topbarStepIdx}
               onStepClick={handleTopbarStep}
             />
