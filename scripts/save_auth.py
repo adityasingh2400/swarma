@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 AUTH_DIR = Path(__file__).resolve().parent.parent / "auth"
@@ -32,17 +33,20 @@ RESET = "\033[0m"
 async def main():
     from playwright.async_api import async_playwright
 
+    cdp_port = os.environ.get("SWARMA_CHROME_DEBUG_PORT", "9222")
+    cdp_url = f"http://127.0.0.1:{cdp_port}"
+
     AUTH_DIR.mkdir(parents=True, exist_ok=True)
 
     print(f"\n  {BOLD}SwarmSell — Save Cookies from Chrome{RESET}")
     print(f"  {'─' * 38}")
-    print(f"  Connecting to Chrome on port 9222...\n")
+    print(f"  Connecting to Chrome at {cdp_url}...\n")
 
     async with async_playwright() as p:
         try:
-            browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+            browser = await p.chromium.connect_over_cdp(cdp_url)
         except Exception as e:
-            print(f"  {YELLOW}!{RESET} Can't connect to Chrome on port 9222.")
+            print(f"  {YELLOW}!{RESET} Can't connect to Chrome at {cdp_url}.")
             print(f"  Run this first:  bash start_auth_chrome.sh")
             print(f"  Then log into all 4 platforms, then run this script.\n")
             print(f"  Error: {e}\n")

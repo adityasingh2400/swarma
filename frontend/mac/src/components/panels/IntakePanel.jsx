@@ -6,38 +6,53 @@ import SwarmaLogo from '../SwarmaLogo';
 const EASE = [0.32, 0.72, 0, 1];
 
 function PhoneQR() {
-  const [detectedIP, setDetectedIP] = useState('');
+  // Resolve URL once before showing QR/text. Updating host after /api/local-ip
+  // used to swap qrserver img src + change URL width → visible flicker and flex
+  // shift on the neighboring drop card.
+  const [phoneUrl, setPhoneUrl] = useState(null);
 
   useEffect(() => {
+    const port = window.location.port || '8080';
+    const fallbackHost = window.location.hostname || 'localhost';
+    let cancelled = false;
+
+    const commit = (host) => {
+      if (!cancelled) setPhoneUrl(`http://${host}:${port}/phone/`);
+    };
+
     fetch('/api/local-ip')
       .then((r) => r.json())
-      .then((d) => { if (d.ip) setDetectedIP(d.ip); })
-      .catch(() => {});
+      .then((d) => {
+        const host = (d?.ip && String(d.ip).trim()) || fallbackHost;
+        commit(host);
+      })
+      .catch(() => commit(fallbackHost));
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const phoneUrl = useMemo(() => {
-    const host = detectedIP || window.location.hostname || 'localhost';
-    const port = window.location.port || '8080';
-    return `http://${host}:${port}/phone/`;
-  }, [detectedIP]);
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(phoneUrl)}&bgcolor=FFFFFF&color=FF8557`;
+  const qrSrc = useMemo(() => {
+    if (!phoneUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(phoneUrl)}&bgcolor=FFFFFF&color=FF8557`;
+  }, [phoneUrl]);
 
   return (
-    <motion.div
-      className="intake-qr-panel glass-enhanced"
-      initial={{ opacity: 0, y: 40, scale: 0.94 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 1.0, delay: 4.0, ease: [0.16, 1, 0.3, 1] }}
-    >
+    <div className="intake-qr-panel glass-enhanced intake-qr-reveal">
       <div className="intake-qr-badge">
         <Smartphone size={14} />
         <span>Capture from phone</span>
       </div>
       <div className="intake-qr-frame">
-        <img src={qrSrc} alt="Phone QR" className="intake-qr-img" />
+        {phoneUrl ? (
+          <img src={qrSrc} alt="Phone QR" className="intake-qr-img" decoding="async" />
+        ) : (
+          <div className="intake-qr-placeholder" aria-hidden />
+        )}
       </div>
-      <div className="intake-qr-url">{phoneUrl}</div>
-    </motion.div>
+      <div className="intake-qr-url">{phoneUrl ?? '\u00A0'}</div>
+    </div>
   );
 }
 
@@ -146,21 +161,21 @@ export default function IntakePanel({ onUpload, fullscreen }) {
           transition={{ duration: 0.5, ease: EASE }}
         >
           <motion.div
-            className={`intake-drop-card glass-enhanced ${dragActive ? 'active' : ''} ${uploading ? 'uploading' : ''}`}
+            className={[
+              'intake-drop-card',
+              'glass-enhanced',
+              !uploading && 'intake-drop-reveal',
+              dragActive && 'active',
+              uploading && 'uploading',
+            ].filter(Boolean).join(' ')}
             onDragEnter={handleDrag}
             onDragOver={handleDrag}
             onDragLeave={handleDrag}
             onDrop={handleDrop}
             onClick={() => !uploading && inputRef.current?.click()}
-            initial={{ opacity: 0, y: 40, scale: 0.94 }}
-            animate={uploading
-              ? { scale: 0.92, opacity: 0.7 }
-              : { opacity: 1, y: 0, scale: 1 }
-            }
-            transition={uploading
-              ? { duration: 0.4, ease: EASE }
-              : { duration: 1.0, delay: 3.4, ease: [0.16, 1, 0.3, 1] }
-            }
+            initial={false}
+            animate={uploading ? { scale: 0.92, opacity: 0.7, y: 0 } : false}
+            transition={uploading ? { duration: 0.4, ease: EASE } : undefined}
             whileHover={uploading ? {} : { y: -2, transition: { duration: 0.25, ease: EASE } }}
           >
             <AnimatePresence mode="wait">
@@ -230,17 +245,18 @@ export default function IntakePanel({ onUpload, fullscreen }) {
           </motion.div>
 
           <motion.div
-            className="intake-divider"
-            initial={{ opacity: 0 }}
-            animate={uploading ? { opacity: 0 } : { opacity: 1 }}
-            transition={{ duration: uploading ? 0.25 : 0.8, delay: uploading ? 0 : 3.8, ease: [0.16, 1, 0.3, 1] }}
+            className={['intake-divider', !uploading && 'intake-divider-reveal'].filter(Boolean).join(' ')}
+            initial={false}
+            animate={uploading ? { opacity: 0 } : false}
+            transition={{ duration: 0.25, ease: EASE }}
           >
             <span className="intake-divider-text">or</span>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 1, scale: 1 }}
-            animate={uploading ? { opacity: 0, scale: 0.95 } : { opacity: 1, scale: 1 }}
+            className="intake-qr-row-slot"
+            initial={false}
+            animate={uploading ? { opacity: 0 } : false}
             transition={{ duration: 0.3, ease: EASE }}
           >
             <PhoneQR />
