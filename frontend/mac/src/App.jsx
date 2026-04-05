@@ -154,22 +154,25 @@ export default function App() {
 
   return (
     <div className="app">
-      <motion.header
-        className="topbar"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 2.4, ease: [0.32, 0.72, 0, 1] }}
-      >
-        <div className="topbar-brand" onClick={() => { window.location.href = window.location.pathname; }} style={{ cursor: 'pointer' }}>
-          <SwarmaLogo size={28} />
-          <span className="topbar-title">Swarma</span>
-          {mock.isMock && <span className="topbar-subtitle">MOCK MODE</span>}
-        </div>
+      <AnimatePresence>
         {job && (
-          <TopbarSteps pipelineStage={pipelineStage} />
+          <motion.header
+            className="topbar"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.45, ease: [0.32, 0.72, 0, 1] }}
+          >
+            <div className="topbar-brand" onClick={() => { window.location.href = window.location.pathname; }} style={{ cursor: 'pointer' }}>
+              <SwarmaLogo size={28} />
+              <span className="topbar-title">Swarma</span>
+              {mock.isMock && <span className="topbar-subtitle">MOCK MODE</span>}
+            </div>
+            <TopbarSteps pipelineStage={pipelineStage} />
+            <div className="topbar-controls" />
+          </motion.header>
         )}
-        <div className="topbar-controls" />
-      </motion.header>
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         <Layout

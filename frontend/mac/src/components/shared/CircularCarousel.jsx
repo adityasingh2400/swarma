@@ -182,8 +182,11 @@ export default function CircularCarousel({ items, renderItem, onSelect, classNam
           className={`carousel-card${focused === i ? ' focused' : ''}`}
           onClick={() => {
             if (i === activeIndex) {
-              setFocused(focused === i ? null : i);
-              onSelect?.(item, i);
+              if (onSelect) {
+                onSelect(item, i);
+              } else {
+                setFocused(focused === i ? null : i);
+              }
             } else {
               goTo(i);
             }
