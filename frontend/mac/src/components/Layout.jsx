@@ -339,26 +339,9 @@ function LayoutInner({
     () => getGlobalStage(agents, v2Agents, pipelineStage),
     [agents, v2Agents, pipelineStage],
   );
-  useEffect(() => {
-    if (researchReady || phase !== 'processing' || items.length === 0) return;
-    const intakeStatus = agents?.intake?.status;
-    const intakeDone = intakeStatus === 'agent_completed' || intakeStatus === 'done';
-    const stageReady = pipelineStage === 'executing' || pipelineStage === 'research';
-    if (intakeDone || stageReady) {
-      const t = setTimeout(() => setResearchReady(true), 800);
-      return () => clearTimeout(t);
-    }
-  }, [agents, items, phase, researchReady, pipelineStage]);
 
-  const [viewOverride, setViewOverride] = useState(null);
-  const activeView = viewOverride || globalStage;
-
-  useEffect(() => {
-    if (viewOverride && viewOverride === globalStage) setViewOverride(null);
-  }, [globalStage, viewOverride]);
-
-  const showConciergeResults = activeView === 'concierge-done' || activeView === 'concierge';
-  const researchGateOpen = researchReady;
+  const showConciergeResults = globalStage === 'concierge-done' || globalStage === 'concierge';
+  const researchGateOpen = false;
 
   const handleUpload = (file, url) => {
     setVideoUrl(url);
