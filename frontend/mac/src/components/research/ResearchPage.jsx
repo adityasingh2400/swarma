@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import CircularCarousel from '../shared/CircularCarousel';
 import {
   Search, TrendingUp, Wrench,
   CheckCircle2, AlertTriangle,
@@ -414,6 +415,31 @@ function ItemUniverse({ item, bids, decision, index, totalItems }) {
 // ═══════════════════════════════════════════════════════
 export default function ResearchPage({ items, bids, decisions }) {
   if (!items || items.length === 0) return null;
+
+  const useCarousel = items.length > 1;
+
+  const renderCarouselItem = useCallback((item, index, isActive, isFocused) => (
+    <ItemUniverse
+      item={item}
+      bids={bids[item.item_id] || []}
+      decision={decisions[item.item_id]}
+      index={index}
+      totalItems={items.length}
+    />
+  ), [bids, decisions, items.length]);
+
+  if (useCarousel) {
+    return (
+      <div className="rp2-page">
+        <div className="research-carousel-wrap">
+          <CircularCarousel
+            items={items}
+            renderItem={renderCarouselItem}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rp2-page">

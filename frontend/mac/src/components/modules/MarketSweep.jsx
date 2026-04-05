@@ -93,7 +93,7 @@ function ResaleCard({ comp, index, isBest }) {
 
   return (
     <motion.div
-      className={`sw-card ${isBest ? 'sw-card-best' : ''}`}
+      className={`sw-card glass-enhanced shine-on-hover ${isBest ? 'sw-card-best' : ''}`}
       initial={{ opacity: 0, x: 80, scale: 0.88 }}
       animate={{ opacity: 1, x: 0, scale: isBest ? 1.03 : 1 }}
       transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
@@ -139,7 +139,7 @@ function QuoteCard({ quote, index, isBest }) {
   const SPEED = { instant: 'Instant', days: '2–3 days', week: '~1 week', weeks: '2–3 weeks', month_plus: '1+ month' };
   return (
     <motion.div
-      className={`sw-card sw-quote-card ${isBest ? 'sw-card-best' : ''}`}
+      className={`sw-card sw-quote-card glass-enhanced shine-on-hover ${isBest ? 'sw-card-best' : ''}`}
       initial={{ opacity: 0, x: 60 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
@@ -170,7 +170,7 @@ function QuoteCard({ quote, index, isBest }) {
 function RepairCard({ part, index }) {
   return (
     <motion.div
-      className="sw-card sw-repair-card"
+      className="sw-card sw-repair-card glass-enhanced shine-on-hover"
       initial={{ opacity: 0, x: 60 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
