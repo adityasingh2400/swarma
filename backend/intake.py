@@ -754,6 +754,7 @@ def _raw_to_item_card(raw: dict, job_id: str, frame_paths: list[str]) -> ItemCar
         job_id=job_id,
         name_guess=raw.get("item_id", raw.get("name", raw.get("name_guess", "Unknown Item"))),
         category=cat,
+        condition=raw.get("condition", ""),
         likely_specs=specs,
         visible_defects=visible_defects,
         confidence=float(raw.get("confidence", 0.5)),
@@ -1218,6 +1219,92 @@ async def run_image_strategy(
 
 
 
+# ── Transcript-Based Condition Refinement ─────────────────────────────────────
+
+# Condition cue patterns, ordered from worst to best.
+# Each entry: (keyword phrases, mapped condition).
+# We scan the transcript for the text surrounding each item name and pick the
+# strongest (worst) condition signal found. This is a ~0.1ms operation.
+_CONDITION_CUES: list[tuple[list[str], str]] = [
+    (["broken", "cracked", "shattered", "doesn't work", "not working", "dead"], "poor"),
+    (["heavily used", "heavy use", "very used", "beat up", "rough shape", "worn out", "lots of wear", "pretty used"], "fair"),
+    (["used", "some wear", "minor scratch", "small scratch", "scuff", "dent"], "good"),
+    (["lightly used", "light use", "barely used", "like new", "mint", "pristine", "perfect condition", "great shape", "great condition", "excellent", "perfect"], "like_new"),
+    (["brand new", "sealed", "unopened", "never used", "never opened", "new in box", "bnib", "nib", "unused"], "new"),
+]
+
+_CONDITION_RANK = {"poor": 0, "fair": 1, "good": 2, "like_new": 3, "new": 4}
+
+
+def _refine_conditions_from_transcript(items: list[ItemCard], transcript: str) -> None:
+    """Override Gemini's visual condition with transcript cues when the speaker
+    explicitly describes condition. Mutates items in-place."""
+    lower = transcript.lower()
+
+    for item in items:
+        name_lower = item.name_guess.lower()
+        name_words = name_lower.split()
+
+        # Find the region of transcript near this item's name.
+        # Use a generous window so "it's heavily used" near the item name is caught.
+        best_pos = -1
+        for word in name_words:
+            if len(word) < 3:
+                continue
+            pos = lower.find(word)
+            if pos != -1:
+                best_pos = pos
+                break
+
+        if best_pos == -1:
+            window = lower
+        else:
+            start = max(0, best_pos - 100)
+            end = min(len(lower), best_pos + 200)
+            window = lower[start:end]
+
+        # Scan for condition cues in the window.
+        # Longer phrases are more specific, so pick the longest match.
+        # Among same-length matches, pick the worst (lowest rank) to be conservative.
+        spoken_condition: str | None = None
+        spoken_rank = 999
+        best_phrase_len = 0
+
+        for phrases, condition in _CONDITION_CUES:
+            for phrase in phrases:
+                if phrase in window:
+                    rank = _CONDITION_RANK.get(condition, 3)
+                    plen = len(phrase)
+                    if plen > best_phrase_len or (plen == best_phrase_len and rank < spoken_rank):
+                        spoken_condition = condition
+                        spoken_rank = rank
+                        best_phrase_len = plen
+                    break
+
+        if spoken_condition is None:
+            continue
+
+        gemini_rank = _CONDITION_RANK.get(item.condition, 3)
+
+        # Trust the transcript when the speaker says it's worse than Gemini thinks.
+        # If the speaker says "heavily used" but Gemini said "like_new", override.
+        # If the speaker says "perfect" but Gemini sees scratches, keep Gemini's.
+        if spoken_rank < gemini_rank:
+            logger.info(
+                "Condition override for '%s': %s → %s (transcript says '%s')",
+                item.name_guess, item.condition, spoken_condition,
+                next((p for ps, c in _CONDITION_CUES if c == spoken_condition for p in ps if p in window), ""),
+            )
+            item.condition = spoken_condition
+            if spoken_rank <= 1 and not any(d.source == "spoken" for d in item.spoken_defects):
+                cue = next((p for ps, c in _CONDITION_CUES if c == spoken_condition for p in ps if p in window), "wear noted")
+                item.spoken_defects.append(DefectSignal(
+                    description=f"Seller described as: {cue}",
+                    source="spoken",
+                    severity="major" if spoken_rank == 0 else "moderate",
+                ))
+
+
 # ── Main Streaming Analysis Pipeline ──────────────────────────────────────────
 
 
@@ -1300,6 +1387,12 @@ async def streaming_analysis(
     # Attach audio timing to pipeline timings
     timings.audio_extraction_sec = audio_extraction_sec
     timings.transcription_sec = transcription_sec
+
+    # Cross-reference transcript with item conditions (fast, no API calls).
+    # The transcript often has explicit condition cues that Gemini's visual-only
+    # assessment misses (e.g., "heavily used" → override "like_new").
+    if transcript_text and items:
+        _refine_conditions_from_transcript(items, transcript_text)
 
     swarma_line(
         "intake",

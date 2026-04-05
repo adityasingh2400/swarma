@@ -36,6 +36,7 @@ class ItemCard(BaseModel):
     accessories_included: list[str] = Field(default_factory=list)
     accessories_missing: list[str] = Field(default_factory=list)
     confidence: float = 0.0
+    condition: str = ""
     hero_frame_paths: list[str] = Field(default_factory=list)
     all_frame_paths: list[str] = Field(default_factory=list)
     segment_start_sec: float = 0.0
@@ -56,11 +57,26 @@ class ItemCard(BaseModel):
     def is_electronics(self) -> bool:
         return self.category == ItemCategory.ELECTRONICS
 
+    _CONDITION_DISPLAY = {
+        "new": "New",
+        "like_new": "Like New",
+        "good": "Good",
+        "fair": "Fair",
+        "poor": "Poor",
+    }
+
     @property
     def condition_label(self) -> str:
-        if not self.has_defects:
-            return "Like New"
-        severe = [d for d in self.all_defects if d.severity == "major"]
+        if self.condition:
+            return self._CONDITION_DISPLAY.get(self.condition, self.condition.replace("_", " ").title())
+        spoken_severe = [d for d in self.spoken_defects if d.severity == "major"]
+        if spoken_severe:
+            return "Fair"
+        if self.spoken_defects:
+            return "Good"
+        severe = [d for d in self.visible_defects if d.severity == "major"]
         if severe:
             return "Fair"
-        return "Good"
+        if self.visible_defects:
+            return "Good"
+        return "Like New"
