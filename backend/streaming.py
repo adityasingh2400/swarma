@@ -79,7 +79,16 @@ async def start_screencast(agent_id: str, page) -> None:
         logger.warning("start_screencast called twice for %s — stopping old session", agent_id)
         await stop_screencast(agent_id)
 
-    cdp = await page.context.new_cdp_session(page)
+    try:
+        ctx = getattr(page, 'context', None)
+        if ctx is None and hasattr(page, '_impl_obj'):
+            ctx = page._impl_obj.context
+        if ctx is None:
+            raise AttributeError("Cannot access browser context from page object")
+        cdp = await ctx.new_cdp_session(page)
+    except Exception as exc:
+        logger.warning("CDP session creation failed for %s: %s — falling back to screenshot callbacks", agent_id, exc)
+        return
     _cdp_sessions[agent_id] = cdp
 
     # everyNthFrame: 1 out of every N frames from the browser's vsync (~60 Hz).

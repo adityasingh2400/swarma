@@ -26,13 +26,15 @@ function StatusIndicator({ status }) {
   return null;
 }
 
-export default function SwarmGrid({ v2Agents, screenshots, onFocusAgent, focusedAgentId }) {
+export default function SwarmGrid({ v2Agents, screenshots, onFocusAgent, focusedAgentId, filterPhase }) {
   const agentList = useMemo(
-    () => Object.values(v2Agents || {}).sort((a, b) => {
-      if (a.phase !== b.phase) return a.phase === PHASE_RESEARCH ? -1 : 1;
-      return (a.agent_id || '').localeCompare(b.agent_id || '');
-    }),
-    [v2Agents],
+    () => Object.values(v2Agents || {})
+      .filter((a) => !filterPhase || a.phase === filterPhase)
+      .sort((a, b) => {
+        if (a.phase !== b.phase) return a.phase === PHASE_RESEARCH ? -1 : 1;
+        return (a.agent_id || '').localeCompare(b.agent_id || '');
+      }),
+    [v2Agents, filterPhase],
   );
 
   if (agentList.length === 0) return null;
