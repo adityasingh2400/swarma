@@ -24,9 +24,9 @@ function PhoneQR() {
   return (
     <motion.div
       className="intake-qr-panel glass-enhanced"
-      initial={{ opacity: 0, y: 30, scale: 0.96 }}
+      initial={{ opacity: 0, y: 40, scale: 0.94 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.7, delay: 2.1, ease: EASE }}
+      transition={{ duration: 1.0, delay: 3.6, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="intake-qr-badge">
         <Smartphone size={14} />
@@ -59,7 +59,7 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
     setUploading(true);
     setTimeout(() => {
       if (pendingRef.current) onUpload(pendingRef.current.file, pendingRef.current.url);
-    }, 1200);
+    }, 300);
   }, [onUpload]);
 
   const handleDrop = useCallback((e) => {
@@ -90,9 +90,9 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
               <motion.span
                 key={`a${i}`}
                 className="intake-char"
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 + i * 0.04, ease: EASE }}
+                initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.9, delay: 0.4 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
               >
                 {ch === ' ' ? '\u00A0' : ch}
               </motion.span>
@@ -100,16 +100,16 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
             <motion.span
               className="intake-char-space"
               initial={{ width: 0 }}
-              animate={{ width: '0.3em' }}
-              transition={{ duration: 0.3, delay: 0.4, ease: EASE }}
+              animate={{ width: '0.35em' }}
+              transition={{ duration: 0.6, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
             />
             {'Sell it.'.split('').map((ch, i) => (
               <motion.span
                 key={`b${i}`}
                 className="intake-char"
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.5 + i * 0.04, ease: EASE }}
+                initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.9, delay: 1.3 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
               >
                 {ch === ' ' ? '\u00A0' : ch}
               </motion.span>
@@ -118,9 +118,9 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
 
           <motion.p
             className="intake-fs-subtitle"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 1.0, ease: EASE }}
+            initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 1.0, delay: 2.4, ease: [0.16, 1, 0.3, 1] }}
           >
             One video. Every marketplace. Zero effort.
           </motion.p>
@@ -138,14 +138,14 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
             onDragLeave={handleDrag}
             onDrop={handleDrop}
             onClick={() => !uploading && inputRef.current?.click()}
-            initial={{ opacity: 0, y: 30, scale: 0.96 }}
+            initial={{ opacity: 0, y: 40, scale: 0.94 }}
             animate={uploading
               ? { scale: 0.92, opacity: 0.7 }
               : { opacity: 1, y: 0, scale: 1 }
             }
             transition={uploading
               ? { duration: 0.4, ease: EASE }
-              : { duration: 0.7, delay: 1.8, ease: EASE }
+              : { duration: 1.0, delay: 3.0, ease: [0.16, 1, 0.3, 1] }
             }
             whileHover={uploading ? {} : { y: -2, transition: { duration: 0.25, ease: EASE } }}
           >
@@ -219,7 +219,7 @@ export default function IntakePanel({ job, items, onUpload, fullscreen }) {
             className="intake-divider"
             initial={{ opacity: 0 }}
             animate={uploading ? { opacity: 0 } : { opacity: 1 }}
-            transition={{ duration: uploading ? 0.25 : 0.5, delay: uploading ? 0 : 2.0, ease: EASE }}
+            transition={{ duration: uploading ? 0.25 : 0.8, delay: uploading ? 0 : 3.4, ease: [0.16, 1, 0.3, 1] }}
           >
             <span className="intake-divider-text">or</span>
           </motion.div>

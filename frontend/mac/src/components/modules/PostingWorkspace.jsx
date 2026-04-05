@@ -4,6 +4,7 @@ import {
   Rocket, Globe, Monitor, Package, CheckCircle2,
   Loader2, XCircle, ExternalLink, ShoppingBag, RefreshCw,
   Wrench, RotateCcw, TrendingUp, ArrowLeft, Send, Sparkles,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import Badge from '../shared/Badge';
 import AnimatedValue from '../shared/AnimatedValue';
@@ -17,7 +18,7 @@ const PLATFORMS = [
   { id: 'mercari', domain: 'mercari.com/sell', seed: 'pw-merc' },
 ];
 
-const SLOT_CLASSES = ['pw-slot-tl', 'pw-slot-tr', 'pw-slot-bl', 'pw-slot-br'];
+const CORNER_CLASSES = ['pw-corner-tl', 'pw-corner-tr', 'pw-corner-bl', 'pw-corner-br'];
 
 const ROUTE_LABELS = {
   sell_as_is: 'Resale',
@@ -52,7 +53,7 @@ const STATUS_CONFIG = {
 
 /* ── Phase 1: Decision card ────────────────────────────── */
 
-function ItemDecisionCard({ item, decision, index, isPosted, onPost }) {
+function ItemDecisionCard({ item, decision, index, onPost }) {
   const value = decision?.estimated_best_value ?? 0;
   const routeKey = decision?.best_route;
   const routeLabel = routeKey ? ROUTE_LABELS[routeKey] || routeKey : '—';
@@ -75,17 +76,13 @@ function ItemDecisionCard({ item, decision, index, isPosted, onPost }) {
 
   return (
     <motion.div
-      className={`pw-decision-card ${isPosted ? 'pw-dc-posted' : ''}`}
+      className="pw-decision-card"
       style={{ '--card-glow': glowColor }}
       initial={{ opacity: 0, y: 40, scale: 0.92, filter: 'blur(8px)' }}
       animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
       transition={{ delay: d + 0.08, duration: 0.7, ease: E }}
-      whileHover={{
-        y: -6,
-        transition: { duration: 0.35, ease: E },
-      }}
+      whileHover={{ y: -6, transition: { duration: 0.35, ease: E } }}
     >
-      {/* Noise texture overlay */}
       <div className="pw-card-noise" />
 
       <motion.span className="pw-dc-name"
@@ -106,19 +103,6 @@ function ItemDecisionCard({ item, decision, index, isPosted, onPost }) {
             <Package size={32} strokeWidth={1.2} />
           </div>
         )}
-        <AnimatePresence>
-          {isPosted && (
-            <motion.div className="pw-dc-posted-badge"
-              initial={{ opacity: 0, scale: 0.7, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.7 }}
-              transition={{ type: 'spring', damping: 16, stiffness: 300 }}
-            >
-              <CheckCircle2 size={14} />
-              <span>Queued</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
 
       <div className="pw-dc-info">
@@ -168,21 +152,16 @@ function ItemDecisionCard({ item, decision, index, isPosted, onPost }) {
       )}
 
       <motion.button
-        className={`pw-dc-post-btn ${isPosted ? 'pw-dc-post-btn-done' : ''}`}
-        onClick={() => !isPosted && onPost(item.item_id)}
-        disabled={isPosted}
+        className="pw-dc-post-btn"
+        onClick={() => onPost(item.item_id)}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: d + 0.54, duration: 0.45, ease: E }}
-        whileHover={!isPosted ? { scale: 1.03, y: -1 } : {}}
-        whileTap={!isPosted ? { scale: 0.96 } : {}}
+        whileHover={{ scale: 1.03, y: -1 }}
+        whileTap={{ scale: 0.96 }}
       >
         <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {isPosted ? (
-            <><CheckCircle2 size={14} /> Queued for posting</>
-          ) : (
-            <><Send size={14} /> Post this item</>
-          )}
+          <Send size={14} /> Post this item
         </span>
       </motion.button>
     </motion.div>
@@ -198,20 +177,16 @@ function BrowserInstanceMock({ platform, seedSuffix, posIndex, clusterIndex, pos
 
   return (
     <motion.div
-      className={`pw-browser-slot ${SLOT_CLASSES[posIndex]} ${cfg?.cls || ''}`}
-      initial={{ opacity: 0, scale: 0.7, y: 14, filter: 'blur(6px)' }}
-      animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+      className={`pw-corner-browser ${CORNER_CLASSES[posIndex]} ${cfg?.cls || ''}`}
+      initial={{ opacity: 0, scale: 0.7, filter: 'blur(6px)' }}
+      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
       transition={{
-        delay: 0.3 + posIndex * 0.12 + clusterIndex * 0.18,
+        delay: 0.25 + posIndex * 0.1 + clusterIndex * 0.15,
         type: 'spring',
         stiffness: 200,
         damping: 22,
       }}
-      whileHover={{
-        scale: 1.05,
-        y: -3,
-        transition: { duration: 0.25, ease: E },
-      }}
+      whileHover={{ scale: 1.04, transition: { duration: 0.25, ease: E } }}
     >
       <div className={`pw-browser-mock ${cfg?.cls || ''}`}>
         <div className="pw-browser-chrome">
@@ -261,7 +236,7 @@ function BrowserInstanceMock({ platform, seedSuffix, posIndex, clusterIndex, pos
   );
 }
 
-function ItemPostingCluster({ item, decision, slotIndex, postingStatus = {} }) {
+function FullPageCluster({ item, decision, slotIndex, postingStatus = {} }) {
   const itemId = item?.item_id;
   const title = item?.name_guess || `Item ${slotIndex + 1}`;
   const img = item?.hero_frame_paths?.[0];
@@ -269,13 +244,7 @@ function ItemPostingCluster({ item, decision, slotIndex, postingStatus = {} }) {
   const anyPosting = PLATFORMS.some((p) => postingStatus[`${itemId}:${p.id}`]?.status === 'in_progress');
 
   return (
-    <motion.div
-      className={`pw-item-cluster ${allDone ? 'pw-cluster-done' : ''} ${anyPosting ? 'pw-cluster-active' : ''}`}
-      initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
-      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, scale: 0.95, filter: 'blur(6px)' }}
-      transition={{ delay: 0.08 * slotIndex, duration: 0.6, ease: E }}
-    >
+    <div className={`pw-fullpage-cluster ${allDone ? 'pw-cluster-done' : ''} ${anyPosting ? 'pw-cluster-active' : ''}`}>
       {PLATFORMS.map((p, i) => (
         <BrowserInstanceMock
           key={p.id}
@@ -288,29 +257,43 @@ function ItemPostingCluster({ item, decision, slotIndex, postingStatus = {} }) {
       ))}
 
       <motion.div
-        className="pw-item-core"
+        className="pw-center-item"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2 + slotIndex * 0.1, type: 'spring', damping: 22, stiffness: 180 }}
+        transition={{ delay: 0.15, type: 'spring', damping: 22, stiffness: 180 }}
       >
-        <div className="pw-item-visual">
+        <div className="pw-center-visual">
           {img ? (
-            <img src={img} alt="" className="pw-item-img" />
+            <img src={img} alt="" className="pw-center-img" />
           ) : (
-            <div className="pw-item-placeholder"><Package size={28} strokeWidth={1.2} /></div>
+            <div className="pw-center-placeholder"><Package size={36} strokeWidth={1.2} /></div>
           )}
         </div>
-        <span className="pw-item-name">{title}</span>
+        <span className="pw-center-name">{title}</span>
+        {decision?.estimated_best_value > 0 && (
+          <span className="pw-center-value">
+            <AnimatedValue value={decision.estimated_best_value} prefix="$" decimals={2} positive />
+          </span>
+        )}
       </motion.div>
-    </motion.div>
+    </div>
   );
 }
+
+/* ── Carousel slide animation variants ── */
+const slideVariants = {
+  enter: (dir) => ({ x: dir > 0 ? 300 : -300, opacity: 0, scale: 0.95 }),
+  center: { x: 0, opacity: 1, scale: 1 },
+  exit: (dir) => ({ x: dir > 0 ? -300 : 300, opacity: 0, scale: 0.95 }),
+};
 
 /* ── Main component ─────────────────────────────────────── */
 
 export default function PostingWorkspace({ items = [], decisions = {}, postingStatus = {}, initialStarted = false }) {
   const [postedIds, setPostedIds] = useState(() => new Set());
   const [phase, setPhase] = useState(initialStarted ? 'browsers' : 'decisions');
+  const [carouselIdx, setCarouselIdx] = useState(0);
+  const [slideDir, setSlideDir] = useState(1);
 
   const displayItems = useMemo(() => {
     const list = (items || []).slice(0, 3);
@@ -332,23 +315,35 @@ export default function PostingWorkspace({ items = [], decisions = {}, postingSt
     [displayItems, postedIds],
   );
 
-  const postItem = useCallback((itemId) => {
-    setPostedIds((prev) => new Set(prev).add(itemId));
+  const postSingle = useCallback((itemId) => {
+    setPostedIds(new Set([itemId]));
+    setCarouselIdx(0);
+    setPhase('browsers');
   }, []);
 
   const postAll = useCallback(() => {
     setPostedIds(new Set(displayItems.map((i) => i.item_id)));
+    setCarouselIdx(0);
+    setPhase('browsers');
   }, [displayItems]);
 
-  const goToBrowsers = useCallback(() => {
-    if (postedIds.size > 0) setPhase('browsers');
-  }, [postedIds]);
-
   const goBack = useCallback(() => {
+    setPostedIds(new Set());
     setPhase('decisions');
   }, []);
 
-  const allPosted = postedIds.size === displayItems.length;
+  const goPrev = useCallback(() => {
+    setSlideDir(-1);
+    setCarouselIdx((i) => Math.max(0, i - 1));
+  }, []);
+
+  const goNext = useCallback(() => {
+    setSlideDir(1);
+    setCarouselIdx((i) => Math.min(postedItems.length - 1, i + 1));
+  }, [postedItems.length]);
+
+  const isSolo = postedItems.length === 1;
+  const isCarousel = postedItems.length > 1;
 
   return (
     <div className="pw-root mc-embedded">
@@ -381,8 +376,7 @@ export default function PostingWorkspace({ items = [], decisions = {}, postingSt
                   item={item}
                   decision={decisions[item.item_id]}
                   index={i}
-                  isPosted={postedIds.has(item.item_id)}
-                  onPost={postItem}
+                  onPost={postSingle}
                 />
               ))}
             </div>
@@ -392,44 +386,17 @@ export default function PostingWorkspace({ items = [], decisions = {}, postingSt
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.6, ease: E }}
             >
-              <AnimatePresence mode="wait">
-                {!allPosted && (
-                  <motion.button
-                    key="post-all"
-                    type="button"
-                    className="pw-post-all-btn"
-                    onClick={postAll}
-                    initial={{ opacity: 0, scale: 0.92 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9, filter: 'blur(4px)' }}
-                    whileHover={{ scale: 1.04, y: -2 }}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ duration: 0.25, ease: E }}
-                  >
-                    <Sparkles size={15} />
-                    Post all items
-                  </motion.button>
-                )}
-              </AnimatePresence>
-
-              <AnimatePresence>
-                {postedIds.size > 0 && (
-                  <motion.button
-                    type="button"
-                    className="pw-go-btn"
-                    onClick={goToBrowsers}
-                    initial={{ opacity: 0, scale: 0.85, y: 8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.85, y: 8 }}
-                    whileHover={{ scale: 1.04, y: -2 }}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ type: 'spring', damping: 18, stiffness: 260 }}
-                  >
-                    Start posting {postedIds.size} item{postedIds.size !== 1 ? 's' : ''}
-                    <Rocket size={14} />
-                  </motion.button>
-                )}
-              </AnimatePresence>
+              <motion.button
+                type="button"
+                className="pw-post-all-btn"
+                onClick={postAll}
+                whileHover={{ scale: 1.04, y: -2 }}
+                whileTap={{ scale: 0.96 }}
+                transition={{ duration: 0.25, ease: E }}
+              >
+                <Sparkles size={15} />
+                Post all items
+              </motion.button>
             </motion.div>
           </motion.div>
         ) : (
@@ -461,20 +428,66 @@ export default function PostingWorkspace({ items = [], decisions = {}, postingSt
               >
                 Posting {postedItems.length} item{postedItems.length !== 1 ? 's' : ''} to {PLATFORMS.length} platforms
               </motion.span>
+
+              {isCarousel && (
+                <div className="pw-carousel-dots">
+                  {postedItems.map((_, i) => (
+                    <button
+                      key={i}
+                      className={`pw-dot ${i === carouselIdx ? 'pw-dot-active' : ''}`}
+                      onClick={() => { setSlideDir(i > carouselIdx ? 1 : -1); setCarouselIdx(i); }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className={`pw-grid pw-grid-${postedItems.length}`}>
-              <AnimatePresence>
-                {postedItems.map((item, i) => (
-                  <ItemPostingCluster
-                    key={item.item_id}
-                    item={item}
-                    decision={decisions[item.item_id]}
-                    slotIndex={i}
+            <div className="pw-stage-area">
+              {isCarousel && carouselIdx > 0 && (
+                <motion.button
+                  className="pw-carousel-arrow pw-arrow-left"
+                  onClick={goPrev}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <ChevronLeft size={20} />
+                </motion.button>
+              )}
+
+              <AnimatePresence mode="wait" custom={slideDir}>
+                <motion.div
+                  key={postedItems[carouselIdx]?.item_id}
+                  className="pw-stage-slide"
+                  custom={slideDir}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.45, ease: E }}
+                >
+                  <FullPageCluster
+                    item={postedItems[carouselIdx]}
+                    decision={decisions[postedItems[carouselIdx]?.item_id]}
+                    slotIndex={carouselIdx}
                     postingStatus={postingStatus}
                   />
-                ))}
+                </motion.div>
               </AnimatePresence>
+
+              {isCarousel && carouselIdx < postedItems.length - 1 && (
+                <motion.button
+                  className="pw-carousel-arrow pw-arrow-right"
+                  onClick={goNext}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <ChevronRight size={20} />
+                </motion.button>
+              )}
             </div>
           </motion.div>
         )}
