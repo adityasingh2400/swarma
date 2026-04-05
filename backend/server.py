@@ -32,6 +32,7 @@ from pathlib import Path
 
 import aiofiles
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -123,6 +124,8 @@ orchestrator = _OrchestratorStub()
 
 _jobs: dict[str, Job] = {}
 _job_items: dict[str, list[ItemCard]] = {}
+# Intake-stage JPEGs (job_id → frame index str → bytes); served at /api/jobs/.../intake-frames/...
+_intake_frame_store: dict[str, dict[str, bytes]] = {}
 
 
 # ── WebSocket Connection Manager ──────────────────────────────────────────────
@@ -270,47 +273,117 @@ async def _run_pipeline(job_id: str, video_path: str):
     screenshot_push = asyncio.create_task(_screenshot_push_loop(job_id))
 
     try:
-        # Phase 1: Intake — video → items
+        # Phase 1: Intake — video → items (WS events match frontend useJob.js)
         job.status = JobStatus.ANALYZING
         job.touch()
         await ws_manager.broadcast_event(job_id, {
-            "type": "job:progress",
-            "data": {"stage": "analyzing", "detail": "Extracting frames and identifying items..."},
+            "type": "agent_started",
+            "data": {"agent": "intake", "message": "Analyzing video — extracting audio and frames…"},
+        })
+        await ws_manager.broadcast_event(job_id, {
+            "type": "job_updated",
+            "data": {"status": JobStatus.ANALYZING.value},
         })
 
-        items, _timings, _best_frames = await streaming_analysis(video_path, job_id)
+        items, timings, best_frames, transcript_text = await streaming_analysis(video_path, job_id)
 
         if not items:
             job.status = JobStatus.FAILED
             job.error = "No items detected in video"
             job.touch()
             await ws_manager.broadcast_event(job_id, {
-                "type": "agent:error",
-                "data": {"agentId": "intake", "error": "No items detected in video"},
+                "type": "agent_error",
+                "data": {
+                    "agent": "intake",
+                    "error": "No items detected in video",
+                    "message": "No items detected in video",
+                },
             })
             return
 
-        _job_items[job_id] = items
+        _intake_frame_store[job_id] = {}
+        frame_urls_ordered: list[str] = []
+        for idx, jpeg_bytes in best_frames:
+            key = str(idx)
+            _intake_frame_store[job_id][key] = jpeg_bytes
+            frame_urls_ordered.append(f"/api/jobs/{job_id}/intake-frames/{key}")
+
+        def _hero_urls(paths: list[str]) -> list[str]:
+            out: list[str] = []
+            for p in paths:
+                if p.startswith("frame_"):
+                    suffix = p[6:] if p.startswith("frame_") else p
+                    out.append(f"/api/jobs/{job_id}/intake-frames/{suffix}")
+                else:
+                    out.append(p)
+            return out
+
+        t_txt = transcript_text or ""
+        for item in items:
+            item.hero_frame_paths = _hero_urls(item.hero_frame_paths)
+            item.all_frame_paths = list(frame_urls_ordered)
+
+        job.transcript_text = t_txt
+        job.frame_paths = frame_urls_ordered
         job.item_ids = [item.item_id for item in items]
         job.touch()
 
-        # Emit item:identified events
-        for item in items:
+        n_frames = len(frame_urls_ordered)
+        if n_frames == 0:
             await ws_manager.broadcast_event(job_id, {
-                "type": "item:identified",
+                "type": "agent_progress",
                 "data": {
-                    "itemId": item.item_id,
-                    "name": item.name_guess,
-                    "confidence": item.confidence,
+                    "agent": "intake",
+                    "message": "Finalizing item details…",
+                    "progress": 0.5,
+                    "frame_paths": [],
+                    "transcript_text": t_txt,
                 },
             })
+        else:
+            for i in range(n_frames):
+                await ws_manager.broadcast_event(job_id, {
+                    "type": "agent_progress",
+                    "data": {
+                        "agent": "intake",
+                        "message": f"Extracting frame {i + 1}/{n_frames}…",
+                        "progress": 0.05 + 0.5 * (i + 1) / n_frames,
+                        "frame_paths": frame_urls_ordered[: i + 1],
+                        "transcript_text": t_txt,
+                    },
+                })
+                await asyncio.sleep(0.28)
+
+        await ws_manager.broadcast_event(job_id, {
+            "type": "job_updated",
+            "data": {"transcript_text": t_txt, "frame_paths": frame_urls_ordered},
+        })
+
+        _job_items[job_id] = items
+        for item in items:
+            await ws_manager.broadcast_event(job_id, {
+                "type": "item_added",
+                "data": item.model_dump(mode="json"),
+            })
+
+        elapsed_ms = int(timings.total_sec * 1000) if timings.total_sec else None
+        await ws_manager.broadcast_event(job_id, {
+            "type": "agent_completed",
+            "data": {
+                "agent": "intake",
+                "message": f"Detected {len(items)} item(s)",
+                "elapsed_ms": elapsed_ms,
+                "frame_paths": frame_urls_ordered,
+                "transcript_text": t_txt,
+            },
+        })
 
         # Phase 2: Orchestrator — spawn agents
         job.status = JobStatus.EXECUTING
         job.touch()
         await ws_manager.broadcast_event(job_id, {
-            "type": "job:progress",
-            "data": {"stage": "executing", "detail": f"Spawning agents for {len(items)} item(s)..."},
+            "type": "job_updated",
+            "data": {"status": JobStatus.EXECUTING.value},
         })
 
         await orchestrator.start_pipeline(job_id, items)
@@ -330,8 +403,12 @@ async def _run_pipeline(job_id: str, video_path: str):
         job.error = str(exc)
         job.touch()
         await ws_manager.broadcast_event(job_id, {
-            "type": "agent:error",
-            "data": {"agentId": "pipeline", "error": f"Pipeline failed: {exc}"},
+            "type": "agent_error",
+            "data": {
+                "agent": "pipeline",
+                "error": f"Pipeline failed: {exc}",
+                "message": str(exc),
+            },
         })
 
     finally:
@@ -377,23 +454,32 @@ class UploadResponse(BaseModel):
 
 
 @app.post("/api/upload", response_model=UploadResponse)
-async def upload_video(video: UploadFile = File(...)):
+async def upload_video(
+    file: UploadFile | None = File(None),
+    video: UploadFile | None = File(None),
+):
     """Accept video upload, start the pipeline in the background.
 
     Deduplicates by content hash: if the same video was already uploaded,
     reuses the existing file instead of writing another copy.
+
+    Multipart field may be ``file`` (frontend) or ``video`` (tests/CLI).
     """
+    upload = file if (file and file.filename) else video
+    if upload is None or not upload.filename:
+        raise HTTPException(status_code=400, detail="No file provided (use field 'file' or 'video')")
+
     job_id = uuid.uuid4().hex[:12]
     job = Job(job_id=job_id, status=JobStatus.UPLOADING)
 
     # Read upload into memory and compute content hash
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
-    ext = Path(video.filename or "video.mp4").suffix or ".mp4"
+    ext = Path(upload.filename or "video.mp4").suffix or ".mp4"
 
     hasher = hashlib.sha256()
     chunks: list[bytes] = []
-    while chunk := await video.read(1024 * 1024):
+    while chunk := await upload.read(1024 * 1024):
         hasher.update(chunk)
         chunks.append(chunk)
     content_hash = hasher.hexdigest()[:16]
@@ -423,11 +509,26 @@ async def upload_video(video: UploadFile = File(...)):
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str):
-    """Get job status and metadata."""
+    """Job envelope for the UI: ``job`` plus ``items`` when intake has finished."""
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return job.model_dump()
+    payload: dict = {"job": job.model_dump(mode="json")}
+    items = _job_items.get(job_id)
+    if items is not None:
+        payload["items"] = [item.model_dump(mode="json") for item in items]
+    return payload
+
+
+@app.get("/api/jobs/{job_id}/intake-frames/{frame_idx}")
+async def get_intake_frame(job_id: str, frame_idx: str):
+    """Serve a single JPEG extracted during intake (path from ``frame_paths``)."""
+    if not _jobs.get(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    bucket = _intake_frame_store.get(job_id)
+    if not bucket or frame_idx not in bucket:
+        raise HTTPException(status_code=404, detail="Frame not found")
+    return Response(content=bucket[frame_idx], media_type="image/jpeg")
 
 
 @app.get("/api/jobs/{job_id}/agents")
@@ -608,10 +709,12 @@ async def ws_events(ws: WebSocket, job_id: str):
         # Send initial state on connect (reconnection strategy option C)
         job = _jobs.get(job_id)
         if job:
+            items = _job_items.get(job_id, [])
             await ws.send_json({
                 "type": "initial_state",
                 "data": {
-                    "job": job.model_dump(),
+                    "job": job.model_dump(mode="json"),
+                    "items": [item.model_dump(mode="json") for item in items],
                     "agents": orchestrator.get_agent_states(job_id),
                 },
             })

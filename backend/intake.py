@@ -1225,7 +1225,7 @@ async def streaming_analysis(
     job_id: str,
     *,
     frame_collector: dict[int, bytes] | None = None,
-) -> tuple[list[ItemCard], PipelineTimings, list[tuple[int, bytes]]]:
+) -> tuple[list[ItemCard], PipelineTimings, list[tuple[int, bytes]], str | None]:
     """Main intake pipeline: audio extraction → Flash-Lite image analysis.
 
     Pipeline (Strategy S2):
@@ -1236,7 +1236,7 @@ async def streaming_analysis(
     Falls back to free-form detection if audio pipeline fails or yields no items.
 
     Returns:
-        (items, timings, best_frames) tuple.
+        (items, timings, best_frames, transcript_text) tuple.
     """
     logger.info("Starting S2 analysis for job %s: %s", job_id, video_path)
 
@@ -1244,6 +1244,7 @@ async def streaming_analysis(
     item_ids: list[str] | None = None
     audio_extraction_sec = 0.0
     transcription_sec = 0.0
+    transcript_text: str | None = None
 
     try:
         t_audio = time.perf_counter()
@@ -1253,6 +1254,7 @@ async def streaming_analysis(
         try:
             t_transcribe = time.perf_counter()
             transcript = await transcribe_audio(audio_path)
+            transcript_text = transcript
             parsed = await parse_items_from_transcript(transcript)
             transcription_sec = time.perf_counter() - t_transcribe
 
@@ -1280,4 +1282,4 @@ async def streaming_analysis(
     timings.audio_extraction_sec = audio_extraction_sec
     timings.transcription_sec = transcription_sec
 
-    return items, timings, best_frames
+    return items, timings, best_frames, transcript_text

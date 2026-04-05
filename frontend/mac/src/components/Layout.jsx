@@ -363,20 +363,11 @@ function LayoutInner({
     && (activeView === 'concierge-done' || activeView === 'concierge');
   const researchGateOpen = !processingHardStop && researchReady;
 
-  const [settled, setSettled] = useState(false);
-
   const handleUpload = (file, url) => {
     setVideoUrl(url);
     setPhase('processing');
     onUpload(file);
   };
-
-  useEffect(() => {
-    if (phase === 'processing' && !settled) {
-      const id = setTimeout(() => setSettled(true), 2000);
-      return () => clearTimeout(id);
-    }
-  }, [phase, settled]);
 
   const focusedAgent = focusedAgentId ? v2Agents[focusedAgentId] : null;
   const focusedShot = focusedAgentId && screenshots
@@ -447,8 +438,7 @@ function LayoutInner({
                   agentsRaw={agentsRaw} agentsByItem={agentsByItem}
                   stage3Plan={stage3Plan} events={events} lastEvent={lastEvent}
                   onExecuteItem={onExecuteItem} onSendReply={onSendReply}
-                  v2Agents={v2Agents} pipelineStage={pipelineStage} postingStatus={postingStatus} send={send}
-                  settled={settled}
+                  v2Agents={v2Agents} pipelineStage={pipelineStage}                   postingStatus={postingStatus} send={send}
                   miniPlayer={videoUrl ? (
                     <MiniPlayer videoUrl={videoUrl} items={items} globalStage={globalStage} agents={agents} />
                   ) : null}

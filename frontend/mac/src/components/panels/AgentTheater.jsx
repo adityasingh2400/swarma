@@ -71,7 +71,6 @@ export default function AgentTheater({
   postingStatus = {},
   send,
   miniPlayer,
-  settled,
 }) {
   const currentGroupIdx = useMemo(() => getCurrentStageGroup(agents), [agents]);
   const [userSelectedGroup, setUserSelectedGroup] = useState(null);
@@ -187,7 +186,6 @@ export default function AgentTheater({
           postingStatus={postingStatus}
           send={send}
           miniPlayer={miniPlayer}
-          settled={settled}
         />
       </div>
     </div>

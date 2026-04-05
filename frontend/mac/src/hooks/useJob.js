@@ -69,7 +69,8 @@ export function useJob(jobId) {
     getJobState(jobId)
       .then((state) => {
         if (stale) return;
-        if (state.job) setJob(state.job);
+        const jobPayload = state.job ?? state;
+        if (jobPayload?.job_id != null) setJob(jobPayload);
         if (state.items) setItems(state.items);
         if (state.bids) setBids(state.bids || {});
         if (state.decisions) setDecisions(state.decisions || {});
@@ -211,15 +212,39 @@ export function useJob(jobId) {
           setAgentsRaw((prev) => {
             const itemId = data.item_id || '_global';
             const existing = prev[data.agent]?.[itemId] || {};
-            const agentMap = { ...prev[data.agent], [itemId]: { ...existing, status: 'done', message: data.message, elapsed_ms: data.elapsed_ms, confidence: data.confidence, item_id: data.item_id } };
+            const agentMap = {
+              ...prev[data.agent],
+              [itemId]: {
+                ...existing,
+                status: 'done',
+                message: data.message,
+                elapsed_ms: data.elapsed_ms,
+                confidence: data.confidence,
+                item_id: data.item_id,
+                frame_paths: data.frame_paths ?? existing.frame_paths,
+                transcript_text: data.transcript_text ?? existing.transcript_text,
+                progress: data.progress ?? existing.progress,
+              },
+            };
             return { ...prev, [data.agent]: agentMap };
           });
           break;
+        case 'agent:error':
         case 'agent_error':
           setAgentsRaw((prev) => {
+            const agentKey = data.agent || data.agentId;
+            if (!agentKey) return prev;
             const itemId = data.item_id || '_global';
-            const agentMap = { ...prev[data.agent], [itemId]: { status: 'error', message: data.error || data.message, elapsed_ms: data.elapsed_ms, item_id: data.item_id } };
-            return { ...prev, [data.agent]: agentMap };
+            const agentMap = {
+              ...prev[agentKey],
+              [itemId]: {
+                status: 'error',
+                message: data.error || data.message,
+                elapsed_ms: data.elapsed_ms,
+                item_id: data.item_id,
+              },
+            };
+            return { ...prev, [agentKey]: agentMap };
           });
           break;
 

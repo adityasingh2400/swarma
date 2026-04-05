@@ -98,37 +98,37 @@ class TestIntakePipeline:
         return result
 
     def test_returns_items(self, intake_result):
-        items, timings, best_frames = intake_result
+        items, timings, best_frames, _transcript = intake_result
         assert isinstance(items, list)
         assert len(items) >= 1, "Intake should identify at least 1 item from the test video"
 
     def test_items_are_item_cards(self, intake_result):
-        items, _, _ = intake_result
+        items, _, _, _ = intake_result
         for item in items:
             assert isinstance(item, ItemCard), f"Expected ItemCard, got {type(item)}"
 
     def test_items_have_required_fields(self, intake_result):
-        items, _, _ = intake_result
+        items, _, _, _ = intake_result
         for item in items:
             assert item.name_guess, f"Item {item.item_id} has no name_guess"
             assert item.confidence > 0, f"Item {item.item_id} has zero confidence"
             assert item.category in ItemCategory, f"Item {item.item_id} has invalid category"
 
     def test_items_have_condition_labels(self, intake_result):
-        items, _, _ = intake_result
+        items, _, _, _ = intake_result
         for item in items:
             assert item.condition_label in ("Like New", "Good", "Fair"), (
                 f"Item {item.item_id} has unexpected condition: {item.condition_label}"
             )
 
     def test_timings_populated(self, intake_result):
-        _, timings, _ = intake_result
+        _, timings, _, _ = intake_result
         assert isinstance(timings, PipelineTimings)
         assert timings.total_sec > 0, "Total time should be > 0"
         assert timings.frame_count > 0, "Should have extracted frames"
 
     def test_best_frames_returned(self, intake_result):
-        _, _, best_frames = intake_result
+        _, _, best_frames, _ = intake_result
         assert isinstance(best_frames, list)
         # Each entry should be (index, jpeg_bytes)
         for item in best_frames:
@@ -138,14 +138,14 @@ class TestIntakePipeline:
             assert isinstance(data, bytes)
 
     def test_pipeline_completes_under_120s(self, intake_result):
-        _, timings, _ = intake_result
+        _, timings, _, _ = intake_result
         assert timings.total_sec < 120, (
             f"Pipeline took {timings.total_sec:.1f}s — should complete under 120s"
         )
 
     def test_no_exact_duplicate_names(self, intake_result):
         """Dedup should collapse items with identical names into one."""
-        items, _, _ = intake_result
+        items, _, _, _ = intake_result
         names = [item.name_guess for item in items]
         unique_names = set(names)
         assert len(names) == len(unique_names), (
@@ -154,7 +154,7 @@ class TestIntakePipeline:
 
     def test_electronics_categorized_correctly(self, intake_result):
         """iPads and iPhones should be categorized as electronics, not other."""
-        items, _, _ = intake_result
+        items, _, _, _ = intake_result
         for item in items:
             name_lower = item.name_guess.lower()
             if any(kw in name_lower for kw in ["ipad", "iphone", "phone", "tablet"]):
@@ -265,7 +265,7 @@ class TestFullPipelineFlow:
         3. Decision → listing tasks generated for top platforms
         """
         # Step 1: Run intake
-        items, timings, best_frames = asyncio.run(
+        items, timings, best_frames, _transcript = asyncio.run(
             streaming_analysis(video_path, "e2e-full-flow")
         )
         assert len(items) >= 1, "Intake must identify at least 1 item"
@@ -366,5 +366,5 @@ class TestServerUploadIntegration:
         status_resp = client.get(f"/api/jobs/{job_id}")
         assert status_resp.status_code == 200
         status_data = status_resp.json()
-        assert status_data["job_id"] == job_id
+        assert status_data["job"]["job_id"] == job_id
         _jobs.clear()

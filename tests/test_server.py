@@ -12,6 +12,7 @@ from backend.server import (
     app,
     _jobs,
     _job_items,
+    _intake_frame_store,
     ws_manager,
     ConnectionManager,
     _OrchestratorStub,
@@ -29,9 +30,11 @@ def clean_state():
     """Clear in-memory stores between tests."""
     _jobs.clear()
     _job_items.clear()
+    _intake_frame_store.clear()
     yield
     _jobs.clear()
     _job_items.clear()
+    _intake_frame_store.clear()
 
 
 @pytest.fixture
@@ -65,8 +68,8 @@ class TestGetJobEndpoint:
         resp = client.get("/api/jobs/test-123")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["job_id"] == "test-123"
-        assert data["status"] == "analyzing"
+        assert data["job"]["job_id"] == "test-123"
+        assert data["job"]["status"] == "analyzing"
 
     def test_404_for_unknown_job(self, client):
         resp = client.get("/api/jobs/nonexistent")

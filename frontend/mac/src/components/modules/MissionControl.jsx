@@ -648,16 +648,16 @@ function StreamingText({ text, wordsPerTick = 2, intervalMs = 40 }) {
   );
 }
 
-function ProcessingContent({ job, agents, items, miniPlayer, settled }) {
+function ProcessingContent({ job, agents, items, miniPlayer }) {
   const intakeState = agents.intake;
   const transcript = intakeState?.transcript_text || job?.transcript_text;
   const framePaths = intakeState?.frame_paths || job?.frame_paths || [];
 
   const intakeActive = getStatus(intakeState) !== 'idle';
-  const hasFrames = settled && framePaths.length > 0;
-  const hasItems = settled && items && items.length > 0;
-  const hasTranscript = settled && !!transcript;
-  const isWaiting = settled && !hasFrames && !hasItems && !hasTranscript;
+  const hasFrames = framePaths.length > 0;
+  const hasItems = items && items.length > 0;
+  const hasTranscript = !!transcript;
+  const isWaiting = !hasFrames && !hasItems && !hasTranscript && intakeActive;
 
   const [selectedItem, setSelectedItem] = useState(null);
   const closeModal = useCallback(() => setSelectedItem(null), []);
@@ -861,7 +861,7 @@ export default function MissionControl({
   stage3Plan, items = [], decisions = {}, bids = {},
   job = null, listings = {}, onExecuteItem, overrideStageIdx,
   postingStatus = {},
-  miniPlayer, settled,
+  miniPlayer,
 }) {
   const autoIdx = getActiveStageIndex(agents);
   const activeIdx = overrideStageIdx != null ? Math.min(overrideStageIdx, STAGES.length - 1) : autoIdx;
@@ -932,7 +932,7 @@ export default function MissionControl({
               </div>
             )}
 
-            {stage.id === 1 && <ProcessingContent job={job} agents={agents} items={items} miniPlayer={miniPlayer} settled={settled} />}
+            {stage.id === 1 && <ProcessingContent job={job} agents={agents} items={items} miniPlayer={miniPlayer} />}
             {stage.id === 3 && <PostingWorkspace items={items} decisions={decisions} postingStatus={postingStatus} />}
           </motion.div>
         </AnimatePresence>
