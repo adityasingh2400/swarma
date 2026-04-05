@@ -1,0 +1,42 @@
+Route: depop_listing
+Description: Depop listing creation
+URL: https://www.depop.com/products/create/
+Time: 30.5s
+Screenshots: 3
+Steps: 3
+
+============================================================
+AGENT DOCUMENTATION:
+============================================================
+
+I have documented the Depop product creation page. 
+
+1. **URL:** https://www.depop.com/products/create/first/
+2. **Order of Fields, Dropdowns, and Buttons:**
+   - **Photos Section:**
+     - 8 Photo Upload Slots (Accepts JPEG/PNG).
+     - Labels: Cover photo, Front, Back, Side, Label, Detail, Flaw.
+   - **Description Section:**
+     - Description Text Area (1000 character limit).
+     - Hashtags Field (5 hashtag limit).
+   - **Info Section:**
+     - Category (Dropdown/Combobox).
+     - Brand (Input/Combobox).
+     - Condition (Dropdown/Combobox).
+   - **Enhance Your Listing Section:**
+     - Color (Multi-select Dropdown, up to 2).
+     - Source (Multi-select Dropdown, up to 2).
+     - Age (Dropdown, up to 1).
+     - Style (Multi-select Dropdown, up to 3).
+   - **Item Price Section:**
+     - Item Price (Numerical input prefixed with US$).
+   - **Location Section:**
+     - Country (Dropdown, defaulted to United States).
+     - City (Dropdown/Combobox).
+   - **Shipping Section:**
+     - Domestic Shipping Toggle (Depop Shipping via USPS).
+     - 'Add new shipping address' Button.
+     - Package size (Dropdown).
+     - 'Offer worldwide shipping' Checkbox.
+3. **Submit Button:** The primary button is labeled 'Continue'. There is also a 'Not ready to list? Get set up to sell' button.
+4. **Login/Blockers:** No login prompts or blockers were encountered; the page was fully accessible.
