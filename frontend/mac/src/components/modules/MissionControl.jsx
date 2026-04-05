@@ -648,12 +648,36 @@ function StreamingText({ text, wordsPerTick = 2, intervalMs = 40 }) {
   );
 }
 
+/** Job is still in the intake / upload pipeline before we necessarily have WS agent state. */
+const INTAKE_PHASE_STATUSES = new Set(['processing', 'uploading', 'extracting', 'analyzing']);
+
+function effectiveIntakeState(agentsIntake, job) {
+  if (agentsIntake && getStatus(agentsIntake) !== 'idle') return agentsIntake;
+  const st = String(job?.status || '').toLowerCase();
+  if (job?.job_id && INTAKE_PHASE_STATUSES.has(st)) {
+    return {
+      status: 'thinking',
+      message:
+        st === 'uploading'
+          ? 'Uploading video…'
+          : st === 'extracting'
+            ? 'Saving video — preparing analysis…'
+            : 'Starting video analysis…',
+      progress: 0.05,
+    };
+  }
+  return agentsIntake ?? null;
+}
+
 function ProcessingContent({ job, agents, items, miniPlayer }) {
-  const intakeState = agents.intake;
+  const intakeState = useMemo(
+    () => effectiveIntakeState(agents.intake, job),
+    [agents.intake, job?.job_id, job?.status],
+  );
   const transcript = intakeState?.transcript_text || job?.transcript_text;
   const framePaths = intakeState?.frame_paths || job?.frame_paths || [];
 
-  const intakeActive = getStatus(intakeState) !== 'idle';
+  const intakeActive = intakeState != null && getStatus(intakeState) !== 'idle';
   const hasFrames = framePaths.length > 0;
   const hasItems = items && items.length > 0;
   const hasTranscript = !!transcript;
@@ -677,7 +701,7 @@ function ProcessingContent({ job, agents, items, miniPlayer }) {
             exit={{ opacity: 0, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.35, delay: 0.05, ease: E }}
           >
-            <IntakeStrip state={intakeState} />
+            <IntakeStrip state={intakeState || { status: 'thinking', message: 'Working…' }} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -862,11 +886,10 @@ export default function MissionControl({
   job = null, listings = {}, onExecuteItem, overrideStageIdx,
   postingStatus = {},
   miniPlayer,
+  prefetchRouteBidding = false,
 }) {
   const autoIdx = getActiveStageIndex(agents);
   const activeIdx = overrideStageIdx != null ? Math.min(overrideStageIdx, STAGES.length - 1) : autoIdx;
-
-  const stage = STAGES[activeIdx];
 
   const stage3TaskCount = useMemo(() => {
     if (!stage3Plan?.plan) return { total: 0, active: 0, done: 0 };
@@ -883,58 +906,90 @@ export default function MissionControl({
     return { total, active, done };
   }, [stage3Plan, agentsByItem]);
 
+  const mountRouteBidding = activeIdx === 1 || (prefetchRouteBidding && activeIdx === 0);
+
+  const routeBiddingBody = (
+    <>
+      {stage3TaskCount.total > 0 && (
+        <div className="mc-stage3-counter">
+          <span className="mc-s3-badge">
+            {stage3TaskCount.active > 0 ? (
+              <><Loader2 size={11} className="mc-spinner" /> {stage3TaskCount.active} active</>
+            ) : (
+              <><CheckCircle2 size={11} /> {stage3TaskCount.done} done</>
+            )}
+          </span>
+          <span className="mc-s3-total">
+            {stage3TaskCount.done}/{stage3TaskCount.total} agent-tasks
+          </span>
+        </div>
+      )}
+      <div className="planets-field">
+        {items.map((item, i) => (
+          <ItemPlanet
+            key={item.item_id}
+            item={item}
+            itemIndex={i}
+            agentStates={agentsByItem[item.item_id] || {}}
+            itemBids={bids[item.item_id] || []}
+            stage3Plan={stage3Plan}
+          />
+        ))}
+        {items.length === 0 && (
+          <div className="planets-empty">Waiting for items from Stage 1...</div>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className="mission-control-v2">
       <div className="mc-stage-scroll-area">
         <AnimatePresence mode="wait">
-          <motion.div key={stage.id} className="mc-stage-content"
-            initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }} transition={{ duration: 0.25 }}>
+          {activeIdx === 0 && (
+            <motion.div key="mc-stage-1" className="mc-stage-content"
+              initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }} transition={{ duration: 0.25 }}>
 
-            {stage.id === 2 && stage3TaskCount.total > 0 && (
-              <div className="mc-stage3-counter">
-                <span className="mc-s3-badge">
-                  {stage3TaskCount.active > 0 ? (
-                    <><Loader2 size={11} className="mc-spinner" /> {stage3TaskCount.active} active</>
-                  ) : (
-                    <><CheckCircle2 size={11} /> {stage3TaskCount.done} done</>
-                  )}
-                </span>
-                <span className="mc-s3-total">
-                  {stage3TaskCount.done}/{stage3TaskCount.total} agent-tasks
-                </span>
-              </div>
-            )}
+              {!(miniPlayer) && (
+                <div className={`mc-agents-row mc-agents-${STAGES[0].agents.length}`}>
+                  {STAGES[0].agents.map((agent, i) => (
+                    <AgentCard key={agent.id} agent={agent} state={agents[agent.id]}
+                      perItem={agentsRaw[agent.id] || {}} items={items} index={i}>
+                    </AgentCard>
+                  ))}
+                </div>
+              )}
 
-            {stage.id === 2 ? (
-              <div className="planets-field">
-                {items.map((item, i) => (
-                  <ItemPlanet
-                    key={item.item_id}
-                    item={item}
-                    itemIndex={i}
-                    agentStates={agentsByItem[item.item_id] || {}}
-                    itemBids={bids[item.item_id] || []}
-                    stage3Plan={stage3Plan}
-                  />
-                ))}
-                {items.length === 0 && (
-                  <div className="planets-empty">Waiting for items from Stage 1...</div>
-                )}
-              </div>
-            ) : stage.id === 3 ? null : (stage.id === 1 && miniPlayer) ? null : (
-              <div className={`mc-agents-row mc-agents-${stage.agents.length}`}>
-                {stage.agents.map((agent, i) => (
-                  <AgentCard key={agent.id} agent={agent} state={agents[agent.id]}
-                    perItem={agentsRaw[agent.id] || {}} items={items} index={i}>
-                  </AgentCard>
-                ))}
-              </div>
-            )}
+              <ProcessingContent job={job} agents={agents} items={items} miniPlayer={miniPlayer} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-            {stage.id === 1 && <ProcessingContent job={job} agents={agents} items={items} miniPlayer={miniPlayer} />}
-            {stage.id === 3 && <PostingWorkspace items={items} decisions={decisions} postingStatus={postingStatus} />}
-          </motion.div>
+        {mountRouteBidding && (
+          <div
+            className={`mc-route-bidding-layer ${activeIdx === 1 ? 'mc-rbl-visible' : 'mc-rbl-prefetch'}`}
+            aria-hidden={activeIdx !== 1}
+          >
+            <motion.div
+              className="mc-stage-content"
+              initial={false}
+              animate={{ opacity: activeIdx === 1 ? 1 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {routeBiddingBody}
+            </motion.div>
+          </div>
+        )}
+
+        <AnimatePresence mode="wait">
+          {activeIdx === 2 && (
+            <motion.div key="mc-stage-3" className="mc-stage-content"
+              initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }} transition={{ duration: 0.25 }}>
+              <PostingWorkspace items={items} decisions={decisions} postingStatus={postingStatus} />
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
     </div>

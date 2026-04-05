@@ -2574,6 +2574,30 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  position: relative;
+}
+
+/* Route bidding mounts in prefetch layer (hidden) while Processing stays visible */
+.mc-route-bidding-layer.mc-rbl-prefetch {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.mc-route-bidding-layer.mc-rbl-visible {
+  position: relative;
+  height: auto;
+  overflow: visible;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
 }
 .mc-stage-content {
   padding: 8px 16px;
@@ -6888,6 +6912,11 @@ body {
 
 .ab2-parallel-cluster.ab2-clickable:hover {
   opacity: 0.9;
+}
+
+/* Route Bidding cluster: base .ab2-parallel-cluster sets cursor:default later — win when clickable */
+.ab2-parallel-cluster.ab2-clickable {
+  cursor: pointer;
 }
 
 .ab2-parallel-cluster {

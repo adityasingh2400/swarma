@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Cpu, Search, RefreshCw, Package, Wrench,
   Trophy, MessageSquare,
@@ -75,10 +75,35 @@ export default function AgentTheater({
   const currentGroupIdx = useMemo(() => getCurrentStageGroup(agents), [agents]);
   const [userSelectedGroup, setUserSelectedGroup] = useState(null);
 
+  const intakeDone = getGroupStatus(STAGE_GROUPS[0], agents) === 'done';
+
+  useEffect(() => {
+    setUserSelectedGroup(null);
+  }, [job?.job_id]);
+
+  /** Pipeline may advance to route bidding while we keep showing Processing until the user clicks. */
+  const displayGroupIdx = useMemo(() => {
+    if (userSelectedGroup != null) return userSelectedGroup;
+    if (intakeDone) return 0;
+    return currentGroupIdx;
+  }, [userSelectedGroup, intakeDone, currentGroupIdx]);
+
+  // Prefetch route-bidding UI while still on Processing once a job exists (no intake-done gate).
+  const prefetchRouteBidding = Boolean(job?.job_id) && displayGroupIdx === 0;
+
   const handleStageClick = (stageIndex) => {
     const group = STAGE_GROUPS[stageIndex];
     if (!group) return;
     const status = getGroupStatus(group, agents);
+    const routesIdx = 1;
+
+    // Route Bidding is always navigable — no hard wait for intake "done" (status can lag or mismatch).
+    if (stageIndex === routesIdx) {
+      setUserSelectedGroup(stageIndex);
+      onStageClick?.(stageIndex);
+      return;
+    }
+
     if (status === 'done' || status === 'partial' || status === 'thinking') {
       setUserSelectedGroup(stageIndex);
       onStageClick?.(stageIndex);
@@ -86,11 +111,10 @@ export default function AgentTheater({
   };
 
   const mcStageIdx = useMemo(() => {
-    const groupIdx = userSelectedGroup != null ? userSelectedGroup : currentGroupIdx;
-    const group = STAGE_GROUPS[groupIdx];
+    const group = STAGE_GROUPS[displayGroupIdx];
     if (!group) return 0;
     return group.stage - 1;
-  }, [userSelectedGroup, currentGroupIdx]);
+  }, [displayGroupIdx]);
 
   return (
     <div className="theater-v2">
@@ -98,11 +122,13 @@ export default function AgentTheater({
       <div className="agent-bar-v2">
         {STAGE_GROUPS.map((group, i) => {
           const status = getGroupStatus(group, agents);
-          const activeGroupIdx = userSelectedGroup != null ? userSelectedGroup : currentGroupIdx;
-          const isCurrent = i === activeGroupIdx;
-          const isPast = i < activeGroupIdx;
-          const isFuture = i > activeGroupIdx;
-          const isClickable = status === 'done' || status === 'partial' || status === 'thinking';
+          const isCurrent = i === displayGroupIdx;
+          const isPast = i < displayGroupIdx;
+          const isFuture = i > displayGroupIdx;
+          const isRoutes = i === 1;
+          const isClickable =
+            isRoutes
+            || (!isRoutes && (status === 'done' || status === 'partial' || status === 'thinking'));
           const Icon = group.icon;
 
           return (
@@ -181,6 +207,7 @@ export default function AgentTheater({
           listings={listings}
           onExecuteItem={onExecuteItem}
           overrideStageIdx={mcStageIdx}
+          prefetchRouteBidding={prefetchRouteBidding}
           v2Agents={v2Agents}
           pipelineStage={pipelineStage}
           postingStatus={postingStatus}

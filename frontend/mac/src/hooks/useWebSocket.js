@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { swarmaFe } from '../utils/debugLog';
 
 export function useWebSocket(jobId) {
   const [connected, setConnected] = useState(false);
@@ -28,12 +29,14 @@ export function useWebSocket(jobId) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host || 'localhost:8080';
       const url = `${protocol}//${host}/ws/${jobId}/events`;
+      swarmaFe('useWebSocket', 'connect_attempt', { jobId, url });
 
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {
         if (!alive) return;
+        swarmaFe('useWebSocket', 'open', { jobId });
         setConnected(true);
         if (reconnectTimer.current) {
           clearTimeout(reconnectTimer.current);
@@ -45,19 +48,28 @@ export function useWebSocket(jobId) {
         if (!alive) return;
         try {
           const event = JSON.parse(msg.data);
+          swarmaFe('useWebSocket', 'message_raw', {
+            jobId,
+            jsonChars: typeof msg.data === 'string' ? msg.data.length : 0,
+            type: event?.type,
+          });
           setEvents((prev) => prev.length >= 200 ? [...prev.slice(-100), event] : [...prev, event]);
           setLastEvent(event);
           dispatch(event);
-        } catch {}
+        } catch (e) {
+          swarmaFe('useWebSocket', 'message_parse_error', { jobId, err: String(e) });
+        }
       };
 
       ws.onclose = () => {
         if (!alive) return;
+        swarmaFe('useWebSocket', 'close_reconnect_in_2s', { jobId });
         setConnected(false);
         reconnectTimer.current = setTimeout(connect, 2000);
       };
 
       ws.onerror = () => {
+        swarmaFe('useWebSocket', 'error', { jobId });
         ws.close();
       };
     }
@@ -66,6 +78,7 @@ export function useWebSocket(jobId) {
 
     return () => {
       alive = false;
+      swarmaFe('useWebSocket', 'cleanup_close', { jobId });
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) wsRef.current.close();
       setConnected(false);

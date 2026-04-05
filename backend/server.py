@@ -45,6 +45,7 @@ from backend.streaming import (
     get_all_agent_ids,
     get_frame_for_delivery,
 )
+from backend.debug_trace import swarma_line, swarma_ws_out
 
 logger = logging.getLogger("reroute.server")
 
@@ -106,6 +107,13 @@ class _OrchestratorStub:
                     },
                 })
         logger.info("Stub orchestrator: queued %d agents for %d items", len(self._agents), len(items))
+        swarma_line(
+            "orchestrator.stub",
+            "start_pipeline_done",
+            job_id=job_id,
+            items_n=len(items),
+            agents_queued=len(self._agents),
+        )
 
     def get_browser(self, agent_id: str):
         """Stub: returns None. Real impl returns Browser-Use Browser instance."""
@@ -142,28 +150,38 @@ class ConnectionManager:
     async def connect_events(self, job_id: str, ws: WebSocket) -> None:
         await ws.accept()
         self._events.setdefault(job_id, set()).add(ws)
-        logger.info("Events WS connected for job %s (%d clients)", job_id, len(self._events[job_id]))
+        n = len(self._events[job_id])
+        logger.info("Events WS connected for job %s (%d clients)", job_id, n)
+        swarma_line("ws.events", "client_connected", job_id=job_id, clients_now=n)
 
     async def connect_screenshots(self, job_id: str, ws: WebSocket) -> None:
         await ws.accept()
         self._screenshots.setdefault(job_id, set()).add(ws)
-        logger.info("Screenshots WS connected for job %s (%d clients)", job_id, len(self._screenshots[job_id]))
+        n = len(self._screenshots[job_id])
+        logger.info("Screenshots WS connected for job %s (%d clients)", job_id, n)
+        swarma_line("ws.screenshots", "client_connected", job_id=job_id, clients_now=n)
 
     def disconnect_events(self, job_id: str, ws: WebSocket) -> None:
         if job_id in self._events:
             self._events[job_id].discard(ws)
+            rem = len(self._events[job_id])
+            swarma_line("ws.events", "client_disconnected", job_id=job_id, clients_now=rem)
             if not self._events[job_id]:
                 del self._events[job_id]
 
     def disconnect_screenshots(self, job_id: str, ws: WebSocket) -> None:
         if job_id in self._screenshots:
             self._screenshots[job_id].discard(ws)
+            rem = len(self._screenshots[job_id])
+            swarma_line("ws.screenshots", "client_disconnected", job_id=job_id, clients_now=rem)
             if not self._screenshots[job_id]:
                 del self._screenshots[job_id]
 
     async def broadcast_event(self, job_id: str, event: dict) -> None:
         """Send a JSON event to all event WS clients for a job."""
         connections = self._events.get(job_id)
+        n = len(connections) if connections else 0
+        swarma_ws_out(job_id, event, client_count=n)
         if not connections:
             return
         stale: list[WebSocket] = []
@@ -209,12 +227,20 @@ async def _event_drain_loop(job_id: str):
       while True: event = await orchestrator.events.get(); broadcast(event)
     """
     logger.info("Event drain loop started for job %s", job_id)
+    swarma_line("pipeline", "event_drain_loop_started", job_id=job_id)
     try:
         while True:
             event = await orchestrator.events.get()
+            swarma_line(
+                "orchestrator",
+                "event_dequeued",
+                job_id=job_id,
+                type=event.get("type"),
+            )
             await ws_manager.broadcast_event(job_id, event)
     except asyncio.CancelledError:
         logger.info("Event drain loop stopped for job %s", job_id)
+        swarma_line("pipeline", "event_drain_loop_cancelled", job_id=job_id)
         raise
 
 
@@ -230,6 +256,7 @@ async def _screenshot_push_loop(job_id: str):
     last_sent: dict[str, float] = {}
 
     logger.info("Screenshot push loop started for job %s", job_id)
+    swarma_line("pipeline", "screenshot_push_loop_started", job_id=job_id)
     try:
         while True:
             if not ws_manager.has_screenshot_clients(job_id):
@@ -253,6 +280,7 @@ async def _screenshot_push_loop(job_id: str):
 
     except asyncio.CancelledError:
         logger.info("Screenshot push loop stopped for job %s", job_id)
+        swarma_line("pipeline", "screenshot_push_loop_cancelled", job_id=job_id)
         raise
 
 
@@ -266,7 +294,16 @@ async def _run_pipeline(job_id: str, video_path: str):
 
     job = _jobs.get(job_id)
     if not job:
+        swarma_line("pipeline", "run_pipeline_aborted_no_job", job_id=job_id)
         return
+
+    swarma_line(
+        "pipeline",
+        "run_pipeline_start",
+        job_id=job_id,
+        video_path=video_path,
+        job_status=str(job.status.value if hasattr(job.status, "value") else job.status),
+    )
 
     # Start background loops
     event_drain = asyncio.create_task(_event_drain_loop(job_id))
@@ -276,6 +313,7 @@ async def _run_pipeline(job_id: str, video_path: str):
         # Phase 1: Intake — video → items (WS events match frontend useJob.js)
         job.status = JobStatus.ANALYZING
         job.touch()
+        swarma_line("pipeline", "intake_phase_begin", job_id=job_id)
         await ws_manager.broadcast_event(job_id, {
             "type": "agent_started",
             "data": {"agent": "intake", "message": "Analyzing video — extracting audio and frames…"},
@@ -286,6 +324,15 @@ async def _run_pipeline(job_id: str, video_path: str):
         })
 
         items, timings, best_frames, transcript_text = await streaming_analysis(video_path, job_id)
+        swarma_line(
+            "pipeline",
+            "streaming_analysis_done",
+            job_id=job_id,
+            items_n=len(items),
+            best_frames_n=len(best_frames),
+            transcript_len=len(transcript_text or ""),
+            total_sec=round(timings.total_sec, 2) if timings else None,
+        )
 
         if not items:
             job.status = JobStatus.FAILED
@@ -299,6 +346,7 @@ async def _run_pipeline(job_id: str, video_path: str):
                     "message": "No items detected in video",
                 },
             })
+            swarma_line("pipeline", "intake_failed_no_items", job_id=job_id)
             return
 
         _intake_frame_store[job_id] = {}
@@ -386,6 +434,7 @@ async def _run_pipeline(job_id: str, video_path: str):
             "data": {"status": JobStatus.EXECUTING.value},
         })
 
+        swarma_line("pipeline", "orchestrator_start_pipeline", job_id=job_id, items_n=len(items))
         await orchestrator.start_pipeline(job_id, items)
 
         # Pipeline continues via event_drain_loop and screenshot_push_loop
@@ -395,10 +444,12 @@ async def _run_pipeline(job_id: str, video_path: str):
 
         job.status = JobStatus.COMPLETED
         job.touch()
+        swarma_line("pipeline", "run_pipeline_completed", job_id=job_id)
 
     except Exception as exc:
         # Top-level pipeline guard (eng review decision: catch, log, FAIL, emit, don't re-raise)
         logger.exception("Pipeline failed for job %s: %s", job_id, exc)
+        swarma_line("pipeline", "run_pipeline_exception", job_id=job_id, error=str(exc))
         job.status = JobStatus.FAILED
         job.error = str(exc)
         job.touch()
@@ -430,7 +481,9 @@ async def lifespan(_app: FastAPI):
     settings.ensure_dirs()
     # Future: warm browser context pool here
     logger.info("ReRoute v2 server starting")
+    swarma_line("server", "lifespan_startup", upload_dir=str(settings.upload_dir))
     yield
+    swarma_line("server", "lifespan_shutdown")
     logger.info("ReRoute v2 server shutting down")
 
 
@@ -467,10 +520,19 @@ async def upload_video(
     """
     upload = file if (file and file.filename) else video
     if upload is None or not upload.filename:
+        swarma_line("http", "upload_rejected", reason="no_file_field")
         raise HTTPException(status_code=400, detail="No file provided (use field 'file' or 'video')")
 
     job_id = uuid.uuid4().hex[:12]
     job = Job(job_id=job_id, status=JobStatus.UPLOADING)
+    field = "file" if (file and file.filename) else "video"
+    swarma_line(
+        "http",
+        "upload_accepted",
+        job_id=job_id,
+        multipart_field=field,
+        filename=upload.filename,
+    )
 
     # Read upload into memory and compute content hash
     upload_dir = Path(settings.upload_dir)
@@ -483,18 +545,28 @@ async def upload_video(
         hasher.update(chunk)
         chunks.append(chunk)
     content_hash = hasher.hexdigest()[:16]
+    total_bytes = sum(len(c) for c in chunks)
+    swarma_line(
+        "http",
+        "upload_read_complete",
+        job_id=job_id,
+        bytes_total=total_bytes,
+        content_hash_16=content_hash,
+    )
 
     # Check for existing file with same hash
     hash_path = upload_dir / f"{content_hash}{ext}"
     if hash_path.exists():
         video_path = hash_path
         logger.info("Upload dedup: reusing %s for job %s", hash_path, job_id)
+        swarma_line("http", "upload_dedup_reuse", job_id=job_id, path=str(video_path))
     else:
         video_path = hash_path
         async with aiofiles.open(video_path, "wb") as f:
             for chunk in chunks:
                 await f.write(chunk)
         logger.info("Upload saved: %s (%d bytes) for job %s", video_path, sum(len(c) for c in chunks), job_id)
+        swarma_line("http", "upload_written_new_file", job_id=job_id, path=str(video_path), bytes_total=total_bytes)
 
     job.video_path = str(video_path)
     job.status = JobStatus.EXTRACTING
@@ -503,6 +575,7 @@ async def upload_video(
 
     # Start pipeline in background
     asyncio.create_task(_run_pipeline(job_id, str(video_path)))
+    swarma_line("http", "upload_pipeline_task_scheduled", job_id=job_id)
 
     return UploadResponse(job_id=job_id, status="processing")
 
@@ -512,9 +585,18 @@ async def get_job(job_id: str):
     """Job envelope for the UI: ``job`` plus ``items`` when intake has finished."""
     job = _jobs.get(job_id)
     if not job:
+        swarma_line("http", "get_job", job_id=job_id, found=False)
         raise HTTPException(status_code=404, detail="Job not found")
-    payload: dict = {"job": job.model_dump(mode="json")}
     items = _job_items.get(job_id)
+    swarma_line(
+        "http",
+        "get_job",
+        job_id=job_id,
+        found=True,
+        job_status=str(job.status.value if hasattr(job.status, "value") else job.status),
+        items_n=len(items) if items else 0,
+    )
+    payload: dict = {"job": job.model_dump(mode="json")}
     if items is not None:
         payload["items"] = [item.model_dump(mode="json") for item in items]
     return payload
@@ -524,9 +606,18 @@ async def get_job(job_id: str):
 async def get_intake_frame(job_id: str, frame_idx: str):
     """Serve a single JPEG extracted during intake (path from ``frame_paths``)."""
     if not _jobs.get(job_id):
+        swarma_line("http", "get_intake_frame", job_id=job_id, frame_idx=frame_idx, result="no_job")
         raise HTTPException(status_code=404, detail="Job not found")
     bucket = _intake_frame_store.get(job_id)
     if not bucket or frame_idx not in bucket:
+        swarma_line(
+            "http",
+            "get_intake_frame",
+            job_id=job_id,
+            frame_idx=frame_idx,
+            result="missing_frame",
+            bucket_keys_n=len(bucket) if bucket else 0,
+        )
         raise HTTPException(status_code=404, detail="Frame not found")
     return Response(content=bucket[frame_idx], media_type="image/jpeg")
 
@@ -705,11 +796,19 @@ async def get_item_screenshots(job_id: str, item_id: str):
 async def ws_events(ws: WebSocket, job_id: str):
     """JSON text frames: agent lifecycle events."""
     await ws_manager.connect_events(job_id, ws)
+    swarma_line("ws.events", "session_start", job_id=job_id)
     try:
         # Send initial state on connect (reconnection strategy option C)
         job = _jobs.get(job_id)
         if job:
             items = _job_items.get(job_id, [])
+            swarma_line(
+                "ws.events",
+                "initial_state_sending",
+                job_id=job_id,
+                items_n=len(items),
+                job_status=str(job.status.value if hasattr(job.status, "value") else job.status),
+            )
             await ws.send_json({
                 "type": "initial_state",
                 "data": {
@@ -718,15 +817,30 @@ async def ws_events(ws: WebSocket, job_id: str):
                     "agents": orchestrator.get_agent_states(job_id),
                 },
             })
+            swarma_line("ws.events", "initial_state_sent", job_id=job_id)
+        else:
+            swarma_line("ws.events", "initial_state_skipped_no_job", job_id=job_id)
 
         # Keep connection alive; client messages are currently informational only
+        ping_n = 0
         while True:
-            await ws.receive_json()
+            raw = await ws.receive_json()
+            ping_n += 1
+            if ping_n <= 3 or ping_n % 50 == 0:
+                swarma_line(
+                    "ws.events",
+                    "client_ping",
+                    job_id=job_id,
+                    n=ping_n,
+                    payload_keys=sorted(raw.keys()) if isinstance(raw, dict) else type(raw).__name__,
+                )
 
     except WebSocketDisconnect:
+        swarma_line("ws.events", "session_disconnect", job_id=job_id)
         ws_manager.disconnect_events(job_id, ws)
     except Exception as exc:
         logger.warning("Events WS error for job %s: %s", job_id, exc)
+        swarma_line("ws.events", "session_error", job_id=job_id, error=str(exc))
         ws_manager.disconnect_events(job_id, ws)
 
 

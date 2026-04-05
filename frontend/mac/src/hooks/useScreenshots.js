@@ -4,6 +4,7 @@ import {
   SCREENSHOT_AGENT_ID_BYTES,
   SCREENSHOT_HEADER_BYTES,
 } from '../utils/contracts';
+import { swarmaFe } from '../utils/debugLog';
 
 const decoder = new TextDecoder('utf-8', { fatal: false });
 
@@ -49,12 +50,16 @@ export function useScreenshots(jobId) {
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host || 'localhost:8080';
-      const ws = new WebSocket(`${protocol}//${host}/ws/${jobId}/screenshots`);
+      const url = `${protocol}//${host}/ws/${jobId}/screenshots`;
+      swarmaFe('useScreenshots', 'connect_attempt', { jobId, url });
+      const ws = new WebSocket(url);
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
+      let frameCount = 0;
 
       ws.onopen = () => {
         if (!alive) return;
+        swarmaFe('useScreenshots', 'open', { jobId });
         setConnected(true);
         if (reconnectTimer.current) {
           clearTimeout(reconnectTimer.current);
@@ -67,6 +72,16 @@ export function useScreenshots(jobId) {
 
         const frame = parseFrame(ev.data);
         if (!frame) return;
+
+        frameCount += 1;
+        if (frameCount <= 2 || frameCount % 30 === 0) {
+          swarmaFe('useScreenshots', 'frame', {
+            jobId,
+            n: frameCount,
+            agentId: frame.agentId,
+            jpegBytes: frame.blob?.size,
+          });
+        }
 
         const prevUrl = urlMapRef.current.get(frame.agentId);
         if (prevUrl) URL.revokeObjectURL(prevUrl);
@@ -83,17 +98,22 @@ export function useScreenshots(jobId) {
 
       ws.onclose = () => {
         if (!alive) return;
+        swarmaFe('useScreenshots', 'close_reconnect_in_2s', { jobId, framesSeen: frameCount });
         setConnected(false);
         reconnectTimer.current = setTimeout(connect, 2000);
       };
 
-      ws.onerror = () => ws.close();
+      ws.onerror = () => {
+        swarmaFe('useScreenshots', 'error', { jobId });
+        ws.close();
+      };
     }
 
     connect();
 
     return () => {
       alive = false;
+      swarmaFe('useScreenshots', 'cleanup', { jobId });
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) wsRef.current.close();
       cleanup();

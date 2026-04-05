@@ -28,6 +28,7 @@ import numpy as np
 from PIL import Image
 
 from backend.config import settings
+from backend.debug_trace import swarma_line
 from backend.models.item_card import ItemCard, ItemCategory, DefectSignal
 
 logger = logging.getLogger("reroute.intake")
@@ -1239,6 +1240,7 @@ async def streaming_analysis(
         (items, timings, best_frames, transcript_text) tuple.
     """
     logger.info("Starting S2 analysis for job %s: %s", job_id, video_path)
+    swarma_line("intake", "streaming_analysis_start", job_id=job_id, video_path=video_path)
 
     # Phase 0: Audio pipeline — extract item names from seller narration
     item_ids: list[str] | None = None
@@ -1248,11 +1250,14 @@ async def streaming_analysis(
 
     try:
         t_audio = time.perf_counter()
+        swarma_line("intake", "audio_extract_begin", job_id=job_id)
         audio_path = await extract_audio(video_path)
         audio_extraction_sec = time.perf_counter() - t_audio
+        swarma_line("intake", "audio_extract_done", job_id=job_id, sec=round(audio_extraction_sec, 2))
 
         try:
             t_transcribe = time.perf_counter()
+            swarma_line("intake", "transcribe_begin", job_id=job_id)
             transcript = await transcribe_audio(audio_path)
             transcript_text = transcript
             parsed = await parse_items_from_transcript(transcript)
@@ -1261,17 +1266,31 @@ async def streaming_analysis(
             if parsed:
                 item_ids = parsed
                 logger.info("Audio pipeline: %d items identified: %s", len(item_ids), item_ids)
+                swarma_line(
+                    "intake",
+                    "parse_items_from_transcript_ok",
+                    job_id=job_id,
+                    item_hints_n=len(item_ids),
+                )
             else:
                 logger.warning(
                     "Audio pipeline returned empty item list — falling back to free-form detection"
                 )
+                swarma_line("intake", "parse_items_empty_fallback_visual", job_id=job_id)
         finally:
             Path(audio_path).unlink(missing_ok=True)
 
     except Exception as exc:
         logger.warning("Audio pipeline failed — falling back to free-form detection: %s", exc)
+        swarma_line("intake", "audio_pipeline_exception", job_id=job_id, error=str(exc))
 
     # Phase 1+: Visual analysis with Flash-Lite
+    swarma_line(
+        "intake",
+        "run_image_strategy_begin",
+        job_id=job_id,
+        item_ids_n=len(item_ids) if item_ids else 0,
+    )
     items, timings, best_frames = await run_image_strategy(
         video_path, job_id, frame_collector,
         model=settings.gemini_image_model,
@@ -1282,4 +1301,13 @@ async def streaming_analysis(
     timings.audio_extraction_sec = audio_extraction_sec
     timings.transcription_sec = transcription_sec
 
+    swarma_line(
+        "intake",
+        "streaming_analysis_return",
+        job_id=job_id,
+        items_n=len(items),
+        best_frames_n=len(best_frames),
+        transcript_len=len(transcript_text or ""),
+        total_sec=round(timings.total_sec, 2),
+    )
     return items, timings, best_frames, transcript_text

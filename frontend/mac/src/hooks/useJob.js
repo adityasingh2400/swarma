@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { uploadVideo, getJobState, executeItem as execItem, sendReply as replyApi } from '../utils/api';
+import { swarmaFe, summarizeWsEvent } from '../utils/debugLog';
 import {
   EVENT_AGENT_SPAWN, EVENT_AGENT_STATUS, EVENT_AGENT_ERROR,
   EVENT_AGENT_COMPLETE, EVENT_AGENT_RESULT, EVENT_ITEM_IDENTIFIED,
@@ -66,10 +67,17 @@ export function useJob(jobId) {
 
     let stale = false;
 
+    swarmaFe('useJob', 'rest_get_job_start', { jobId });
     getJobState(jobId)
       .then((state) => {
         if (stale) return;
         const jobPayload = state.job ?? state;
+        swarmaFe('useJob', 'rest_get_job_ok', {
+          jobId,
+          hasJob: jobPayload?.job_id != null,
+          jobStatus: jobPayload?.status,
+          itemsN: state.items?.length ?? 0,
+        });
         if (jobPayload?.job_id != null) setJob(jobPayload);
         if (state.items) setItems(state.items);
         if (state.bids) setBids(state.bids || {});
@@ -89,7 +97,9 @@ export function useJob(jobId) {
           setAgentsRaw(raw);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        swarmaFe('useJob', 'rest_get_job_error', { jobId, err: String(err) });
+      });
 
     return () => { stale = true; };
   }, [jobId]);
@@ -97,7 +107,11 @@ export function useJob(jobId) {
   useEffect(() => {
     return subscribe((event) => {
       const { type, data } = event;
-      if (!type || !data) return;
+      swarmaFe('useJob', 'ws_dispatch', summarizeWsEvent(event));
+      if (!type || !data) {
+        swarmaFe('useJob', 'ws_skip_missing_type_or_data', { type, hasData: !!data });
+        return;
+      }
 
       switch (type) {
         case 'initial_state':
@@ -324,14 +338,34 @@ export function useJob(jobId) {
   }, [subscribe]);
 
   const uploadAndStart = useCallback(async (file) => {
+    swarmaFe('useJob', 'upload_start', {
+      name: file?.name,
+      size: file?.size,
+      type: file?.type,
+    });
     try {
       const result = await uploadVideo(file);
       if (result?.job_id) {
+        swarmaFe('useJob', 'upload_http_ok', { job_id: result.job_id, status: result.status });
         setJob({ job_id: result.job_id, status: result.status });
+        // Show intake progress strip immediately (before WS agent_started).
+        setAgentsRaw((prev) => ({
+          ...prev,
+          intake: {
+            ...(prev.intake || {}),
+            _global: {
+              status: 'thinking',
+              message: 'Video uploaded — connecting and starting analysis…',
+              progress: 0.03,
+            },
+          },
+        }));
         return result.job_id;
       }
+      swarmaFe('useJob', 'upload_http_no_job_id', { result });
     } catch (err) {
       console.error('Upload failed:', err);
+      swarmaFe('useJob', 'upload_http_error', { err: String(err) });
     }
     return null;
   }, []);
