@@ -63,7 +63,9 @@ def get_playbook(platform: str) -> Playbook:
 # ---------------------------------------------------------------------------
 
 def _make_llm():
-    if settings.use_chat_browser_use:
+    # Browser-Use 0.12+ checks llm.provider — ChatGoogleGenerativeAI lacks it.
+    # Use ChatBrowserUse when BROWSER_USE_API_KEY is set (preferred for agents).
+    if settings.use_chat_browser_use or settings.browser_use_api_key:
         from browser_use import ChatBrowserUse
         swarma_line("orchestrator", "llm_init", backend="ChatBrowserUse")
         return ChatBrowserUse()
@@ -73,6 +75,7 @@ def _make_llm():
             model="gemini-2.0-flash",
             google_api_key=settings.gemini_api_key,
         )
+        llm.provider = "google"
         swarma_line("orchestrator", "llm_init", backend="gemini-2.0-flash")
         return llm
     except Exception as exc:

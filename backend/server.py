@@ -222,13 +222,18 @@ async def _event_drain_loop(job_id: str):
     try:
         while True:
             event = await orchestrator.events.get()
-            swarma_line(
-                "orchestrator",
-                "event_dequeued",
-                job_id=job_id,
-                type=event.get("type"),
-            )
-            await ws_manager.broadcast_event(job_id, event)
+            # Real orchestrator emits AgentEvent pydantic objects; stub emits dicts
+            if hasattr(event, 'model_dump'):
+                event_dict = {"type": event.type, "data": event.data if isinstance(event.data, dict) else {}}
+                if hasattr(event, 'agent_id') and event.agent_id:
+                    event_dict["data"]["agent_id"] = event.agent_id
+                    event_dict["data"]["agentId"] = event.agent_id
+            elif isinstance(event, dict):
+                event_dict = event
+            else:
+                event_dict = {"type": str(event), "data": {}}
+            swarma_line("orchestrator", "event_dequeued", job_id=job_id, type=event_dict.get("type"))
+            await ws_manager.broadcast_event(job_id, event_dict)
     except asyncio.CancelledError:
         logger.info("Event drain loop stopped for job %s", job_id)
         swarma_line("pipeline", "event_drain_loop_cancelled", job_id=job_id)
