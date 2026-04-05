@@ -69,11 +69,11 @@ class Settings(BaseSettings):
     context_pool_size: int = 12
 
     # Screenshot streaming (CDP screencast)
-    screenshot_capture_fps: float = 2.0
+    screenshot_capture_fps: float = 5.0
     screenshot_grid_quality: int = 60
     screenshot_grid_width: int = 320
     screenshot_grid_height: int = 240
-    screenshot_grid_delivery_fps: float = 1.0
+    screenshot_grid_delivery_fps: float = 5.0
 
     # Intake
     intake_batch_size: int = 5

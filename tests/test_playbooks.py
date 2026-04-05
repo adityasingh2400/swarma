@@ -209,6 +209,27 @@ class TestBaseHelpers:
         assert result["avg_sold_price"] == 0.0
         assert result["error"] == "invalid json"
 
+    def test_parse_price_list_null_listings_found(self):
+        bp = EbayPlaybook()
+        result = bp._parse_price_list_research(
+            '{"sold_prices": [100, 200], "listings_found": null}', price_type="sold",
+        )
+        assert result["listings_found"] == 2  # falls back to len(prices)
+
+    def test_parse_price_list_string_k_listings(self):
+        bp = EbayPlaybook()
+        result = bp._parse_price_list_research(
+            '{"sold_prices": [100], "listings_found": "9.74K"}', price_type="active",
+        )
+        assert result["listings_found"] == 9740
+
+    def test_parse_price_list_string_comma_listings(self):
+        bp = EbayPlaybook()
+        result = bp._parse_price_list_research(
+            '{"sold_prices": [100], "listings_found": "1,200"}', price_type="sold",
+        )
+        assert result["listings_found"] == 1200
+
     def test_format_image_paths(self):
         bp = EbayPlaybook()
         result = bp._format_image_paths(["/a.jpg", "/b.jpg"])

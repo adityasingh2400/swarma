@@ -236,10 +236,12 @@ class TestStartScreencast:
         await start_screencast("agent-1", mock_page)
         handler = captured["Page.screencastFrame"]
 
-        await handler({
+        # Handler is sync (wraps async via ensure_future), call then yield to event loop
+        handler({
             "sessionId": 42,
             "data": base64.b64encode(sample_jpeg_bytes).decode(),
         })
+        await asyncio.sleep(0.05)
 
         assert "agent-1" in frame_store
         assert frame_store["agent-1"].jpeg == sample_jpeg_bytes
@@ -252,10 +254,11 @@ class TestStartScreencast:
 
         await start_screencast("agent-1", mock_page)
         handler = captured["Page.screencastFrame"]
-        await handler({
+        handler({
             "sessionId": 99,
             "data": base64.b64encode(sample_jpeg_bytes).decode(),
         })
+        await asyncio.sleep(0.05)
 
         ack_calls = [
             c for c in mock_cdp.send.call_args_list
@@ -273,7 +276,8 @@ class TestStartScreencast:
         await start_screencast("agent-1", mock_page)
         handler = captured["Page.screencastFrame"]
         raw = b"any bytes cdp sends"
-        await handler({"sessionId": 1, "data": base64.b64encode(raw).decode()})
+        handler({"sessionId": 1, "data": base64.b64encode(raw).decode()})
+        await asyncio.sleep(0.05)
 
         assert frame_store["agent-1"].jpeg == raw
 
@@ -285,10 +289,11 @@ class TestStartScreencast:
         before = time.time()
         await start_screencast("agent-1", mock_page)
         handler = captured["Page.screencastFrame"]
-        await handler({
+        handler({
             "sessionId": 1,
             "data": base64.b64encode(sample_jpeg_bytes).decode(),
         })
+        await asyncio.sleep(0.05)
         after = time.time()
 
         assert before <= frame_store["agent-1"].ts <= after

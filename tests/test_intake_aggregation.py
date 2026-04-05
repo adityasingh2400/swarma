@@ -12,7 +12,7 @@ from backend.intake import (
 
 
 def run_async(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # ── Global Aggregation ───────────────────────────────────────────────────────

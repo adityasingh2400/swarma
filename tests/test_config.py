@@ -30,11 +30,11 @@ class TestSettings:
 
     def test_screenshot_defaults(self):
         s = Settings()
-        assert s.screenshot_capture_fps == 2.0
+        assert s.screenshot_capture_fps == 5.0
         assert s.screenshot_grid_width == 320
         assert s.screenshot_grid_height == 240
         assert s.screenshot_grid_quality == 60
-        assert s.screenshot_grid_delivery_fps == 1.0
+        assert s.screenshot_grid_delivery_fps == 5.0
 
     def test_ensure_dirs_creates_directories(self, tmp_path):
         s = Settings(

@@ -142,11 +142,38 @@ class BasePlaybook(Playbook):
         data = self._safe_parse_json(result)
         if data is None:
             return self._make_research_result(0.0, 0, price_type=price_type, error="invalid json")
-        # Handle both key formats
-        prices = data.get("sold_prices") or data.get("prices") or []
-        count = data["listings_found"] if "listings_found" in data else (
-            data["count"] if "count" in data else len(prices)
-        )
+        # Handle both key formats, filter non-numeric values (agents sometimes return "339.99 to 409.99")
+        raw_prices = data.get("sold_prices") or data.get("prices") or []
+        prices = []
+        for p in raw_prices:
+            if isinstance(p, (int, float)):
+                prices.append(float(p))
+            elif isinstance(p, str):
+                # Try to extract first number from strings like "339.99 to 409.99"
+                import re
+                match = re.search(r"[\d.]+", p)
+                if match:
+                    try:
+                        prices.append(float(match.group()))
+                    except ValueError:
+                        pass
+        raw_count = data.get("listings_found") or data.get("count")
+        if raw_count is None:
+            count = len(prices)
+        elif isinstance(raw_count, str):
+            # Handle strings like "9.74K", "1,200", etc.
+            cleaned = raw_count.lower().replace(",", "").strip()
+            if cleaned.endswith("k"):
+                count = int(float(cleaned[:-1]) * 1000)
+            elif cleaned.endswith("m"):
+                count = int(float(cleaned[:-1]) * 1000000)
+            else:
+                try:
+                    count = int(float(cleaned))
+                except ValueError:
+                    count = len(prices)
+        else:
+            count = int(raw_count)
         avg = data["avg"] if "avg" in data else (sum(prices) / len(prices) if prices else 0.0)
         return self._make_research_result(
             avg_sold_price=avg, listings_found=count, price_type=price_type

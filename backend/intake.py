@@ -306,6 +306,38 @@ async def _aggregate_detections(
     if len(raw_items) == 1:
         return raw_items
 
+    # Pre-pass: collapse items with identical names before expensive embedding.
+    # Multiple Gemini batches often return the same item name from different segments.
+    name_groups: dict[str, list[dict]] = {}
+    for item in raw_items:
+        name = (item.get("name") or item.get("name_guess") or item.get("item_id") or "").strip().lower()
+        name_groups.setdefault(name, []).append(item)
+
+    pre_collapsed: list[dict] = []
+    for name, group in name_groups.items():
+        if len(group) == 1:
+            pre_collapsed.append(group[0])
+        else:
+            # Merge: highest confidence wins, merge specs and frame_indices
+            group.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+            best = group[0].copy()
+            merged_specs = {}
+            all_indices = []
+            for item in group:
+                for k, v in item.get("likely_specs", {}).items():
+                    if k not in merged_specs:
+                        merged_specs[k] = v
+                all_indices.extend(item.get("frame_indices", []))
+            best["likely_specs"] = merged_specs
+            best["confidence"] = max(it.get("confidence", 0) for it in group)
+            best["frame_indices"] = sorted(set(all_indices))
+            best["_cluster_size"] = len(group)
+            pre_collapsed.append(best)
+
+    if len(pre_collapsed) <= 1:
+        return pre_collapsed
+
+    raw_items = pre_collapsed
     threshold = similarity_threshold or settings.intake_similarity_threshold
 
     # Build description strings for embedding
@@ -602,7 +634,9 @@ def _build_item_prompt(item_ids: list[str]) -> str:
         "You are assessing items in video frames.\n"
         f"Items identified from seller audio: {item_list}\n\n"
         "Match the frame to an item from the list. Return a JSON object:\n"
-        '{"item_id": "<EXACT name from list>", "condition": "new|like_new|good|fair|poor", '
+        '{"item_id": "<EXACT name from list>", '
+        '"category": "electronics|clothing|accessories|home|sports|toys|books|tools|automotive|other", '
+        '"condition": "new|like_new|good|fair|poor", '
         '"confidence": 0.0-1.0, "bounding_box": [x1, y1, x2, y2], '
         '"visible_defects": [{"description": "...", "severity": "minor|moderate|major"}], '
         '"likely_specs": {"key": "value"}}\n\n'

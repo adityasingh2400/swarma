@@ -17,6 +17,7 @@ Person 1 hook points — call these from the real orchestrator:
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import struct
@@ -93,7 +94,7 @@ async def start_screencast(agent_id: str, page) -> None:
         "everyNthFrame": every_n,
     })
 
-    async def _on_frame(params: dict) -> None:
+    async def _on_frame_async(params: dict) -> None:
         session_id = params["sessionId"]
         try:
             await cdp.send("Page.screencastFrameAck", {"sessionId": session_id})
@@ -101,6 +102,10 @@ async def start_screencast(agent_id: str, page) -> None:
             logger.debug("screencastFrameAck failed for %s (session likely torn down): %s", agent_id, exc)
         jpeg_bytes = base64.b64decode(params["data"])
         frame_store[agent_id] = FrameData(jpeg=jpeg_bytes, ts=time.time())
+
+    def _on_frame(params: dict) -> None:
+        """Sync wrapper — Playwright's cdp.on() dispatches synchronously."""
+        asyncio.ensure_future(_on_frame_async(params))
 
     cdp.on("Page.screencastFrame", _on_frame)
     logger.info(

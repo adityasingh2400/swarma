@@ -331,10 +331,12 @@ def test_all_research_parallel():
         if isinstance(res, Exception):
             print(f"{pb.platform:<12} {'ERROR':>10}  {str(res)[:40]}")
         else:
+            listings = res.get('listings_found', 0)
+            listings = listings if listings is not None else 0
             print(
                 f"{pb.platform:<12} "
                 f"{res.get('avg_sold_price', 0):>10.2f} "
-                f"{res.get('listings_found', 0):>10} "
+                f"{listings!s:>10} "
                 f"{res.get('price_type', '?'):<12} "
                 f"{'ok':<10}"
             )

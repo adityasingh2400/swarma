@@ -23,6 +23,7 @@ Interface with orchestrator (stubbed, Person 1 builds):
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
 import uuid
@@ -372,19 +373,37 @@ class UploadResponse(BaseModel):
 
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_video(video: UploadFile = File(...)):
-    """Accept video upload, start the pipeline in the background."""
+    """Accept video upload, start the pipeline in the background.
+
+    Deduplicates by content hash: if the same video was already uploaded,
+    reuses the existing file instead of writing another copy.
+    """
     job_id = uuid.uuid4().hex[:12]
     job = Job(job_id=job_id, status=JobStatus.UPLOADING)
 
-    # Save uploaded file
+    # Read upload into memory and compute content hash
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
     ext = Path(video.filename or "video.mp4").suffix or ".mp4"
-    video_path = upload_dir / f"{job_id}{ext}"
 
-    async with aiofiles.open(video_path, "wb") as f:
-        while chunk := await video.read(1024 * 1024):
-            await f.write(chunk)
+    hasher = hashlib.sha256()
+    chunks: list[bytes] = []
+    while chunk := await video.read(1024 * 1024):
+        hasher.update(chunk)
+        chunks.append(chunk)
+    content_hash = hasher.hexdigest()[:16]
+
+    # Check for existing file with same hash
+    hash_path = upload_dir / f"{content_hash}{ext}"
+    if hash_path.exists():
+        video_path = hash_path
+        logger.info("Upload dedup: reusing %s for job %s", hash_path, job_id)
+    else:
+        video_path = hash_path
+        async with aiofiles.open(video_path, "wb") as f:
+            for chunk in chunks:
+                await f.write(chunk)
+        logger.info("Upload saved: %s (%d bytes) for job %s", video_path, sum(len(c) for c in chunks), job_id)
 
     job.video_path = str(video_path)
     job.status = JobStatus.EXTRACTING
