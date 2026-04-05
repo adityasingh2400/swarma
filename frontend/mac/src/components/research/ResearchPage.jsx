@@ -107,12 +107,11 @@ function AgentTile({ platform, agentId, screenshots, v2Agents, onClick }) {
 // ── One item with its 3 orbiting agent feeds ─────────
 function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, decision, onFocusAgent }) {
   const itemId = item?.item_id || '';
-  const prefix = itemId.slice(0, 6) || itemId;
   const hasDamage = item.visible_defects?.length > 0;
 
   const allDone = useMemo(() => {
     return RESEARCH_PLATFORMS.every(p => {
-      const agent = v2Agents?.[`${p}-research-${prefix}`];
+      const agent = v2Agents?.[`${p}-research-${itemId}`];
       return agent?.status === STATUS_COMPLETE;
     });
   }, [v2Agents, prefix]);
@@ -151,7 +150,7 @@ function ItemResearchCard({ item, index, totalItems, v2Agents, screenshots, deci
           <AgentTile
             key={platform}
             platform={platform}
-            agentId={`${platform}-research-${prefix}`}
+            agentId={`${platform}-research-${itemId}`}
             screenshots={screenshots}
             v2Agents={v2Agents}
             onClick={onFocusAgent}
