@@ -257,9 +257,9 @@ def _build_listing_package(
     ]
     if research_prices:
         avg_market = sum(research_prices) / len(research_prices)
-        price_strategy = round(avg_market * 0.95, 2)
-        price_min = round(min(research_prices) * 0.85, 2)
-        price_max = round(max(research_prices) * 1.05, 2)
+        price_strategy = round(avg_market * 0.95)
+        price_min = round(min(research_prices) * 0.85)
+        price_max = round(max(research_prices) * 1.05)
     else:
         price_strategy = 0.0
         price_min = 0.0

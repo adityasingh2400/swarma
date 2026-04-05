@@ -34,29 +34,40 @@ Return as JSON: {"sold_prices": [N, N, N, ...], "listings_found": N}
         images = self._select_images(package, count=6)
         images_str = self._format_image_paths(images)
         condition = self._map_condition(item.condition_label)
+        price = int(round(package.price_strategy))
 
         task = f"""
 If you see a 'Marketplace Terms' or 'Get started' dialog, accept/dismiss it first.
 
-1. For Title: type exactly: {title}
-
-2. For Price: enter {package.price_strategy:.2f}
-
-3. For Category: select the most relevant category for '{item.name_guess}'.
-
-4. For Condition: select '{condition}'.
-
-5. For Photos: click the photo upload area. Upload these files in order:
+1. For Photos: click the photo upload area. Upload these files in order:
 {images_str}
-   The first photo becomes the listing thumbnail.
+   The first photo becomes the listing thumbnail. Wait for uploads to complete.
+
+2. For Title: type exactly: {title}
+
+3. For Price: enter {price}
+
+4. For Category: select the most relevant category for '{item.name_guess}'.
+
+5. For Condition: select '{condition}'.
 
 6. For Description: paste this text exactly:
 {package.description}
 
 Location auto-fills from your profile. No shipping needed for local listings.
 
-7. Click 'Next' and then 'Publish' to post the listing.
-   Return the listing URL from the confirmation page.
+7. To advance through 'Next' and 'Publish' buttons:
+   IMPORTANT — Facebook's dynamic DOM often invalidates element indices after page transitions.
+   If clicking a 'Next' or 'Publish' button fails or the index is unavailable, immediately
+   use JavaScript instead:
+   evaluate: document.querySelectorAll('div[role="button"]').forEach(b => {{ if(b.innerText.trim() === 'Next' || b.innerText.trim() === 'Publish') b.click() }})
+
+   Click 'Next' through each step until you reach 'Publish'. Click 'Publish' to post.
+
+8. After publishing, you should be redirected to the Selling dashboard.
+   Return the listing URL. If you see 'Boost your listing', close the dialog first.
+
+CRITICAL: Do not spend more than 2 attempts on any single button click. Use JS evaluate as fallback.
 """
         return (task.strip(), [{"navigate": {"url": "https://facebook.com/marketplace/create/item"}}])
 

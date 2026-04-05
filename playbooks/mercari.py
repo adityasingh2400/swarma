@@ -34,6 +34,7 @@ Return as JSON: {"sold_prices": [N, N, N, ...], "listings_found": N}
         images = self._select_images(package, count=6)
         images_str = self._format_image_paths(images)
         condition = self._map_condition(item.condition_label)
+        price = int(round(package.price_strategy))
 
         task = f"""
 If you see a promotional popup or 'Why not earn some extra $$$?' modal, close or dismiss it first.
@@ -53,7 +54,7 @@ If you see a promotional popup or 'Why not earn some extra $$$?' modal, close or
 5. For Condition: click the tile that says '{condition}'.
    The options are clickable tiles, not a dropdown.
 
-6. For Price: enter {package.price_strategy:.2f}
+6. For Price: enter {price}
 
 7. For Shipping: accept the default 'Prepaid label' option.
 
@@ -62,6 +63,8 @@ If you see a promotional popup or 'Why not earn some extra $$$?' modal, close or
 
 9. Click 'List' to publish.
    Return the listing URL from the confirmation page.
+
+CRITICAL: Do not spend more than 2 attempts on any single field. If something won't change, move on.
 """
         return (task.strip(), [{"navigate": {"url": "https://mercari.com/sell"}}])
 
