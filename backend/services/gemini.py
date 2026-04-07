@@ -44,7 +44,7 @@ _search_cache: dict[str, list] = {}
 _listing_cache: dict[str, dict] = {}
 
 # ── Snapshot persistence ─────────────────────────────────────────────────────
-_DEMO_CACHE_DIR = Path(__file__).resolve().parent.parent / ".reroutecache"
+_DEMO_CACHE_DIR = Path(__file__).resolve().parent.parent / ".swarmsellcache"
 _SNAPSHOT_PATH = _DEMO_CACHE_DIR / "snapshot.json"
 _SNAPSHOT_FRAMES_DIR = _DEMO_CACHE_DIR / "frames"
 

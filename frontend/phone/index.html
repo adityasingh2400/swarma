@@ -381,7 +381,7 @@ body{height:100dvh}
   }
 
   // ── MAC IP ──
-  let macIP = localStorage.getItem('swarma_mac_ip') || localStorage.getItem('reroute_mac_ip') || location.hostname || '192.168.1.1';
+  let macIP = localStorage.getItem('swarma_mac_ip') || localStorage.getItem('swarmsell_mac_ip') || location.hostname || '192.168.1.1';
   const connDots = [$('connDot'), $('connDot2')];
 
   function setMacIP(ip) {

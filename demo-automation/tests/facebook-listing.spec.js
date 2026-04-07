@@ -19,11 +19,11 @@ test.beforeAll(() => {
 
 test('fill Facebook Marketplace create form (demo)', async ({ page }) => {
   const flow = await loadDemoFlow();
-  const title = process.env.DEMO_LISTING_TITLE || 'ReRoute demo item — please delete';
+  const title = process.env.DEMO_LISTING_TITLE || 'SwarmSell demo item — please delete';
   const price = process.env.DEMO_LISTING_PRICE || '25';
   const description =
     process.env.DEMO_LISTING_DESCRIPTION ||
-    'Automated demo listing from ReRoute. Safe to discard.';
+    'Automated demo listing from SwarmSell. Safe to discard.';
   const imagePath = process.env.DEMO_IMAGE_PATH
     ? resolve(process.env.DEMO_IMAGE_PATH)
     : null;

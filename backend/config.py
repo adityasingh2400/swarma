@@ -41,15 +41,15 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
 
     # Agent Seeds
-    intake_agent_seed: str = "reroute-intake-agent-seed-phrase-change-me"
-    condition_fusion_agent_seed: str = "reroute-condition-fusion-seed-phrase-change-me"
-    return_agent_seed: str = "reroute-return-agent-seed-phrase-change-me"
-    trade_in_agent_seed: str = "reroute-trade-in-agent-seed-phrase-change-me"
-    marketplace_resale_agent_seed: str = "reroute-marketplace-resale-seed-phrase-change-me"
-    repair_roi_agent_seed: str = "reroute-repair-roi-agent-seed-phrase-change-me"
-    bundle_opportunity_agent_seed: str = "reroute-bundle-opportunity-seed-phrase-change-me"
-    route_decider_agent_seed: str = "reroute-route-decider-agent-seed-phrase-change-me"
-    concierge_agent_seed: str = "reroute-concierge-agent-seed-phrase-change-me"
+    intake_agent_seed: str = "swarmsell-intake-agent-seed-phrase-change-me"
+    condition_fusion_agent_seed: str = "swarmsell-condition-fusion-seed-phrase-change-me"
+    return_agent_seed: str = "swarmsell-return-agent-seed-phrase-change-me"
+    trade_in_agent_seed: str = "swarmsell-trade-in-agent-seed-phrase-change-me"
+    marketplace_resale_agent_seed: str = "swarmsell-marketplace-resale-seed-phrase-change-me"
+    repair_roi_agent_seed: str = "swarmsell-repair-roi-agent-seed-phrase-change-me"
+    bundle_opportunity_agent_seed: str = "swarmsell-bundle-opportunity-seed-phrase-change-me"
+    route_decider_agent_seed: str = "swarmsell-route-decider-agent-seed-phrase-change-me"
+    concierge_agent_seed: str = "swarmsell-concierge-agent-seed-phrase-change-me"
 
     # Server
     api_host: str = "0.0.0.0"

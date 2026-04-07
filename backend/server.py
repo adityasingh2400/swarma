@@ -1,4 +1,4 @@
-"""FastAPI server for ReRoute v2 — dual WebSocket endpoints + REST.
+"""FastAPI server for SwarmSell v2 — dual WebSocket endpoints + REST.
 
 Routes:
   POST /api/upload              — Video upload, starts pipeline

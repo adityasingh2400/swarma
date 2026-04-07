@@ -14,7 +14,7 @@ from uagents import Agent
 from uagents_core.contrib.protocols.chat import chat_protocol_spec
 from uagents import Protocol
 
-seed = os.getenv("CONCIERGE_AGENT_SEED", "reroute-concierge-agent-seed-phrase-change-me")
+seed = os.getenv("CONCIERGE_AGENT_SEED", "swarmsell-concierge-agent-seed-phrase-change-me")
 
 agent = Agent(
     name="concierge_agent",

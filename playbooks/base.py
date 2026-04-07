@@ -6,7 +6,7 @@ import logging
 import re
 from urllib.parse import quote_plus
 
-logger = logging.getLogger("reroute.playbooks")
+logger = logging.getLogger("swarmsell.playbooks")
 
 from contracts import Playbook
 from models.item_card import ItemCard

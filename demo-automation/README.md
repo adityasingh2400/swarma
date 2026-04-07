@@ -1,4 +1,4 @@
-# ReRoute demo browser automation
+# SwarmSell demo browser automation
 
 Playwright flows for **eBay** and **Facebook Marketplace** listing forms. Uses **saved browser sessions** (no passwords in `.env`).
 

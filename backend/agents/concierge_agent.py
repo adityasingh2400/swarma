@@ -20,7 +20,7 @@ ASI_ONE_URL = "https://api.asi1.ai/v1/chat/completions"
 ASI_ONE_MODEL = "asi1-mini"
 
 SYSTEM_PROMPT = (
-    "You are ReRoute Concierge, an expert assistant that helps users understand "
+    "You are SwarmSell Concierge, an expert assistant that helps users understand "
     "what to do with their returned, unused, or unwanted items. You analyze items "
     "via video, evaluate multiple disposition routes (return, trade-in, resell, "
     "repair-then-sell, bundle), and recommend the best path to maximize recovery "

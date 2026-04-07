@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 from backend.config import settings
 
-logger = logging.getLogger("reroute.streaming")
+logger = logging.getLogger("swarmsell.streaming")
 
 
 # ── Frame Store ───────────────────────────────────────────────────────────────

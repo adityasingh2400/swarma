@@ -31,7 +31,7 @@ from backend.config import settings
 from backend.debug_trace import swarma_line
 from backend.models.item_card import ItemCard, ItemCategory, DefectSignal
 
-logger = logging.getLogger("reroute.intake")
+logger = logging.getLogger("swarmsell.intake")
 
 
 # ── Pipeline Timing Data ─────────────────────────────────────────────────────
@@ -215,7 +215,7 @@ async def extract_audio(video_path: str) -> str:
     """Extract audio from video to a temp WAV file (16kHz mono PCM)."""
     import tempfile
 
-    output_path = tempfile.mktemp(suffix=".wav", prefix="reroute_audio_")
+    output_path = tempfile.mktemp(suffix=".wav", prefix="swarmsell_audio_")
     cmd = [
         "ffmpeg", "-i", video_path,
         "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
@@ -453,7 +453,7 @@ async def _preprocess_video(video_path: str) -> str:
             logger.info("Video already H.264 %dx%d, skipping transcode", w, h)
             return video_path
 
-    output_path = tempfile.mktemp(suffix=".mp4", prefix="reroute_norm_")
+    output_path = tempfile.mktemp(suffix=".mp4", prefix="swarmsell_norm_")
     cmd = [
         "ffmpeg", "-i", video_path,
         "-vf", "scale=min(1920\\,iw):min(1080\\,ih):force_original_aspect_ratio=decrease",

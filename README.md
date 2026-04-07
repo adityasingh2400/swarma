@@ -1,13 +1,11 @@
 <div align="center">
 
-# 🌀 SwarmSell
+# 🌀 SwarmSell: *Film your clutter. Watch AI sell it.*
 
-### *Film your clutter. Watch AI sell it — live, in real browsers, simultaneously.*
+### *Point a phone at a pile of stuff: audio-informed vision extracts every item in real time, spawns concurrent browser agents per platform, and streams all their screens back live.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square)](https://python.org)
-[![Made with Browser-Use](https://img.shields.io/badge/Made%20with-Browser--Use-8A2BE2?style=flat-square)](https://github.com/browser-use/browser-use)
-[![Built at Hackathon](https://img.shields.io/badge/Built%20at-Hackathon-FF6B6B?style=flat-square)](#)
+[![Built at DiamondHacks UCSD](https://img.shields.io/badge/Built%20at-Hackathon-FF6B6B?style=flat-square)](https://diamondhacks.acmucsd.com/)
 
 </div>
 
@@ -37,9 +35,10 @@ SwarmSell analyzes your video *as it uploads*, identifies each item the moment i
 ---
 
 ## Demo 🎬
+Diamondhacks Submission video
+* [Youtube SwarmSell Demo](https://www.youtube.com/watch?v=KWuWg4si-AU)
 
-<!-- Replace with actual demo GIF or video embed -->
-![SwarmSell Demo](docs/demo.gif)
+![alt text](image-1.png)
 
 SwarmSell uses **Google Gemini** to analyze video frames in real time, **Browser-Use** to give AI agents natural language control over real browsers, and **Chrome DevTools Protocol (CDP)** to stream each browser's live screen back to the dashboard. What you see in the grid is not a simulation — every window is a real Chromium browser navigating a real website.
 
@@ -56,7 +55,7 @@ SwarmSell removes that friction entirely. More importantly, it changes *what* an
 ## Try It Out 🚀
 
 ```bash
-git clone https://github.com/your-org/swarmsell && cd swarmsell
+git clone https://github.com/adityasingh2400/SwarmSell && cd swarmsell
 cp .env.example .env   # add your GEMINI_API_KEY
 ./start.sh
 ```
@@ -91,11 +90,11 @@ After research agents gather pricing data, a local scoring algorithm selects the
 
 | Layer | Technology |
 |---|---|
+| Audio Pipeline | Deepgram Nova-3 → Llama 4 Scout via Groq |
+| Vision Pipeline | ffmpeg + OpenCV → Gemini Flash-Lite → Arctic-Embed-XS via Snowflake |
 | Browser Automation | Browser-Use + Playwright |
-| Vision / Video Analysis | Google Gemini 2.0 Flash |
 | Agent LLM | ChatBrowserUse |
 | Backend | FastAPI + asyncio |
-| Frame Extraction | ffmpeg (streaming pipe) |
 | Frontend | React 19 + Framer Motion |
 
 **Platforms:** eBay · Facebook Marketplace · Mercari · Depop · Apple Trade-In · Amazon
