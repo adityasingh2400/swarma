@@ -2,8 +2,6 @@
 
 # 🌀 SwarmSell: *Film your clutter. Watch AI sell it.*
 
-### *Point a phone at a pile of stuff: audio-informed vision extracts every item in real time, spawns concurrent browser agents per platform, and streams all their screens back live.*
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Built at DiamondHacks UCSD](https://img.shields.io/badge/Built%20at-Hackathon-FF6B6B?style=flat-square)](https://diamondhacks.acmucsd.com/)
 
@@ -97,7 +95,7 @@ After research agents gather pricing data, a local scoring algorithm selects the
 | Backend | FastAPI + asyncio |
 | Frontend | React 19 + Framer Motion |
 
-**Platforms:** eBay · Facebook Marketplace · Mercari · Depop · Apple Trade-In · Amazon
+**Platforms:** eBay · Facebook Marketplace · Mercari · Depop · Amazon
 
 ---
 
@@ -130,7 +128,5 @@ We also learned that streaming pipelines compound. Every optimization that reduc
 ---
 
 <div align="center">
-
-*Built with focus, speed, and a lot of asyncio.*
 
 </div>
